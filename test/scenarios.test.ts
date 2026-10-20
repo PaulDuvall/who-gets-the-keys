@@ -35,7 +35,8 @@ describe("SPEC-001 scenarios", () => {
     expect(s?.gate).toBe(gate);
     expect(s?.expect.startsWith(prefix)).toBe(true);
     expect(s && existsSync(s.patch)).toBe(true);
-    if (ORDER.includes(gate as (typeof ORDER)[number])) expect(s?.requires).toBeUndefined();
+    const local = ORDER.includes(gate as (typeof ORDER)[number]) || gate === "attestation";
+    expect(s?.requires === undefined).toBe(local);
   });
 
   it("SPEC-001-R28 B9 replays every injected action the requirement names", () => {
