@@ -1,0 +1,3 @@
+# SSH allowed-signers format: <principal> <key-type> <public-key>
+# See ALLOWED SIGNERS in ssh-keygen(1). One line per approver.
+approver@example.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLE
