@@ -1,0 +1,71 @@
+<title>Who Gets the Keys walkthrough</title>
+<style>
+  :root { --bg: #f6f7f9; --panel: #ffffff; --ink: #14171c; --muted: #5b6472; --line: #d9dde3; --accent: #1f6feb; --bad: #c4372d; --good: #1a7f37; --code: #f0f2f5; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0e1116; --panel: #161b22; --ink: #e6edf3; --muted: #8b949e; --line: #30363d; --accent: #58a6ff; --bad: #f85149; --good: #3fb950; --code: #1c2128; } }
+  :root[data-theme="dark"] { --bg: #0e1116; --panel: #161b22; --ink: #e6edf3; --muted: #8b949e; --line: #30363d; --accent: #58a6ff; --bad: #f85149; --good: #3fb950; --code: #1c2128; }
+  body { background: var(--bg); color: var(--ink); font: 18px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { box-sizing: border-box; max-width: 1400px; margin: 0 auto; padding: 32px 16px 0; display: flex; flex-direction: column; gap: 20px; }
+  header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; color: var(--muted); font-size: 16px; }
+  header strong { color: var(--ink); }
+  nav { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .tab, .ctl { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 6px; padding: 4px 12px; font: inherit; }
+  .pip { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); padding: 0; cursor: pointer; }
+  .pip[aria-current="step"] { background: var(--accent); border-color: var(--accent); }
+  .recording nav { visibility: hidden; }
+  #slide { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 32px 40px; animation: enter .35s ease-out both; min-width: 0; }
+  @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { #slide { animation: none; } }
+  .kind { text-transform: uppercase; letter-spacing: .08em; font-size: 14px; color: var(--muted); }
+  .kind.scenario { color: var(--bad); }
+  .kind.practice { color: var(--good); }
+  h1 { font-size: 40px; line-height: 1.15; margin: 6px 0 20px; overflow-wrap: anywhere; }
+  table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+  th { width: 22%; color: var(--muted); font-weight: 600; }
+  td code, pre { font: 15px/1.4 ui-monospace, "SFMono-Regular", Menlo, monospace; }
+  pre { background: var(--code); border-radius: 8px; padding: 14px 16px; margin: 20px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .caption { margin-top: auto; padding: 14px 0 24px; font-size: 22px; text-align: center; min-height: 2.9em; }
+  @media (max-width: 600px) { #slide { padding: 20px; } h1 { font-size: 28px; } th { width: 34%; } .caption { font-size: 18px; } }
+</style>
+<div class="wrap">
+  <header><span><strong id="repo"></strong> · <span id="commit"></span></span><span id="count"></span></header>
+  <nav aria-label="Tour"><button class="tab" id="tab-tour" type="button">Tour</button><span id="pips"></span>
+    <button class="ctl" id="play" type="button">Play</button></nav>
+  <section id="slide" aria-live="polite"></section>
+  <div class="caption" id="caption"></div>
+</div>
+<script>
+const TOUR = /*TOUR*/;
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const steps = TOUR.steps;
+  let current = 0, timer = null;
+  $("repo").textContent = TOUR.repo;
+  $("commit").textContent = TOUR.commit;
+  $("pips").innerHTML = steps.map((_, k) => `<button class="pip" type="button" data-k="${k}" aria-label="Step ${k + 1}"></button>`).join("");
+  function go(k) {
+    current = Math.max(0, Math.min(steps.length - 1, k));
+    const s = steps[current];
+    const rows = s.rows.map(([h, v]) => `<tr><th>${esc(h)}</th><td>${esc(v)}</td></tr>`).join("");
+    const slide = $("slide");
+    slide.style.animation = "none"; void slide.offsetWidth; slide.style.animation = "";
+    slide.innerHTML = `<div class="kind ${s.kind}">${esc(s.kind)}${s.kind === "scenario" ? " · blocked" : ""}</div>` +
+      `<h1>${esc(s.title)}</h1><table>${rows}</table>${s.code ? `<pre>${esc(s.code)}</pre>` : ""}`;
+    $("caption").textContent = s.say;
+    $("count").textContent = `${current + 1} / ${steps.length}`;
+    document.querySelectorAll(".pip").forEach((p) => p.setAttribute("aria-current", Number(p.dataset.k) === current ? "step" : "false"));
+  }
+  const pause = () => { clearInterval(timer); timer = null; };
+  const play = () => { pause(); timer = setInterval(() => (current < steps.length - 1 ? go(current + 1) : pause()), 6000); };
+  $("pips").addEventListener("click", (e) => { const k = e.target.dataset && e.target.dataset.k; if (k !== undefined) { pause(); go(Number(k)); } });
+  $("tab-tour").addEventListener("click", () => { pause(); go(0); });
+  $("play").addEventListener("click", () => (timer ? pause() : play()));
+  window.walkthrough = {
+    go, pause, play,
+    tour: () => steps.map((s) => ({ id: s.id, say: s.say })),
+    setRecording: (on) => document.body.classList.toggle("recording", !!on),
+  };
+  go(0);
+})();
+</script>

@@ -1,0 +1,16 @@
+# Plain words as Piper should say them. Identifier shapes (B12, P07, SPEC-014-R1, GHSA IDs, commit SHAs)
+# are handled in video/kit.ts. The screen and captions always show the written form.
+OIDC: O I D C
+SCP: S C P
+SAST: sast
+SCA: S C A
+DAST: dast
+IAM: I A M
+CSV: C S V
+npm: N P M
+zizmor: zizz more
+gitleaks: git leaks
+tflint: T F lint
+Semgrep: sem grep
+Stryker: striker
+"→": then

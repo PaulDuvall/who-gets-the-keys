@@ -44,11 +44,11 @@ jobs:
           echo "$RUNNER_TEMP/tools/bin" >> "$GITHUB_PATH"
           sudo apt-get update -q
           sudo apt-get install -y -q --no-install-recommends ffmpeg xvfb
-      - name: Install dependencies, the recorder and its browser
+      - name: Install dependencies and the browser's system libraries
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm ci --prefix video/record --ignore-scripts --no-audit --no-fund
-          (cd video/record && npx --no-install playwright install --with-deps chromium)
+          (cd video/record && sudo npx --no-install playwright install-deps chromium)
       - name: Build and check the video
         run: npm run video
       - name: Upload the video, page, captions and report
