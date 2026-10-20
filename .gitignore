@@ -1,0 +1,11 @@
+node_modules/
+build/
+dist/
+reports/
+.stryker-tmp/
+.claude/settings.local.json
+.claude/security-events.log
+infra/**/.terraform/
+*.tfstate
+*.tfstate.*
+plan.out
