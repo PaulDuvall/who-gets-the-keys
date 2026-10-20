@@ -6,7 +6,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import eslintConfig from "../eslint.config.js";
 import {
   COMMANDS, GateFailure, ORDER, allowedNames, dependencyNames, destructiveChanges, exportsOf, failedTestFiles,
-  jobBlock, lowered, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
+  jobBlock, lowered, pipelineCacheFinding, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
 } from "../scripts/gates.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -37,6 +37,11 @@ describe("SPEC-001 gates", () => {
     const wf = "jobs:\n  triage:\n    runs-on: x\n    permissions:\n      contents: read\n      issues: write\n    steps: []\n  other:\n    permissions: {}\n";
     expect(jobBlock(wf, "triage", "permissions")).toEqual(["    permissions:", "      contents: read", "      issues: write"]);
     expect(jobBlock(wf, "missing", "permissions")).toEqual([]);
+    expect(pipelineCacheFinding(read(".github/workflows/pipeline.yml"))).toBe(false);
+    expect(pipelineCacheFinding("on: push\njobs: {}\n")).toBe(true);
+    expect(pipelineCacheFinding("cache-mode: none\n      - uses: actions/cache@abc # v6\n")).toBe(true);
+    expect(pipelineCacheFinding("cache-mode: none\n    cache-mode: write\n")).toBe(true);
+    expect(pipelineCacheFinding("cache-mode: none\n          cache: npm\n")).toBe(true);
   });
 
   it("SPEC-001-R5 installs from a lockfile that matches package.json", () => {

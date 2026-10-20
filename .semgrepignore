@@ -1,0 +1,9 @@
+:include .gitignore
+node_modules/
+build/
+dist/
+reports/
+.stryker-tmp/
+test/
+scenarios/*.patch
+*.min.js

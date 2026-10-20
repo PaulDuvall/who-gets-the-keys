@@ -70,8 +70,13 @@ data "aws_iam_policy_document" "deploy" {
   }
   statement {
     sid       = "Describe"
-    actions   = ["logs:DescribeLogGroups", "iam:GetOpenIDConnectProvider", "sts:GetCallerIdentity"]
+    actions   = ["logs:DescribeLogGroups", "iam:GetOpenIDConnectProvider", "sts:GetCallerIdentity", "kms:CreateKey", "kms:ListAliases"]
     resources = ["*"]
+  }
+  statement {
+    sid       = "Keys"
+    actions   = ["kms:*"]
+    resources = ["arn:aws:kms:${var.region}:${local.account_id}:key/*", "arn:aws:kms:${var.region}:${local.account_id}:alias/who-gets-the-keys-*"]
   }
   statement {
     sid       = "Identities"

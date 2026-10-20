@@ -6,6 +6,36 @@ locals {
   role_path     = "/who-gets-the-keys/"
 }
 
+resource "aws_kms_key" "sandbox" {
+  description         = "who-gets-the-keys sandbox: export_jobs table and export log group"
+  enable_key_rotation = true
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "Account"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${local.account_id}:root" }
+        Action    = "kms:*"
+        Resource  = "*"
+      },
+      {
+        Sid       = "Logs"
+        Effect    = "Allow"
+        Principal = { Service = "logs.${var.region}.amazonaws.com" }
+        Action    = ["kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:Describe*"]
+        Resource  = "*"
+        Condition = { ArnLike = { "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${var.region}:${local.account_id}:log-group:/aws/lambda/${local.function_name}" } }
+      },
+    ]
+  })
+}
+
+resource "aws_kms_alias" "sandbox" {
+  name          = "alias/who-gets-the-keys-sandbox"
+  target_key_id = aws_kms_key.sandbox.key_id
+}
+
 resource "aws_dynamodb_table" "export_jobs" {
   name                        = "export_jobs"
   billing_mode                = "PAY_PER_REQUEST"
@@ -20,11 +50,17 @@ resource "aws_dynamodb_table" "export_jobs" {
   point_in_time_recovery {
     enabled = true
   }
+
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = aws_kms_key.sandbox.arn
+  }
 }
 
 resource "aws_cloudwatch_log_group" "export" {
   name              = "/aws/lambda/${local.function_name}"
   retention_in_days = 14
+  kms_key_id        = aws_kms_key.sandbox.arn
 }
 
 resource "aws_iam_role" "export_lambda" {
@@ -53,6 +89,11 @@ resource "aws_iam_role_policy" "export_lambda_logs" {
   })
 }
 
+resource "aws_iam_role_policy_attachment" "export_lambda_xray" {
+  role       = aws_iam_role.export_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
 resource "aws_lambda_function" "export" {
   function_name    = local.function_name
   role             = aws_iam_role.export_lambda.arn
@@ -63,6 +104,10 @@ resource "aws_lambda_function" "export" {
   memory_size      = 512
   timeout          = 10
   architectures    = ["arm64"]
+
+  tracing_config {
+    mode = "Active"
+  }
 
   logging_config {
     log_format = "JSON"

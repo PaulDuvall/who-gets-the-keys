@@ -66,6 +66,14 @@ export function jobBlock(workflow: string, job: string, key: string): string[] {
   return [head, ...rest.slice(0, stop < 0 ? undefined : stop)].map((l) => l.trimEnd()).filter((l) => l.trim() !== "");
 }
 
+// GitHub enforces cache-mode; zizmor's cache-poisoning audit only sees release-shaped workflows (D12).
+export function pipelineCacheFinding(pipeline: string): boolean {
+  return !/^cache-mode: none$/m.test(pipeline)
+    || /uses:\s*actions\/cache[@/]/.test(pipeline)
+    || /^\s+cache-mode:\s*(?!none\b)/m.test(pipeline)
+    || /^\s+(?:cache|enable-cache|package-manager-cache):\s*(?!false\b)\S/m.test(pipeline);
+}
+
 export function requirementIds(specText: string): string[] {
   return [...specText.matchAll(/^\| (SPEC-\d{3}-R\d+) \|/gm)].map((m) => m[1] ?? "");
 }
@@ -203,6 +211,7 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
       const findings = (r.stdout.trim().startsWith("[") ? JSON.parse(r.stdout) : []) as { ident: string }[];
       check("workflows", r, first(findings.map((f) => f.ident)) ?? "zizmor error");
     }
+    if (pipelineCacheFinding(readFileSync(".github/workflows/pipeline.yml", "utf8"))) throw new GateFailure("workflows", "deploy-cache");
     const triage = readFileSync(".github/workflows/issue-triage.yml", "utf8");
     const replay = readFileSync(".github/workflows/scenarios.yml", "utf8");
     for (const key of ["permissions", "env"]) {
