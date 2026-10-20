@@ -1,0 +1,7 @@
+{
+  "description": "Only network destinations for jobs that read untrusted input: the triage job and the B9 replay job.",
+  "allowedDomains": [
+    "api.github.com",
+    "bedrock-runtime.us-east-1.amazonaws.com"
+  ]
+}

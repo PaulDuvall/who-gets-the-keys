@@ -1,0 +1,63 @@
+# Builds the narrated walkthrough on demand and when its inputs change (SPEC-002-R15).
+# The job runs an unhashed browser: contents: read, no secrets, no AWS, no caches.
+name: video
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "video/**"
+      - "practices.yaml"
+      - "scenarios/**"
+      - ".github/workflows/video.yml"
+
+permissions: {}
+
+jobs:
+  build:
+    name: build and check the video
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    concurrency:
+      group: video-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.32"
+          enable-cache: false
+      - name: Install gate tools, ffmpeg and Xvfb
+        run: |
+          scripts/ci/install-tools.sh "$RUNNER_TEMP/tools/bin"
+          echo "$RUNNER_TEMP/tools/bin" >> "$GITHUB_PATH"
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends ffmpeg xvfb
+      - name: Install dependencies, the recorder and its browser
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --prefix video/record --ignore-scripts --no-audit --no-fund
+          (cd video/record && npx --no-install playwright install --with-deps chromium)
+      - name: Build and check the video
+        run: npm run video
+      - name: Upload the video, page, captions and report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: walkthrough
+          path: |
+            build/video/walkthrough.mp4
+            build/video/walkthrough.html
+            build/video/captions.srt
+            build/video/report.json
+          if-no-files-found: warn

@@ -116,24 +116,22 @@ resource "aws_iam_role" "probe" {
   max_session_duration = 3600
 }
 
+resource "aws_iam_role_policy_attachment" "probe_read" {
+  role       = aws_iam_role.probe.name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
+
 # Allows the Lambda write on purpose: B11 must observe the SCP's explicit deny, not this policy's.
 resource "aws_iam_role_policy" "probe" {
-  name = "read-and-b11-write"
+  name = "b11-write"
   role = aws_iam_role.probe.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["lambda:GetFunction", "lambda:ListFunctions", "dynamodb:DescribeTable", "s3:GetObject", "s3:ListBucket"]
-        Resource = "*"
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["lambda:UpdateFunctionConfiguration", "lambda:TagResource"]
-        Resource = aws_lambda_function.export.arn
-      },
-    ]
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["lambda:UpdateFunctionConfiguration", "lambda:TagResource"]
+      Resource = aws_lambda_function.export.arn
+    }]
   })
 }
 
