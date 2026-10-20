@@ -1,0 +1,14 @@
+@anthropic-ai/sandbox-runtime
+@stryker-mutator/core
+@stryker-mutator/vitest-runner
+@types/node
+@vitest/eslint-plugin
+eslint
+fast-check
+typescript
+typescript-eslint
+vitest
+yaml
+playwright
+# lodash exists only for scenario B13: allowed by name, absent from main, flagged by sca
+lodash

@@ -51,7 +51,7 @@ All rows verified 2026-10-20 unless the Date column says otherwise. "Session" me
 | Node.js LTS | Latest LTS v24.22.0 (Krypton, 2026-10-14). v24 enters Maintenance 2026-10-20; v26 becomes Active LTS 2026-10-28 | https://nodejs.org/dist/index.json, https://raw.githubusercontent.com/nodejs/Release/main/schedule.json | 2026-10-20 |
 | Lambda runtime | `nodejs24.x` GA; `nodejs26.x` public preview, not covered by SLA | https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html | 2026-10-20 |
 | typescript | latest 7.0.2; pinned 6.0.3 (typescript-eslint peer `>=4.8.4 <6.1.0`) | https://registry.npmjs.org/typescript | 2026-10-20 |
-| vitest | 5.0.5; engines `^22.12.0 \|\| ^24.0.0 \|\| >=26.0.0` | https://registry.npmjs.org/vitest | 2026-10-20 |
+| vitest | latest 5.0.5 (2026-09-03 for 5.0.0); pinned 4.1.12 (2026-10-15) for Stryker compatibility, see D10 | https://registry.npmjs.org/vitest | 2026-10-20 |
 | @stryker-mutator/core, vitest-runner | 10.0.0; runner peer `vitest >=2.0.0` | https://registry.npmjs.org/@stryker-mutator/core | 2026-10-20 |
 | fast-check | 4.10.2 | https://registry.npmjs.org/fast-check | 2026-10-20 |
 | eslint | 10.13.0 | https://registry.npmjs.org/eslint | 2026-10-20 |

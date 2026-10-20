@@ -1,0 +1,46 @@
+{
+  "name": "who-gets-the-keys",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.11.0 <25"
+  },
+  "scripts": {
+    "gates": "node scripts/gates.ts",
+    "gate:secrets": "node scripts/gates.ts secrets",
+    "gate:allowlist": "node scripts/gates.ts allowlist",
+    "gate:workflows": "node scripts/gates.ts workflows",
+    "gate:install": "node scripts/gates.ts install",
+    "gate:lint": "node scripts/gates.ts lint",
+    "gate:typecheck": "node scripts/gates.ts typecheck",
+    "gate:iac": "node scripts/gates.ts iac",
+    "gate:sast": "node scripts/gates.ts sast",
+    "gate:sca": "node scripts/gates.ts sca",
+    "gate:trace": "node scripts/gates.ts trace",
+    "gate:signatures": "node scripts/gates.ts signatures",
+    "gate:slides": "node scripts/gates.ts slides",
+    "gate:ratchet": "node scripts/gates.ts ratchet",
+    "gate:test": "node scripts/gates.ts test",
+    "gate:mutation": "node scripts/gates.ts mutation",
+    "gate:irreversible": "node scripts/gates.ts irreversible",
+    "practices": "node scripts/gates.ts practices-md",
+    "scenarios": "node scenarios/run.ts",
+    "scenario": "node scenarios/run.ts",
+    "video": "node video/build.ts",
+    "build": "tsc --noEmit false --outDir dist"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sandbox-runtime": "0.0.79",
+    "@stryker-mutator/core": "10.0.0",
+    "@stryker-mutator/vitest-runner": "10.0.0",
+    "@types/node": "24.19.2",
+    "@vitest/eslint-plugin": "1.6.27",
+    "eslint": "10.13.0",
+    "fast-check": "4.10.2",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0",
+    "vitest": "4.1.12",
+    "yaml": "2.9.1"
+  }
+}
