@@ -234,8 +234,9 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
       check("iac", tool(["terraform", "fmt", "-check", "-recursive"], dir), dir);
       check("iac", tool(["terraform", "init", "-backend=false", "-input=false", "-no-color"], dir), dir);
       check("iac", tool(["terraform", "validate", "-no-color"], dir), dir);
-      check("iac", tool(["tflint", "--init"], dir), dir);
-      check("iac", tool(["tflint", "--no-color"], dir), dir);
+      const config = join(process.cwd(), ".tflint.hcl");
+      check("iac", tool(["tflint", "--init", "--config", config], dir), dir);
+      check("iac", tool(["tflint", "--no-color", "--config", config], dir), dir);
     }
   },
 
