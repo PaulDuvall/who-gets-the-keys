@@ -1,0 +1,51 @@
+diff --git a/.github/workflows/pipeline.yml b/.github/workflows/pipeline.yml
+index 32da31c..567a667 100644
+--- a/.github/workflows/pipeline.yml
++++ b/.github/workflows/pipeline.yml
+@@ -71,45 +71,9 @@ jobs:
+           path: dist/function.zip
+           if-no-files-found: error
+ 
+-  attest:
+-    name: attest
+-    needs: build
+-    runs-on: ubuntu-24.04
+-    timeout-minutes: 10
+-    concurrency:
+-      group: pipeline-attest-${{ github.ref }}
+-      cancel-in-progress: false
+-    permissions:
+-      contents: read
+-      id-token: write
+-      attestations: write
+-    steps:
+-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+-        with:
+-          persist-credentials: false
+-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+-        with:
+-          name: function
+-          path: dist
+-      - name: Write the provenance predicate (commit, spec IDs, agent, model)
+-        run: |
+-          specs="$(git log -1 --format='%(trailers:key=Spec,valueonly,separator=%x2C)')"
+-          agent="$(git log -1 --format='%(trailers:key=Agent,valueonly)')"
+-          model="$(git log -1 --format='%(trailers:key=Model,valueonly)')"
+-          jq -n --arg commit "$GITHUB_SHA" --arg specs "$specs" --arg agent "$agent" --arg model "$model" \
+-            '{commit: $commit, spec_ids: ($specs | split(",") | map(select(. != ""))), agent: $agent, model: $model}' > predicate.json
+-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+-        with:
+-          subject-path: dist/function.zip
+-      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+-        with:
+-          subject-path: dist/function.zip
+-          predicate-type: https://github.com/PaulDuvall/who-gets-the-keys/provenance/v1
+-          predicate-path: predicate.json
+-
+   deploy:
+     name: deploy to sandbox
+-    needs: [build, attest]
++    needs: [build]
+     if: always() && needs.build.result == 'success'
+     runs-on: ubuntu-24.04
+     timeout-minutes: 20

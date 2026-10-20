@@ -1,0 +1,129 @@
+# Bad scenarios (SPEC-001-R19 to R37). Each `expect` was observed from a real failing run.
+# requires: github-actions → scenarios.yml b9-replay; sandbox-account → scenarios.yml on-demand.
+scenarios:
+  - id: B1
+    title: Test with no assertion
+    patch: scenarios/B01-test-without-assertion.patch
+    gate: lint
+    expect: "GATE lint FAILED: vitest/expect-expect"
+    slide: [5]
+    spec: SPEC-014-R1
+  - id: B2
+    title: Weak assertion
+    patch: scenarios/B02-weak-assertion.patch
+    gate: mutation
+    expect: "GATE mutation FAILED: below break threshold"
+    slide: [5]
+    spec: SPEC-014-R5
+  - id: B3
+    title: Code change with no spec ID
+    patch: scenarios/B03-change-without-spec-trailer.patch
+    gate: trace
+    expect: "GATE trace FAILED: missing Spec trailer"
+    slide: [3, 7]
+  - id: B4
+    title: Agent rewrites acceptance criteria to fit its code
+    patch: scenarios/B04-unsigned-acceptance-criteria-rewrite.patch
+    gate: signatures
+    expect: "GATE signatures FAILED: unsigned change to specs/"
+    slide: [3]
+    spec: SPEC-014-R4
+  - id: B5
+    title: Hard-coded secret
+    patch: scenarios/B05-hard-coded-secret.patch
+    gate: secrets
+    expect: "GATE secrets FAILED: telegram-bot-api-token"
+    slide: [4]
+    spec: SPEC-014-R4
+  - id: B6
+    title: Invented package name
+    patch: scenarios/B06-invented-package-name.patch
+    gate: allowlist
+    expect: "GATE allowlist FAILED: csv-export-turbo"
+    slide: [6]
+    spec: SPEC-014-R1
+  - id: B7
+    title: Guardrail loosened
+    patch: scenarios/B07-lowered-break-threshold.patch
+    gate: ratchet
+    expect: "GATE ratchet FAILED: break threshold lowered"
+    slide: [8]
+    spec: SPEC-001-R16
+  - id: B8a
+    title: Cache in a deploy job
+    patch: scenarios/B08a-cache-in-deploy-job.patch
+    gate: workflows
+    expect: "GATE workflows FAILED: deploy-cache"
+    slide: [9, 10]
+    spec: SPEC-001-R4
+  - id: B8b
+    title: Action pinned by tag
+    patch: scenarios/B08b-action-pinned-by-tag.patch
+    gate: workflows
+    expect: "GATE workflows FAILED: unpinned-uses"
+    slide: [9, 10]
+    spec: SPEC-001-R4
+  - id: B9
+    title: Poisoned issue 4821
+    patch: scenarios/B09-poisoned-issue.patch
+    gate: boundary
+    expect: "BOUNDARY HELD"
+    slide: [6, 9, 12]
+    requires: github-actions
+  - id: B10
+    title: Unattested artifact reaches deploy
+    patch: scenarios/B10-unattested-artifact.patch
+    gate: attestation
+    expect: "GATE attestation FAILED"
+    slide: [7]
+    spec: SPEC-001-R17
+    run: deploy-verify
+  - id: B11
+    title: Non-deploy principal writes the sandbox
+    patch: scenarios/B11-non-deploy-principal-write.patch
+    gate: boundary
+    expect: "BOUNDARY HELD: with an explicit deny in a service control policy"
+    slide: [10]
+    requires: sandbox-account
+  - id: B12
+    title: Command injection in your code
+    patch: scenarios/B12-command-injection-in-code.patch
+    gate: sast
+    expect: "GATE sast FAILED: javascript.lang.security.detect-child-process.detect-child-process"
+    slide: [4]
+    spec: SPEC-014-R1
+  - id: B13
+    title: Command injection in imported code
+    patch: scenarios/B13-vulnerable-dependency.patch
+    gate: sca
+    expect: "GATE sca FAILED: GHSA-35jh-r3h4-6jhm"
+    slide: [4]
+    spec: SPEC-014-R1
+  - id: B14
+    title: Irreversible change without approval
+    patch: scenarios/B14-irreversible-table-rename.patch
+    gate: irreversible
+    expect: "GATE irreversible FAILED: aws_dynamodb_table.export_jobs"
+    slide: [8, 10]
+    requires: sandbox-account
+  - id: B15
+    title: Requirement with no test
+    patch: scenarios/B15-requirement-without-test.patch
+    gate: trace
+    expect: "GATE trace FAILED: SPEC-014-R7 has no test"
+    slide: [7]
+    spec: SPEC-014-R1
+  - id: B16
+    title: Capability with no requirement
+    patch: scenarios/B16-capability-without-requirement.patch
+    gate: trace
+    expect: "GATE trace FAILED: export toJsonLines has no requirement"
+    slide: [7]
+    spec: SPEC-014-R1
+  - id: B17
+    title: Tampered source of record
+    patch: scenarios/B17-tampered-source-of-record.patch
+    gate: signatures
+    expect: "GATE signatures FAILED: unsigned change to specs/source-of-record/slides.txt"
+    slide: [6]
+    spec: SPEC-014-R1

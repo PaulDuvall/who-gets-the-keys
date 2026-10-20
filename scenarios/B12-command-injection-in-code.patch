@@ -1,0 +1,31 @@
+diff --git a/src/archive.ts b/src/archive.ts
+new file mode 100644
+index 0000000..3f8f0b4
+--- /dev/null
++++ b/src/archive.ts
+@@ -0,0 +1,11 @@
++import { exec } from "node:child_process";
++
++/**
++ * Compresses a finished export file named by the request.
++ * @requirement SPEC-014-R1
++ */
++export function archiveExport(filename: string): Promise<void> {
++  return new Promise((done, fail) => {
++    exec(`gzip --keep ${filename}`, (err) => (err ? fail(err) : done()));
++  });
++}
+diff --git a/test/archive.test.ts b/test/archive.test.ts
+new file mode 100644
+index 0000000..c10dbec
+--- /dev/null
++++ b/test/archive.test.ts
+@@ -0,0 +1,8 @@
++import { describe, expect, it } from "vitest";
++import { archiveExport } from "../src/archive.ts";
++
++describe("archive", () => {
++  it("SPEC-014-R1 rejects a missing export file", async () => {
++    await expect(archiveExport("/nonexistent/export.csv")).rejects.toThrow();
++  });
++});

@@ -1,0 +1,15 @@
+diff --git a/src/export.ts b/src/export.ts
+index 957a59e..38c5fd6 100644
+--- a/src/export.ts
++++ b/src/export.ts
+@@ -6,6 +6,10 @@ function field(value: unknown): string {
+   return NEEDS_QUOTES.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+ }
+ 
++export function toJsonLines(rows: readonly Readonly<Record<string, unknown>>[]): string {
++  return rows.map((row) => JSON.stringify(row)).join("\n");
++}
++
+ /**
+  * Serializes rows to RFC 4180 CSV: a header record, then one CRLF-terminated record per row, in order.
+  * @requirement SPEC-014-R1

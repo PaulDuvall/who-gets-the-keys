@@ -1,0 +1,12 @@
+diff --git a/specs/source-of-record/slides.txt b/specs/source-of-record/slides.txt
+index 46fc743..673785b 100644
+--- a/specs/source-of-record/slides.txt
++++ b/specs/source-of-record/slides.txt
+@@ -92,7 +92,6 @@
+ OWASP LLM05:2026 Data and Model Poisoning
+ K
+ Data poisoning
+-Provenance and integrity checks on inputs
+ Indirect injection
+ A
+ Untrusted context

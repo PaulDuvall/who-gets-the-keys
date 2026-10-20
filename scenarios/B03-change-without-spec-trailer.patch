@@ -1,0 +1,13 @@
+diff --git a/src/handler.ts b/src/handler.ts
+index 2f4d460..07ae638 100644
+--- a/src/handler.ts
++++ b/src/handler.ts
+@@ -15,7 +15,7 @@ interface ExportResponse {
+ 
+ type Row = Readonly<Record<string, unknown>>;
+ 
+-const empty = (statusCode: number): ExportResponse => ({ statusCode, headers: {}, body: "" });
++const empty = (status: number): ExportResponse => ({ statusCode: status, headers: {}, body: "" });
+ 
+ function readJson(text: string): unknown {
+   try {

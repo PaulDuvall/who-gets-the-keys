@@ -1,0 +1,13 @@
+diff --git a/infra/sandbox/main.tf b/infra/sandbox/main.tf
+index 6cb4ce1..2bd69d1 100644
+--- a/infra/sandbox/main.tf
++++ b/infra/sandbox/main.tf
+@@ -37,7 +37,7 @@ resource "aws_kms_alias" "sandbox" {
+ }
+ 
+ resource "aws_dynamodb_table" "export_jobs" {
+-  name                        = "export_jobs"
++  name                        = "export_jobs_v2"
+   billing_mode                = "PAY_PER_REQUEST"
+   hash_key                    = "job_id"
+   deletion_protection_enabled = true

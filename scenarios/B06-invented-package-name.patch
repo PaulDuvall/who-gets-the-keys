@@ -1,0 +1,12 @@
+diff --git a/package.json b/package.json
+index d2c9eb2..9a6d87e 100644
+--- a/package.json
++++ b/package.json
+@@ -32,6 +32,7 @@
+   },
+   "devDependencies": {
+     "@anthropic-ai/sandbox-runtime": "0.0.79",
++    "csv-export-turbo": "2.1.0",
+     "@stryker-mutator/core": "10.0.0",
+     "@stryker-mutator/vitest-runner": "10.0.0",
+     "@types/node": "24.19.2",

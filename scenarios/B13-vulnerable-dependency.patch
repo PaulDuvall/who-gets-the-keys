@@ -1,0 +1,38 @@
+diff --git a/package-lock.json b/package-lock.json
+index 6bd8bdc..2a9a448 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -15,6 +15,7 @@
+         "@vitest/eslint-plugin": "1.6.27",
+         "eslint": "10.13.0",
+         "fast-check": "4.10.2",
++        "lodash": "4.17.20",
+         "typescript": "6.0.3",
+         "typescript-eslint": "8.72.0",
+         "vitest": "4.1.12",
+@@ -3645,6 +3646,13 @@
+         "url": "https://github.com/sponsors/sindresorhus"
+       }
+     },
++    "node_modules/lodash": {
++      "version": "4.17.20",
++      "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.20.tgz",
++      "integrity": "sha512-PlhdFcillOINfeV7Ni6oF1TAEayyZBoZ8bcshTHqOYJYlrqzRK5hagpagky5o4HfCzzd1TRkXPMFq6cKk9rGmA==",
++      "dev": true,
++      "license": "MIT"
++    },
+     "node_modules/lodash.groupby": {
+       "version": "4.6.0",
+       "resolved": "https://registry.npmjs.org/lodash.groupby/-/lodash.groupby-4.6.0.tgz",
+diff --git a/package.json b/package.json
+index d2c9eb2..1e74af3 100644
+--- a/package.json
++++ b/package.json
+@@ -38,6 +38,7 @@
+     "@vitest/eslint-plugin": "1.6.27",
+     "eslint": "10.13.0",
+     "fast-check": "4.10.2",
++    "lodash": "4.17.20",
+     "typescript": "6.0.3",
+     "typescript-eslint": "8.72.0",
+     "vitest": "4.1.12",

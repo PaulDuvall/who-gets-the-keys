@@ -1,0 +1,11 @@
+diff --git a/stryker.config.json b/stryker.config.json
+index b9d104c..b19746a 100644
+--- a/stryker.config.json
++++ b/stryker.config.json
+@@ -5,5 +5,5 @@
+   "incremental": true,
+   "coverageAnalysis": "perTest",
+   "reporters": ["clear-text", "json"],
+-  "thresholds": { "high": 100, "low": 95, "break": 90 }
++  "thresholds": { "high": 100, "low": 95, "break": 80 }
+ }

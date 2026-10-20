@@ -1,0 +1,15 @@
+diff --git a/test/export.acceptance.test.ts b/test/export.acceptance.test.ts
+index b6a5608..e59b2f4 100644
+--- a/test/export.acceptance.test.ts
++++ b/test/export.acceptance.test.ts
+@@ -13,6 +13,10 @@ describe("SPEC-014 export service", () => {
+     expect(csv).toBe("id,name\r\n2,b\r\n1,a\r\n");
+   });
+ 
++  it("SPEC-014-R1 serializes a single column without throwing", () => {
++    toCsv(["id"], [{ id: 1 }]);
++  });
++
+   it("SPEC-014-R1 writes only the header for zero rows", () => {
+     expect(toCsv(["id"], [])).toBe("id\r\n");
+   });

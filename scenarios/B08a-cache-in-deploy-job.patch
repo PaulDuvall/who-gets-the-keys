@@ -1,0 +1,15 @@
+diff --git a/.github/workflows/pipeline.yml b/.github/workflows/pipeline.yml
+index 32da31c..162f71a 100644
+--- a/.github/workflows/pipeline.yml
++++ b/.github/workflows/pipeline.yml
+@@ -129,6 +129,10 @@ jobs:
+         with:
+           name: function
+           path: dist
++      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
++        with:
++          path: ~/.terraform.d/plugin-cache
++          key: terraform-${{ runner.os }}
+       - name: Verify the artifact's attestation before any AWS call
+         env:
+           GH_TOKEN: ${{ github.token }}
