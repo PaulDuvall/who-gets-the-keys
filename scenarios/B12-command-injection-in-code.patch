@@ -1,10 +1,10 @@
 diff --git a/src/archive.ts b/src/archive.ts
 new file mode 100644
-index 0000000..3f8f0b4
+index 0000000..410630c
 --- /dev/null
 +++ b/src/archive.ts
 @@ -0,0 +1,11 @@
-+import { exec } from "node:child_process";
++import * as child_process from "child_process";
 +
 +/**
 + * Compresses a finished export file named by the request.
@@ -12,7 +12,7 @@ index 0000000..3f8f0b4
 + */
 +export function archiveExport(filename: string): Promise<void> {
 +  return new Promise((done, fail) => {
-+    exec(`gzip --keep ${filename}`, (err) => (err ? fail(err) : done()));
++    child_process.exec(`gzip --keep ${filename}`, (err) => (err ? fail(err) : done()));
 +  });
 +}
 diff --git a/test/archive.test.ts b/test/archive.test.ts
