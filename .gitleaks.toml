@@ -1,0 +1,12 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Scenario patches carry the B5 fixture; dependency and build output are not source"
+paths = [
+  '''^scenarios/[^/]+\.patch$''',
+  '''(^|/)node_modules/''',
+  '''^(build|dist|reports|\.stryker-tmp)/''',
+  '''(^|/)\.terraform/''',
+  '''(^|/)package-lock\.json$''',
+]

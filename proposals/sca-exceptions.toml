@@ -1,0 +1,4 @@
+[[IgnoredVulns]]
+id = "GHSA-86w9-cpqp-85rv"
+ignoreUntil = 2026-11-19T00:00:00Z
+reason = "node-forge 1.4.0 has no fixed release (last_affected 1.4.0). Pulled in only by @anthropic-ai/sandbox-runtime 0.0.79, the egress sandbox for the triage job and the B9 replay. Approved by the owner 2026-10-20; expires in 30 days."
