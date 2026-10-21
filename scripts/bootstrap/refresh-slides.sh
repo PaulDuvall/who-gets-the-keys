@@ -13,8 +13,9 @@ usage() {
   echo "  --from-proposal  use ${proposal}, written by an agent session, after checking its header hash"
 }
 
+sha256() { if command -v sha256sum >/dev/null; then sha256sum; else shasum -a 256; fi; }
 body_of() { sed '1,/^---$/d' "$1"; }
-sha_of() { body_of "$1" | sha256sum | cut -d' ' -f1; }
+sha_of() { body_of "$1" | sha256 | cut -d' ' -f1; }
 header_sha() { sed -n 's/^body-sha256: //p' "$1"; }
 
 cd "$(git rev-parse --show-toplevel)"
@@ -43,7 +44,7 @@ case "${1:-}" in
       echo "drive-modified: ${modified}"
       echo "exported: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       echo "export-method: Google Drive files.export, mimeType text/plain (includes speaker notes)"
-      echo "body-sha256: $(sha256sum "$work/body.txt" | cut -d' ' -f1)"
+      echo "body-sha256: $(sha256 < "$work/body.txt" | cut -d' ' -f1)"
       echo "---"
       cat "$work/body.txt"
     } > "$new"
