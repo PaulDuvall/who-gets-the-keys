@@ -8,9 +8,9 @@ terraform {
     }
   }
 
+  # Partial backend: the bucket lives in the management account and is passed at init (-backend-config=bucket=...).
   backend "s3" {
-    bucket       = "pduvall-who-gets-the-keys-tfstate"
-    key          = "org/terraform.tfstate"
+    key          = "who-gets-the-keys/org/terraform.tfstate"
     region       = "us-east-1"
     encrypt      = true
     use_lockfile = true
