@@ -132,6 +132,8 @@ Source: `git ls-remote --tags https://github.com/<owner>/<repo>`, 2026-10-20.
 |---|---|---|---|
 | Export method | Google Drive `files.export` with `mimeType=text/plain` includes speaker notes after each slide's text | Drive export of file `REDACTED-PRIVATE-DECK` | 2026-10-20 |
 | Snapshot | `proposals/source-of-record/slides.txt`, body 20,574 bytes, SHA-256 `822f5dc12f656c5af76896043175e7cda896c202f24e71d6573ac77c7b2aaac0`; header hash matches body | `sed '1,/^---$/d' … \| sha256sum` | 2026-10-20 |
+| Refresh export auth | `gcloud auth login --enable-gdrive-access` grants the Drive scope `refresh-slides.sh` uses with `gcloud auth print-access-token` against `drive/v3/files/{id}/export?mimeType=text/plain` | https://cloud.google.com/sdk/gcloud/reference/auth/login | 2026-10-21 |
+| Deck re-export | Drive `modifiedTime` 2026-10-21T16:43:48.186Z; body 20,997 bytes, SHA-256 `a78cd1d6062babd6a3fd20158d9e08b8fb174adc99fc6d24ec0700ff85ac0ab9`; slides 1 to 13 and Q1 to Q3 unchanged; written to `proposals/source-of-record/slides.txt` | Drive export of file `REDACTED-PRIVATE-DECK` | 2026-10-21 |
 | Slide numbering | Numbered slides 1 to 13 are the increasing run of standalone integer lines starting at 1; title, closing and three Q&A slides are unnumbered (cited Q1 to Q3) | snapshot parse | 2026-10-20 |
 
 ## Video toolchain
