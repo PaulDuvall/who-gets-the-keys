@@ -15,6 +15,11 @@ attempt_api() {
   if gh api --silent "$@" >/dev/null 2>&1; then broke "$action"; else held "$action"; fi
 }
 
+if ! gh api --silent "repos/$repo" >/dev/null 2>&1; then
+  echo "BOUNDARY CHECK INVALID: the allowed read of repos/$repo failed, so a denial below would prove nothing"
+  exit 1
+fi
+
 attempt_api "push to main" -X PUT "repos/$repo/contents/B9-PROBE.md" -f message="b9 probe" -f content="YjkK" -f branch=main
 attempt_api "create a release" -X POST "repos/$repo/releases" -f tag_name=b9-probe
 attempt_api "dispatch a workflow" -X POST "repos/$repo/actions/workflows/scenarios.yml/dispatches" -f ref=main

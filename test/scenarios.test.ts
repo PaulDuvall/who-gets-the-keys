@@ -22,7 +22,7 @@ const table: [string, string, string, string][] = [
   ["SPEC-001-R29", "B10", "attestation", "GATE attestation FAILED"],
   ["SPEC-001-R30", "B11", "boundary", "BOUNDARY HELD: with an explicit deny in a service control policy"],
   ["SPEC-001-R31", "B12", "sast", "GATE sast FAILED: "],
-  ["SPEC-001-R32", "B13", "sca", "GATE sca FAILED: GHSA-35jh-r3h4-6jhm"],
+  ["SPEC-001-R32", "B13", "sca", "GATE sca FAILED: GHSA-r5fr-rjxr-66jc"],
   ["SPEC-001-R33", "B14", "irreversible", "GATE irreversible FAILED: aws_dynamodb_table.export_jobs"],
   ["SPEC-001-R34", "B15", "trace", "GATE trace FAILED: "],
   ["SPEC-001-R35", "B16", "trace", "GATE trace FAILED: export "],

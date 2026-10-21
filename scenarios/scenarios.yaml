@@ -96,7 +96,7 @@ scenarios:
     title: Command injection in imported code
     patch: scenarios/B13-vulnerable-dependency.patch
     gate: sca
-    expect: "GATE sca FAILED: GHSA-35jh-r3h4-6jhm"
+    expect: "GATE sca FAILED: GHSA-r5fr-rjxr-66jc"
     slide: [4]
     spec: SPEC-014-R1
   - id: B14
