@@ -6,7 +6,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import eslintConfig from "../eslint.config.js";
 import {
   COMMANDS, GateFailure, ORDER, allowedNames, dependencyNames, destructiveChanges, exportsOf, failedTestFiles,
-  jobBlock, lowered, pipelineCacheFinding, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
+  jobBlock, lockfilePaths, lowered, pipelineCacheFinding, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
 } from "../scripts/gates.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -70,6 +70,10 @@ describe("SPEC-001 gates", () => {
     expect(topAdvisory(groups)).toBe("GHSA-35jh-r3h4-6jhm");
     expect(topAdvisory([{ ids: ["GHSA-b"], max_severity: "5" }, { ids: ["GHSA-a"], max_severity: "5" }])).toBe("GHSA-a");
     expect(topAdvisory([])).toBeUndefined();
+  });
+
+  it("SPEC-001-R10 scans every committed lockfile, npm and Python", () => {
+    expect(lockfilePaths()).toEqual(expect.arrayContaining(["package-lock.json", "video/record/package-lock.json", "scripts/ci/requirements.txt", "video/narration/requirements.txt"]));
   });
 
   it("SPEC-001-R11 reads requirement IDs, matches IDs exactly and finds untagged exports", () => {

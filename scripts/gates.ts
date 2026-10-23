@@ -38,6 +38,9 @@ function check(gate: string, result: Result, id: string): void {
 
 const git = (...args: string[]): string => tool(["git", ...args]).stdout;
 const tracked = (...patterns: string[]): string[] => git("ls-files", "-z", "--", ...patterns).split("\0").filter(Boolean);
+
+// Every committed lockfile for the sca gate: npm lockfiles and the hash-pinned Python requirements.
+export const lockfilePaths = (): string[] => tracked("package-lock.json", "**/package-lock.json", "requirements.txt", "**/requirements.txt");
 const first = (ids: readonly string[]): string | undefined => [...ids].sort()[0];
 
 // ---------- pure helpers, unit-tested in test/gates.test.ts ----------
@@ -257,7 +260,7 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
   },
 
   sca() {
-    const lockfiles = tracked("package-lock.json", "**/package-lock.json").flatMap((l) => ["-L", l]);
+    const lockfiles = lockfilePaths().flatMap((l) => ["-L", l]);
     const exceptions = existsSync("specs/sca-exceptions.toml") ? ["--config", "specs/sca-exceptions.toml"] : [];
     const r = tool([...COMMANDS.sca, ...exceptions, ...lockfiles]);
     if (r.status === 0) return;
