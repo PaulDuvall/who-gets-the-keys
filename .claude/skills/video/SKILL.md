@@ -63,5 +63,9 @@ That SHA is the video's commit. The opening step must show it.
 ## 5. Deliver
 
 - Page to publish: `npm run video -- --page-only`, then check `sha256sum build/video-page/walkthrough.html` equals `page_sha256` in `build/video/report.json`. Never publish a page from a workflow artifact.
-- Video: send `build/video/walkthrough.mp4` with its length, size, SHA-256 and the commit from step 4.
+- Video: copy it to a timestamped name, then send that copy with its length, size, SHA-256 and the commit from step 4. The SHA is the one the report recorded, and the time is when the build wrote the video, in UTC:
+
+```bash
+cp build/video/walkthrough.mp4 "build/video/walkthrough-$(jq -r .commit build/video/report.json | cut -c1-7)-$(date -u -r build/video/walkthrough.mp4 +%Y%m%dT%H%MZ).mp4"
+```
 - Never commit anything under `build/`.

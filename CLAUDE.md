@@ -45,6 +45,7 @@ Purpose: <!-- PAUL: one-line purpose of the repo -->
 - A failing gate prints one line: `GATE <name> FAILED: <identifier>`.
 - Say "customer", never "client".
 - Commands written for a human to paste carry no `#` comments.
+- A delivered video is named `walkthrough-<short SHA>-<UTC build time>.mp4`, for example `walkthrough-b2ae2c5-20261023T1554Z.mp4`. The SHA is the commit in `build/video/report.json`; the time is the video file's own write time, not the time it is sent.
 
 ## Authority boundaries
 
