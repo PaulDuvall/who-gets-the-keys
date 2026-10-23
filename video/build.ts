@@ -45,6 +45,7 @@ export function run(argv: readonly string[], opts: { timeout?: number; input?: s
     child.stdout.on("data", (d: Buffer) => { stdout += d; });
     child.stderr.on("data", (d: Buffer) => { stderr += d; });
     child.on("error", (e) => { stderr += String(e); });
+    child.stdin.on("error", () => { /* a command that exits before reading its input closes the pipe; its status reports the failure */ });
     child.stdin.end(opts.input ?? "");
     const timer = setTimeout(() => { timedOut = true; void stopGroup(child); }, (opts.timeout ?? STEP_TIMEOUT) * 1000);
     child.on("close", (code) => {
