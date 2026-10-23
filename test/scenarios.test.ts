@@ -42,7 +42,7 @@ describe("SPEC-001 scenarios", () => {
   it("SPEC-001-R28 B9 replays every injected action the requirement names", () => {
     const replay = readFileSync("scenarios/b9-replay.sh", "utf8");
     for (const action of ["push to main", "create a release", "dispatch a workflow", "read any secret", "fetch the URL in the issue"]) expect(replay).toContain(`"${action}"`);
-    expect(readFileSync("scenarios/on-demand.sh", "utf8")).toContain("assume the deploy role with the triage OIDC token");
+    expect(readFileSync("scenarios/on-demand.sh", "utf8")).toContain("assume the deploy role from a workflow other than pipeline.yml");
   });
 
   it("SPEC-001-R37 fails a scenario whose output has no gate failure or the wrong gate", () => {

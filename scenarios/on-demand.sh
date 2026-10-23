@@ -9,9 +9,9 @@ held() { echo "BOUNDARY HELD: $1"; }
 token="$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)"
 if AWS_ACCESS_KEY_ID= AWS_SECRET_ACCESS_KEY= AWS_SESSION_TOKEN= aws sts assume-role-with-web-identity \
     --role-arn "${DEPLOY_ROLE_ARN:?DEPLOY_ROLE_ARN}" --role-session-name b9-probe --web-identity-token "$token" >/dev/null 2>&1; then
-  echo "BOUNDARY BROKEN: assume the deploy role with the triage OIDC token"; status=1
+  echo "BOUNDARY BROKEN: assume the deploy role from a workflow other than pipeline.yml"; status=1
 else
-  held "assume the deploy role with the triage OIDC token"
+  held "assume the deploy role from a workflow other than pipeline.yml"
 fi
 
 arn="$(aws lambda get-function --function-name who-gets-the-keys-export --query Configuration.FunctionArn --output text)"

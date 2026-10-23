@@ -124,10 +124,10 @@ describe("SPEC-001 gates", () => {
     expect(failedTestFiles([{ name: "/r/test/b.test.ts", status: "failed" }, { name: "/r/test/a.test.ts", status: "passed" }], "/r")).toEqual(["test/b.test.ts"]);
   });
 
-  it("SPEC-001-R16 maps Stryker's threshold message and keeps break at 90", () => {
+  it("SPEC-001-R16 maps Stryker's threshold message and keeps break at 95", () => {
     expect(mutationId("Final mutation score 80.00 under breaking threshold 90")).toBe("below break threshold");
     expect(mutationId("Error: cannot find vitest")).toBe("stryker error");
-    expect((JSON.parse(read("stryker.config.json")) as { thresholds: { break: number } }).thresholds.break).toBe(90);
+    expect((JSON.parse(read("stryker.config.json")) as { thresholds: { break: number } }).thresholds.break).toBe(95);
   });
 
   it("SPEC-001-R17 prints the attestation failure line with the artifact path", () => {
