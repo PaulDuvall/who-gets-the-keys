@@ -58,7 +58,10 @@ All rows verified 2026-10-20 unless the Date column says otherwise. "Session" me
 | typescript-eslint | 8.72.0; peer `eslint ^8.57 \|\| ^9 \|\| ^10` | https://registry.npmjs.org/typescript-eslint | 2026-10-20 |
 | Vitest ESLint plugin | Maintained package is `@vitest/eslint-plugin` 1.6.27; `eslint-plugin-vitest` last published 2024-04-23 | https://registry.npmjs.org/@vitest/eslint-plugin | 2026-10-20 |
 | @anthropic-ai/sandbox-runtime | 0.0.81 published 2026-10-20; pinned 0.0.79 (2026-10-07); engines `>=22.12.0`; bin `srt` | https://registry.npmjs.org/@anthropic-ai/sandbox-runtime | 2026-10-20 |
-| lodash (B13 only) | 4.17.20 affected by GHSA-35jh-r3h4-6jhm (CVE-2021-23337), fixed 4.17.21 | https://api.osv.dev/v1/vulns/GHSA-35jh-r3h4-6jhm | 2026-10-20 |
+| lodash (B13 only) | 4.17.20 affected by GHSA-35jh-r3h4-6jhm (CVE-2021-23337), fixed 4.17.21. The sca gate reports the most severe advisory, GHSA-r5fr-rjxr-66jc (D17) | https://api.osv.dev/v1/vulns/GHSA-35jh-r3h4-6jhm | 2026-10-20 |
+| yaml | 2.9.1, latest | https://registry.npmjs.org/yaml | 2026-10-23 |
+| qs (override) | 6.16.1, latest; overrides the copy under `@stryker-mutator/core` → `typed-rest-client` for GHSA-4mjr-xmp4-gh2g, GHSA-q8mj-m7cp-5q26, GHSA-x5fp-wj9c-mxmx | https://registry.npmjs.org/qs | 2026-10-23 |
+| zod (SCA exception) | 3.25.76 under `@anthropic-ai/sandbox-runtime`, GHSA-mrhx-c7xc-m3w5, fixed only in 4.6.6; sandbox-runtime requires `^3.25.0` through 0.0.81 | https://api.osv.dev/v1/vulns/GHSA-mrhx-c7xc-m3w5, https://registry.npmjs.org/@anthropic-ai/sandbox-runtime | 2026-10-23 |
 
 ## Terraform and AWS
 
@@ -121,9 +124,10 @@ Source: `git ls-remote --tags https://github.com/<owner>/<repo>`, 2026-10-20.
 | Item | Finding | Source | Date |
 |---|---|---|---|
 | gitleaks dir scan | `gitleaks dir -v <path>`; staged: `gitleaks git --staged`; exit 1 on leaks; verbose prints `RuleID:` | https://raw.githubusercontent.com/gitleaks/gitleaks/master/README.md | 2026-10-20 |
-| gitleaks rule for B5 | Candidates without GitHub push protection: `flickr-access-token`, `telegram-bot-api-token`, `datadog-access-token`, `generic-api-key`. Final choice confirmed by a real run in Phase 7 | https://docs.github.com/en/code-security/secret-scanning/introduction/supported-secret-scanning-patterns | 2026-10-20 |
+| gitleaks rule for B5 | Candidates without GitHub push protection: `flickr-access-token`, `telegram-bot-api-token`, `datadog-access-token`, `generic-api-key`. Chosen: `telegram-bot-api-token`, the B5 line in every scenario run | https://docs.github.com/en/code-security/secret-scanning/introduction/supported-secret-scanning-patterns | 2026-10-20 |
 | semgrep flags | `semgrep scan --config p/default --error --metrics=off`; `--error` exits 1 on findings; p/default needs no login | https://semgrep.dev/docs/cli-reference | 2026-10-20 |
-| semgrep rule for B12 | Expected `javascript.lang.security.detect-child-process.detect-child-process`; confirmed by a real run in Phase 7 | https://github.com/semgrep/semgrep-rules/blob/develop/javascript/lang/security/detect-child-process.yaml | 2026-10-20 |
+| semgrep rule for B12 | `javascript.lang.security.detect-child-process.detect-child-process`, the B12 line in every scenario run; it matches only a namespace import of `child_process` | https://github.com/semgrep/semgrep-rules/blob/develop/javascript/lang/security/detect-child-process.yaml | 2026-10-20 |
+| semgrep Python pins (SCA exceptions) | semgrep 1.181.0 and 1.182.1 pin `mcp==1.29.0` (GHSA-84m7-p3x7-pcfv, fixed 1.30.0) and `opentelemetry-api~=1.37.0` (GHSA-xcq7-p3pf-p88h, fixed 1.45.1); the sca gate scans `scripts/ci/requirements.txt` | https://pypi.org/pypi/semgrep/1.182.1/json, https://api.osv.dev/v1/vulns/GHSA-84m7-p3x7-pcfv, https://api.osv.dev/v1/vulns/GHSA-xcq7-p3pf-p88h | 2026-10-23 |
 | osv-scanner | `osv-scanner scan source -L <lockfile>`; exit 1 on vulnerabilities, 128 no packages | https://github.com/google/osv-scanner/blob/main/docs/scan-source.md | 2026-10-20 |
 | zizmor audits | `cache-poisoning` targets release-like workflows; `unpinned-uses` requires SHA pins by default since 1.20.0; exit 11 to 14 on findings; `--offline` disables online audits | https://github.com/zizmorcore/zizmor/blob/v1.31.1/docs/audits.md | 2026-10-20 |
 
@@ -149,4 +153,4 @@ Source: `git ls-remote --tags https://github.com/<owner>/<repo>`, 2026-10-20.
 | Voice `.onnx` | 63,531,379 bytes, SHA-256 `6f52a751e2349abe7a76735eb09dc1875298c77ea2342ffd2fef79ff81b87f22`, equals the LFS oid | https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/ljspeech/medium/en_US-ljspeech-medium.onnx | 2026-10-20 |
 | Voice `.onnx.json` | 4,972 bytes, SHA-256 `141d612cc0a95ed7efc1ca936b845c2364967f2e9217c5dbfcf69fc4d6c65860` | https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/ljspeech/medium/en_US-ljspeech-medium.onnx.json | 2026-10-20 |
 | Voice licence | Model card: LJ Speech dataset public domain; trained from scratch, no fine-tune lineage. Repo licence tag `mit` | https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/ljspeech/medium/MODEL_CARD | 2026-10-20 |
-| Playwright | latest 1.64.1 (Chromium revision 1248, 156.0.8078.4). Session image ships revision 1194 (141.0.7390.37) = Playwright 1.56.1. Newer browser CDN reachable; final pin decided by a Phase 11 install test | https://raw.githubusercontent.com/microsoft/playwright/v1.64.1/packages/playwright-core/browsers.json | 2026-10-20 |
+| Playwright | latest 1.64.1 (Chromium revision 1248, 156.0.8078.4). Session image ships revision 1194 (141.0.7390.37) = Playwright 1.56.1. Pinned 1.64.1; the build installs revision 1248 into `build/browsers` (D16) | https://raw.githubusercontent.com/microsoft/playwright/v1.64.1/packages/playwright-core/browsers.json | 2026-10-20 |

@@ -2,7 +2,7 @@
 
 <!-- PAUL: one-line description of what this matrix is for -->
 
-Requirement IDs refer to `specs/` after the Phase 1 signed commit. Test files are planned paths until Phase 3 and Phase 11 land them.
+Requirement IDs refer to `specs/`. Each listed test file holds a test whose title names the requirement ID; the trace gate fails if any ID has none.
 
 | Requirement | Test file | Gate | Scenario |
 |---|---|---|---|

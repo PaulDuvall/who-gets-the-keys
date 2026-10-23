@@ -12,6 +12,7 @@ Purpose: <!-- PAUL: one-line purpose of the repo -->
 | `npm run scenario -- <ID>` | One scenario |
 | `npm run video` | Builds `build/video/`: page, video, captions, report |
 | `npm run video -- --page-only` | The page alone, no browser |
+| `npm run practices` | Regenerates `docs/practices.md` from `practices.yaml` |
 
 ## File map
 
@@ -24,7 +25,7 @@ Purpose: <!-- PAUL: one-line purpose of the repo -->
 | `test/` | Vitest acceptance, property and unit tests |
 | `scripts/gates.ts` | Gate dispatcher |
 | `scripts/bootstrap/` | Human-run scripts: GitHub settings, AWS bootstrap, slide refresh |
-| `scenarios/` | `scenarios.yaml`, patches `B01` to `B17`, harness `run.ts` |
+| `scenarios/` | `scenarios.yaml`, 16 patches `B01` to `B17` (B9 and B11 have none), the B9 fixture, harness `run.ts` |
 | `.github/workflows/` | `pipeline.yml`, `issue-triage.yml`, `scenarios.yml`, `video.yml` |
 | `.github/egress/allowlist.json` | Egress allowlist shared by triage and the B9 replay |
 | `infra/sandbox/`, `infra/org/` | Terraform: workload and roles; SCP |

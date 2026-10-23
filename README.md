@@ -6,7 +6,7 @@
 |---|---|
 | Rule demonstrated | Bad changes never reach production, because the pipeline prevents them |
 | Good scenario | `main`, always green |
-| Bad scenarios | 17 patches against `main` (B1 to B17, with B8 split into B8a and B8b), each failing at one named gate with one expected line |
+| Bad scenarios | 18 scenarios (B1 to B17, with B8 split into B8a and B8b), each failing at one named gate with one expected line. 16 are patches against `main`; B9 replays an issue fixture and B11 is an AWS call |
 | Source of record | Talk deck "Who Gets the Keys?" (AI Native DevCon 2026), pinned at `specs/source-of-record/slides.txt` |
 | Status | <!-- PAUL: one-line status, e.g. which phases are complete --> |
 
@@ -55,19 +55,19 @@ Versions, sources and dates: [docs/verification.md](docs/verification.md).
 |---|---|---|---|
 | 1 | secrets | gitleaks | A secret is in the working tree |
 | 2 | allowlist | `package.json` scan | A dependency name is not in `allowed-deps.txt` |
-| 3 | workflows | zizmor | Any workflow finding, or the B9 replay job differs from the triage job |
+| 3 | workflows | zizmor + script | Any zizmor finding; a cache in `pipeline.yml` (`deploy-cache`); or the B9 replay job's permissions or egress differ from the triage job's (`replay-parity`) |
 | 4 | install | `npm ci --ignore-scripts` | The lockfile does not install |
 | 5 | lint | ESLint, typescript-eslint, `@vitest/eslint-plugin` | Any error, including a test with no assertion |
 | 6 | typecheck | `tsc --noEmit` | Any type error under strict settings |
 | 7 | iac | `terraform fmt`, `validate`, tflint | `infra/sandbox` or `infra/org` fails a check |
 | 8 | sast | Semgrep `p/default` | Any finding |
-| 9 | sca | OSV-Scanner | A known vulnerability in any lockfile |
+| 9 | sca | OSV-Scanner | A known vulnerability in any npm or Python lockfile, unless `specs/sca-exceptions.toml` lists it and its `ignoreUntil` has not passed |
 | 10 | trace | git + script | No `Spec:` trailer, a requirement with no test, or an export with no `@requirement` |
 | 11 | signatures | `git verify-commit` | A change to `specs/` or `approvers.txt` not signed by an approver |
 | 12 | slides | script | `practices.yaml` disagrees with the pinned slide snapshot |
-| 13 | ratchet | script | Stryker `thresholds.break` went down |
+| 13 | ratchet | script | Stryker `thresholds.break` is below the highest value it has had in any commit |
 | 14 | test | Vitest | Any test fails |
-| 15 | mutation | Stryker | Mutation score below `thresholds.break` (90) |
+| 15 | mutation | Stryker | Mutation score below `thresholds.break` (95) |
 | deploy | attestation | `gh attestation verify` | The artifact has no valid attestation |
 | deploy | irreversible | `terraform show -json plan.out` | A stateful resource would be deleted without an approver-signed commit |
 
@@ -104,16 +104,17 @@ Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and
 | Human approver | Sign spec changes and irreversible changes; use break-glass | Deploy outside the pipeline without raising an alarm |
 | `pipeline.yml` deploy role | Plan and apply `infra/sandbox` from environment `sandbox` | Be assumed from any other workflow, ref or environment |
 | Triage role | Invoke Bedrock models | Anything else; network limited to an allowlist |
-| Scenario probe role | Read state | Write: the SCP denies it |
+| Scenario probe role | Read state (`ReadOnlyAccess`) | Write: its one Lambda write grant exists so B11 can show the SCP deny it |
 | Break-glass role | Write, alarmed | Be assumed by any workflow |
 
 ## Repository map
 
 | Path | Holds |
 |---|---|
-| `specs/` | Approved requirements (SPEC-001, SPEC-002, SPEC-014) and the slide snapshot. Approver-signed commits only |
+| `specs/` | Approved requirements (SPEC-001, SPEC-002, SPEC-014), SCA exceptions (`sca-exceptions.toml`) and the slide snapshot. Approver-signed commits only |
 | `proposals/` | Agent-proposed spec changes, awaiting a signed move into `specs/` |
 | `approvers.txt` | SSH allowed-signers file for approvers |
+| `allowed-deps.txt` | Package names the allowlist gate accepts |
 | `practices.yaml` | Slide practice → gate, scenario and files |
 | `traceability.md` | Requirement → test file → gate → scenario |
 | `src/`, `test/` | Export service and its acceptance, property and unit tests |
@@ -123,7 +124,7 @@ Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and
 | `.github/workflows/` | `pipeline.yml`, `issue-triage.yml`, `scenarios.yml`, `video.yml` |
 | `infra/sandbox/`, `infra/org/` | Terraform for the workload and roles; the SCP |
 | `video/` | Walkthrough page template, orchestrator, recorder and narration pins |
-| `.claude/` | Subagents, the video skill and hooks |
+| `.claude/` | Settings (deny rules, env, hooks), hook script, subagents, the video skill |
 | `CLAUDE.md` | Conventions and authority boundaries for Claude Code sessions |
 
 ## Docs
@@ -134,6 +135,8 @@ Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and
 | [docs/deviations.md](docs/deviations.md) | Where the build departs from its prompt, the slides or the reference, and why |
 | [docs/slide-reconciliation.md](docs/slide-reconciliation.md) | Each slide practice and what demonstrates it |
 | [docs/slide-audit.md](docs/slide-audit.md) | Snapshot practices the `slide-auditor` agent found with no matching `practices.yaml` row |
+| [docs/practices.md](docs/practices.md) | Practice table generated from `practices.yaml` by `npm run practices` |
+| [docs/lockdown-check.md](docs/lockdown-check.md) | Manual check that `.claude/settings.json` denies and hooks work in a local session |
 | [docs/decisions/0001-walkthrough-video.md](docs/decisions/0001-walkthrough-video.md) | Decisions behind the walkthrough video |
 
 ## Licence
