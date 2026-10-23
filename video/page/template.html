@@ -42,6 +42,7 @@
   .gaps { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; font-size: 15px; line-height: 1.35; }
   .gaps div { border-top: 1px solid var(--line); padding-top: 6px; overflow-wrap: anywhere; }
   .gaps b { display: block; font-size: 14px; color: var(--muted); }
+  @media (min-width: 1200px) { .gaps { grid-template-columns: 1fr 1fr 1fr; } }
   @media (max-width: 600px) { .gaps { grid-template-columns: 1fr; } }
   .caption { margin-top: auto; padding: 14px 0 24px; font-size: 22px; text-align: center; min-height: 2.9em; }
   @media (max-width: 600px) { #slide { padding: 20px; } h1 { font-size: 28px; } th { width: 34%; } .caption { font-size: 18px; } }
