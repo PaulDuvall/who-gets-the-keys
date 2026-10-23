@@ -109,7 +109,8 @@ export function buildTour(input: TourInput): StepData[] {
       rows: [["Slides", fields.slides], ["Coverage", p.coverage], ["Enforced by", fields.enforced], ["Files", p.files.join(", ")]], say: say(p.id, "practice", fields) });
     for (const s of input.scenarios.filter((x) => p.enforced_by.includes(x.id))) {
       const result = results.get(s.id);
-      const logged = input.onDemand.find((l) => l.startsWith(s.expect));
+      const matched = input.onDemand.filter((l) => l.startsWith(s.expect));
+      const logged = matched.length ? matched.join("; ") : undefined;
       let line: string;
       if (s.requires) {
         line = logged ?? `Not recorded: ${s.id} needs ${s.requires === "github-actions" ? "the GitHub Actions B9 replay job" : "the sandbox account"}.`;
