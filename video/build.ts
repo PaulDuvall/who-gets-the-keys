@@ -60,7 +60,8 @@ export function run(argv: readonly string[], opts: { timeout?: number; input?: s
 
 async function must(what: string, argv: readonly string[], opts: Parameters<typeof run>[1] = {}): Promise<Done> {
   const r = await run(argv, opts);
-  if (r.status !== 0) throw new KitError(`${what} failed with exit status ${r.status}: ${(r.stderr || r.stdout).trim().split("\n").slice(-5).join(" | ")}`);
+  const gate = /^GATE \S+ FAILED.*$/m.exec(r.stdout)?.[0];
+  if (r.status !== 0) throw new KitError(`${what} failed with exit status ${r.status}: ${gate ?? (r.stderr || r.stdout).trim().split("\n").slice(-5).join(" | ")}`);
   return r;
 }
 
