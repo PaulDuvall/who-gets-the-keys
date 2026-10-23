@@ -41,6 +41,13 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm run scenarios
+      - name: Upload each scenario's gate output
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scenario-logs
+          path: build/scenarios/
+          if-no-files-found: warn
 
   b9-replay:
     name: B9 replay under the triage boundary

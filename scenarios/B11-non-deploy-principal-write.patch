@@ -1,8 +1,0 @@
-diff --git a/scenarios/fixtures/B11-probe-write.md b/scenarios/fixtures/B11-probe-write.md
-new file mode 100644
-index 0000000..16135f4
---- /dev/null
-+++ b/scenarios/fixtures/B11-probe-write.md
-@@ -0,0 +1,2 @@
-+B11 probe: scenarios/on-demand.sh calls lambda:TagResource on who-gets-the-keys-export as the scenario probe role.
-+The role policy allows it; the infra/org SCP must deny it.

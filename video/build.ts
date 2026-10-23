@@ -87,7 +87,7 @@ function tourInputs(gatesPassed: string[], results: ScenarioResult[], onDemand: 
     repo: "who-gets-the-keys", commit: git("rev-parse", "--short", "HEAD"), commitDate: git("log", "-1", "--format=%cs"),
     gatesPassed, results, onDemand, overrides,
     practices: yaml<{ practices: Practice[] }>("practices.yaml").practices,
-    scenarios, patches: Object.fromEntries(scenarios.map((s) => [s.id, readFileSync(join(ROOT, s.patch), "utf8")])),
+    scenarios, patches: Object.fromEntries(scenarios.map((s) => [s.id, s.patch ? readFileSync(join(ROOT, s.patch), "utf8") : ""])),
     existing: (p) => existsSync(join(ROOT, p)), templates: yaml<Record<string, string>>("video/narration-templates.yaml"),
   });
 }

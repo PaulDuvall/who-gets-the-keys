@@ -273,7 +273,9 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
       const values = (entry.split("\x1f")[1] ?? "").split(",").map((v) => v.trim()).filter(Boolean);
       if (values.length === 0 || !values.every((v) => ids.has(v))) throw new GateFailure("trace", "missing Spec trailer");
     }
-    const tests = tracked("*.test.ts", "**/*.test.ts").map((f) => readFileSync(f, "utf8")).join("\n");
+    const listed = tool(["node_modules/.bin/vitest", "list", "--json"]);
+    if (listed.status !== 0) check("trace", listed, "vitest list error");
+    const tests = (JSON.parse(listed.stdout) as { name: string }[]).map((t) => t.name).join("\n");
     const untested = [...ids].find((id) => !names(tests, id));
     if (untested !== undefined) throw new GateFailure("trace", `${untested} has no test`);
     for (const file of tracked("src/*.ts", "src/**/*.ts")) {
@@ -315,8 +317,9 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
 
   ratchet() {
     const breakOf = (text: string | undefined): number => (JSON.parse(text ?? "{}") as { thresholds?: { break?: number } }).thresholds?.break ?? 0;
-    const parent = show("HEAD~1", "stryker.config.json");
-    if (parent !== undefined && lowered(breakOf(readFileSync("stryker.config.json", "utf8")), breakOf(parent))) {
+    const history = git("log", "--format=%H", "--", "stryker.config.json").split("\n").filter(Boolean);
+    const highest = Math.max(0, ...history.map((c) => breakOf(show(c, "stryker.config.json"))));
+    if (lowered(breakOf(readFileSync("stryker.config.json", "utf8")), highest)) {
       throw new GateFailure("ratchet", "break threshold lowered");
     }
   },

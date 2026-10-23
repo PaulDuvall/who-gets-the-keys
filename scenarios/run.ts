@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 export interface Scenario {
   id: string;
   title: string;
-  patch: string;
+  patch?: string;
   gate: string;
   expect: string;
   slide: (number | string)[];
@@ -41,20 +41,28 @@ const sh = (argv: readonly string[], cwd: string, env: NodeJS.ProcessEnv = proce
 const GIT_ID = ["-c", "user.name=scenario-harness", "-c", "user.email=harness@example.invalid", "-c", "commit.gpgsign=false"];
 
 function runScenario(root: string, s: Scenario, env: NodeJS.ProcessEnv): Outcome {
+  const outcome = runInWorktree(root, s, env);
+  writeFileSync(join(root, "build", "scenarios", `${s.id}.log`), `${outcome.log}\n`);
+  return outcome.result;
+}
+
+function runInWorktree(root: string, s: Scenario, env: NodeJS.ProcessEnv): { result: Outcome; log: string } {
   const dir = mkdtempSync(join(tmpdir(), `scenario-${s.id}-`));
   try {
     sh(["git", "worktree", "add", "--detach", "--force", dir, "HEAD"], root);
-    const applied = sh(["git", "apply", "--index", join(root, s.patch)], dir);
-    if (applied.status !== 0) return { id: s.id, status: "fail", line: `SCENARIO ${s.id} FAILED: patch does not apply`, detail: applied.out.trim() };
+    const applied = sh(["git", "apply", "--index", join(root, s.patch ?? "")], dir);
+    if (applied.status !== 0) return { result: { id: s.id, status: "fail", line: `SCENARIO ${s.id} FAILED: patch does not apply`, detail: applied.out.trim() }, log: applied.out };
     const trailer = s.id === "B3" ? [] : ["-m", `Spec: ${s.spec ?? "SPEC-014-R1"}`];
     sh(["git", ...GIT_ID, "commit", "-q", "--no-verify", "-m", `scenario ${s.id}: ${s.title}`, ...trailer], dir);
     if (s.run === "deploy-verify") {
       sh(["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], dir, env);
       sh(["npm", "run", "build"], dir, env);
       sh(["bash", "-c", "mkdir -p dist/function && cp dist/src/*.js dist/function/ && cd dist/function && zip -X -q ../function.zip ./*"], dir, env);
-      return judge(s, sh(["node", "scripts/gates.ts", "attestation", "dist/function.zip"], dir, env).out);
+      const out = sh(["node", "scripts/gates.ts", "attestation", "dist/function.zip"], dir, env).out;
+      return { result: judge(s, out), log: out };
     }
-    return judge(s, sh(["node", "scripts/gates.ts"], dir, env).out);
+    const out = sh(["node", "scripts/gates.ts"], dir, env).out;
+    return { result: judge(s, out), log: out };
   } finally {
     sh(["git", "worktree", "remove", "--force", dir], root);
     rmSync(dir, { recursive: true, force: true });
@@ -70,6 +78,7 @@ async function main(filter: string | undefined): Promise<number> {
   if (chosen.length === 0) throw new Error(`no scenario ${filter ?? ""}`);
   const env = { ...process.env, TF_PLUGIN_CACHE_DIR: join(tmpdir(), "tf-plugin-cache"), CHECKPOINT_DISABLE: "1" };
   mkdirSync(env.TF_PLUGIN_CACHE_DIR, { recursive: true });
+  mkdirSync("build/scenarios", { recursive: true });
   const outcomes = chosen.map((s): Outcome => {
     if (s.requires) return { id: s.id, status: "skipped", detail: `runs in ${s.requires === "github-actions" ? "scenarios.yml b9-replay" : "scenarios.yml on-demand (sandbox account)"}` };
     process.stderr.write(`scenario ${s.id} ...\n`);

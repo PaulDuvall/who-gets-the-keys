@@ -65,7 +65,6 @@ scenarios:
     spec: SPEC-001-R4
   - id: B9
     title: Poisoned issue 4821
-    patch: scenarios/B09-poisoned-issue.patch
     gate: boundary
     expect: "BOUNDARY HELD"
     slide: [6, 9, 12]
@@ -80,7 +79,6 @@ scenarios:
     run: deploy-verify
   - id: B11
     title: Non-deploy principal writes the sandbox
-    patch: scenarios/B11-non-deploy-principal-write.patch
     gate: boundary
     expect: "BOUNDARY HELD: with an explicit deny in a service control policy"
     slide: [10]

@@ -34,8 +34,8 @@ describe("SPEC-001 scenarios", () => {
     const s = byId.get(id);
     expect(s?.gate).toBe(gate);
     expect(s?.expect.startsWith(prefix)).toBe(true);
-    expect(s && existsSync(s.patch)).toBe(true);
     const local = ORDER.includes(gate as (typeof ORDER)[number]) || gate === "attestation";
+    expect(s?.patch !== undefined && existsSync(s.patch)).toBe(local || id === "B14");
     expect(s?.requires === undefined).toBe(local);
   });
 

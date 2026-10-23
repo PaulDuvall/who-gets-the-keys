@@ -29,7 +29,7 @@ export interface Practice {
   reason?: string;
 }
 
-export interface ScenarioDef { id: string; title: string; patch: string; gate: string; expect: string; requires?: string }
+export interface ScenarioDef { id: string; title: string; patch?: string; gate: string; expect: string; requires?: string }
 export interface ScenarioResult { id: string; status: string; line?: string }
 
 export interface StepData {
