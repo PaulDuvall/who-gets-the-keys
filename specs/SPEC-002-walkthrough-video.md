@@ -2,7 +2,7 @@
 
 <!-- PAUL: one-line description of the intent behind this spec -->
 
-Status: proposal. Adapted from an earlier private repository at commit `469f0fda93535e0b4a40fe61d22d6e122064d309`, `specs/requirements.md`. "Source" names the reference requirement each one came from; "prompt" means the build prompt.
+Status: approved by signed commit. Adapted from an earlier private repository at commit `469f0fda93535e0b4a40fe61d22d6e122064d309`, `specs/requirements.md`. "Source" names the reference requirement each one came from; "prompt" means the build prompt.
 
 | Term | Meaning |
 |---|---|
