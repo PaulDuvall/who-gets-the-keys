@@ -24,6 +24,10 @@
   th { width: 22%; color: var(--muted); font-weight: 600; }
   td code, pre { font: 15px/1.4 ui-monospace, "SFMono-Regular", Menlo, monospace; }
   pre { background: var(--code); border-radius: 8px; padding: 14px 16px; margin: 20px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .gaps { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; font-size: 15px; line-height: 1.35; }
+  .gaps div { border-top: 1px solid var(--line); padding-top: 6px; overflow-wrap: anywhere; }
+  .gaps b { display: block; font-size: 14px; color: var(--muted); }
+  @media (max-width: 600px) { .gaps { grid-template-columns: 1fr; } }
   .caption { margin-top: auto; padding: 14px 0 24px; font-size: 22px; text-align: center; min-height: 2.9em; }
   @media (max-width: 600px) { #slide { padding: 20px; } h1 { font-size: 28px; } th { width: 34%; } .caption { font-size: 18px; } }
 </style>
@@ -48,10 +52,13 @@ const TOUR = /*TOUR*/;
     current = Math.max(0, Math.min(steps.length - 1, k));
     const s = steps[current];
     const rows = s.rows.map(([h, v]) => `<tr><th>${esc(h)}</th><td>${esc(v)}</td></tr>`).join("");
+    const body = s.kind === "closing"
+      ? `<div class="gaps">${s.rows.map(([h, v]) => `<div><b>${esc(h)}</b>${esc(v)}</div>`).join("")}</div>`
+      : `<table>${rows}</table>`;
     const slide = $("slide");
     slide.style.animation = "none"; void slide.offsetWidth; slide.style.animation = "";
     slide.innerHTML = `<div class="kind ${s.kind}">${esc(s.kind)}${s.kind === "scenario" ? " · blocked" : ""}</div>` +
-      `<h1>${esc(s.title)}</h1><table>${rows}</table>${s.code ? `<pre>${esc(s.code)}</pre>` : ""}`;
+      `<h1>${esc(s.title)}</h1>${body}${s.code ? `<pre>${esc(s.code)}</pre>` : ""}`;
     $("caption").textContent = s.say;
     $("count").textContent = `${current + 1} / ${steps.length}`;
     document.querySelectorAll(".pip").forEach((p) => p.setAttribute("aria-current", Number(p.dataset.k) === current ? "step" : "false"));
