@@ -8,11 +8,11 @@ All rows verified 2026-10-20 unless the Date column says otherwise. "Session" me
 
 | Item | Finding | Source | Date |
 |---|---|---|---|
-| node | v22.22.0 present; repo pins Node 24 via `engines` (see Node.js) | `node --version` in session | 2026-10-20 |
-| npm | 10.9.4 present | `npm --version` | 2026-10-20 |
-| ffmpeg, ffprobe | 6.1.1-3ubuntu5 present | `ffmpeg -version` | 2026-10-20 |
-| Xvfb | present at `/usr/bin/Xvfb` | `command -v Xvfb` | 2026-10-20 |
-| uv | 0.11.32 present | `uv --version` | 2026-10-20 |
+| node | v22.22.0 present; repo pins Node 24 via `engines` (see Node.js) | `node --version` in session; https://nodejs.org/en/about/previous-releases | 2026-10-20 |
+| npm | 10.9.4 present | `npm --version`; https://docs.npmjs.com/cli/v10/commands/npm-ci | 2026-10-20 |
+| ffmpeg, ffprobe | 6.1.1-3ubuntu5 present | `ffmpeg -version`; https://ffmpeg.org/ffmpeg-filters.html | 2026-10-20 |
+| Xvfb | present at `/usr/bin/Xvfb` | `command -v Xvfb`; https://www.x.org/releases/X11R7.7/doc/man/man1/Xvfb.1.xhtml | 2026-10-20 |
+| uv | 0.11.32 present | `uv --version`; https://docs.astral.sh/uv/pip/compile/ | 2026-10-20 |
 | terraform | missing; installed 1.16.6 from releases.hashicorp.com, SHA256SUMS verified | https://releases.hashicorp.com/terraform/1.16.6/ | 2026-10-20 |
 | gitleaks | missing; installed v8.30.1 `gitleaks_8.30.1_linux_x64.tar.gz`, checksums.txt verified | https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1 | 2026-10-20 |
 | osv-scanner | missing; installed v2.7.0 `osv-scanner_linux_amd64`, SHA256SUMS verified | https://github.com/google/osv-scanner/releases/tag/v2.7.0 | 2026-10-20 |
@@ -24,7 +24,7 @@ All rows verified 2026-10-20 unless the Date column says otherwise. "Session" me
 | Network: GitHub release assets | 302 → 200 on `release-assets.githubusercontent.com`; HTML release pages return 403 | https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz | 2026-10-20 |
 | Network: huggingface.co | 200; LFS redirects to `us.aws.cdn.hf.co` succeed | https://huggingface.co/rhasspy/piper-voices | 2026-10-20 |
 | Network: Playwright browser CDN | 200 on `playwright.download.prss.microsoft.com` | https://playwright.download.prss.microsoft.com/dbazure/download/playwright/builds/chromium/1194/chromium-linux.zip | 2026-10-20 |
-| GitHub REST from session | Works only for repos attached to the session; third-party repos return 403. Tags resolved with `git ls-remote` instead | `gh api repos/gitleaks/gitleaks/releases/latest` → 403 | 2026-10-20 |
+| GitHub REST from session | Works only for repos attached to the session; third-party repos return 403. Tags resolved with `git ls-remote` instead | `gh api repos/gitleaks/gitleaks/releases/latest` → 403; https://docs.github.com/en/rest/releases/releases | 2026-10-20 |
 
 ## Claude Code
 
@@ -68,7 +68,7 @@ All rows verified 2026-10-20 unless the Date column says otherwise. "Session" me
 | hashicorp/aws | 6.69.1 (major 6, 2026-10-15) | https://registry.terraform.io/v1/providers/hashicorp/aws | 2026-10-20 |
 | S3 backend `use_lockfile` | GA since 1.11; defaults false; `dynamodb_table` deprecated | https://developer.hashicorp.com/terraform/language/backend/s3 | 2026-10-20 |
 | `deletion_protection_enabled` | `aws_dynamodb_table` argument, defaults false | https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/dynamodb_table | 2026-10-20 |
-| tflint, ruleset-aws | v0.64.0, v0.49.0 | git ls-remote github.com/terraform-linters | 2026-10-20 |
+| tflint, ruleset-aws | v0.64.0, v0.49.0 | `git ls-remote`: v0.64.0 at `15c65a33…`, v0.49.0 at `66c89bea…`; https://github.com/terraform-linters/tflint/releases/tag/v0.64.0, https://github.com/terraform-linters/tflint-ruleset-aws/releases/tag/v0.49.0 | 2026-10-23 |
 | SCP explicit deny text | `... is not authorized to perform: <action> with an explicit deny in a service control policy[: <policy ARN>]`; match the substring without the ARN | https://docs.aws.amazon.com/IAM/latest/UserGuide/troubleshoot_access-denied.html | 2026-10-20 |
 | SCP principal exception | `ArnNotLike` on `aws:PrincipalArn`; SCPs do not affect service-linked roles | https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html | 2026-10-20 |
 | Bedrock first-time use | `aws bedrock put-use-case-for-model-access --form-data fileb://form.json` | https://docs.aws.amazon.com/bedrock/latest/APIReference/API_PutUseCaseForModelAccess.html | 2026-10-20 |
@@ -83,13 +83,13 @@ All rows verified 2026-10-20 unless the Date column says otherwise. "Session" me
 | OIDC `sub`, no environment | `repo:OWNER/REPO:ref:refs/heads/main` for push and `workflow_dispatch` | https://docs.github.com/en/actions/reference/security/oidc | 2026-10-20 |
 | OIDC immutable subject | Repos created after 2026-07-15 use `repo:OWNER@OWNER_ID/REPO@REPO_ID:...`. This repo: created 2026-10-20T15:19:12Z, owner ID 1619259, repo ID 1427202012 | https://docs.github.com/en/actions/reference/security/oidc; `gh api repos/PaulDuvall/who-gets-the-keys` | 2026-10-20 |
 | OIDC workflow pinning | AWS STS accepts `token.actions.githubusercontent.com:job_workflow_ref` as a condition key; GitHub documents the claim for reusable workflows. Presence in direct jobs to be confirmed from a real token in Phase 5 | https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html | 2026-10-20 |
-| Plan: owner account | GitHub Pro (stated by owner) | owner answer in session | 2026-10-20 |
+| Plan: owner account | GitHub Pro (stated by owner) | owner answer in session; https://docs.github.com/en/get-started/learning-about-github/githubs-plans | 2026-10-20 |
 | Artifact attestations, private | Free, Pro, Team: public repos only; private needs Enterprise Cloud | https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations | 2026-10-20 |
 | Environments, private | Pro: environments, secrets, deployment branch rules; required reviewers and wait timers public only | https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments | 2026-10-20 |
 | SHA pinning policy | `PUT /repos/{o}/{r}/actions/permissions` with `sha_pinning_required: true`; no plan restriction stated | https://docs.github.com/en/rest/actions/permissions | 2026-10-20 |
 | Default workflow token | `PUT /repos/{o}/{r}/actions/permissions/workflow` `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}` | https://docs.github.com/en/rest/actions/permissions | 2026-10-20 |
 | Create environment | `PUT /repos/{o}/{r}/environments/{name}` | https://docs.github.com/en/rest/deployments/environments | 2026-10-20 |
-| claude-code-action | v1.0.254, commit `db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c` (annotated tag object `c335fd6d…`) | git ls-remote github.com/anthropics/claude-code-action | 2026-10-20 |
+| claude-code-action | v1.0.254, commit `db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c` (annotated tag object `c335fd6d…`) | `git ls-remote`; https://github.com/anthropics/claude-code-action/releases/tag/v1.0.254 | 2026-10-23 |
 | claude-code-action without GitHub App | `github_token` input accepted; comments post as github-actions | https://github.com/anthropics/claude-code-action/blob/v1.0.254/docs/faq.md | 2026-10-20 |
 | claude-code-action Bedrock | `use_bedrock: "true"` after configure-aws-credentials `role-to-assume`; OIDC only | https://github.com/anthropics/claude-code-action/blob/v1.0.254/docs/cloud-providers.md | 2026-10-20 |
 | claude-code-action settings | `settings` input takes JSON or a path, including `sandbox.network.allowedDomains` | https://github.com/anthropics/claude-code-action/blob/v1.0.254/docs/configuration.md | 2026-10-20 |
@@ -99,19 +99,20 @@ All rows verified 2026-10-20 unless the Date column says otherwise. "Session" me
 
 ## Action SHAs
 
-All tags below are lightweight except claude-code-action; SHAs are peeled commits.
+All tags below are lightweight except claude-code-action; SHAs are peeled commits. Each tag was re-resolved with `git ls-remote` on 2026-10-23 and matches the pin in `.github/workflows/`.
 
-| Action | Tag | Commit |
-|---|---|---|
-| actions/checkout | v7.0.1 | 3d3c42e5aac5ba805825da76410c181273ba90b1 |
-| actions/setup-node | v7.1.0 | 949feb2413d6458794dcd2491c4babbbce0c15c1 |
-| actions/upload-artifact | v7.0.2 | cf430e030ddbb5b0abf93d22962f4752f3646cd9 |
-| actions/attest-build-provenance | v4.2.2 | 4d101475d8b20a2381f78447822ac1eab6504dd8 |
-| actions/attest | v4.2.2 | 1e69f48acb82d1966a394da916b4c1698aa569d6 |
-| aws-actions/configure-aws-credentials | v6.3.0 | e1253824e5c10ff9df46874f81ed3ec929e19cfd |
-| hashicorp/setup-terraform | v4.0.1 | dfe3c3f87815947d99a8997f908cb6525fc44e9e |
-| astral-sh/setup-uv | v10.3.0 | 1c37ad07a6a961277cf70c0d37d6f313000f5884 |
-| anthropics/claude-code-action | v1.0.254 | db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c |
+| Action | Tag | Commit | Source | Date |
+|---|---|---|---|---|
+| actions/checkout | v7.0.1 | 3d3c42e5aac5ba805825da76410c181273ba90b1 | https://github.com/actions/checkout/releases/tag/v7.0.1 | 2026-10-23 |
+| actions/setup-node | v7.1.0 | 949feb2413d6458794dcd2491c4babbbce0c15c1 | https://github.com/actions/setup-node/releases/tag/v7.1.0 | 2026-10-23 |
+| actions/upload-artifact | v7.0.2 | cf430e030ddbb5b0abf93d22962f4752f3646cd9 | https://github.com/actions/upload-artifact/releases/tag/v7.0.2 | 2026-10-23 |
+| actions/download-artifact | v8.0.2 | 9000827ccba6bdab643e8b6fd33ac0654aef8333 | https://github.com/actions/download-artifact/releases/tag/v8.0.2 | 2026-10-23 |
+| actions/attest-build-provenance | v4.2.2 | 4d101475d8b20a2381f78447822ac1eab6504dd8 | https://github.com/actions/attest-build-provenance/releases/tag/v4.2.2 | 2026-10-23 |
+| actions/attest | v4.2.2 | 1e69f48acb82d1966a394da916b4c1698aa569d6 | https://github.com/actions/attest/releases/tag/v4.2.2 | 2026-10-23 |
+| aws-actions/configure-aws-credentials | v6.3.0 | e1253824e5c10ff9df46874f81ed3ec929e19cfd | https://github.com/aws-actions/configure-aws-credentials/releases/tag/v6.3.0 | 2026-10-23 |
+| hashicorp/setup-terraform | v4.0.1 | dfe3c3f87815947d99a8997f908cb6525fc44e9e | https://github.com/hashicorp/setup-terraform/releases/tag/v4.0.1 | 2026-10-23 |
+| astral-sh/setup-uv | v10.3.0 | 1c37ad07a6a961277cf70c0d37d6f313000f5884 | https://github.com/astral-sh/setup-uv/releases/tag/v10.3.0 | 2026-10-23 |
+| anthropics/claude-code-action | v1.0.254 | db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c | https://github.com/anthropics/claude-code-action/releases/tag/v1.0.254 | 2026-10-23 |
 
 Source: `git ls-remote --tags https://github.com/<owner>/<repo>`, 2026-10-20.
 
@@ -130,19 +131,19 @@ Source: `git ls-remote --tags https://github.com/<owner>/<repo>`, 2026-10-20.
 
 | Item | Finding | Source | Date |
 |---|---|---|---|
-| Export method | Google Drive `files.export` with `mimeType=text/plain` includes speaker notes after each slide's text | Drive export of file `REDACTED-PRIVATE-DECK` | 2026-10-20 |
-| Snapshot | `proposals/source-of-record/slides.txt`, body 20,574 bytes, SHA-256 `822f5dc12f656c5af76896043175e7cda896c202f24e71d6573ac77c7b2aaac0`; header hash matches body | `sed '1,/^---$/d' … \| sha256sum` | 2026-10-20 |
+| Export method | Google Drive `files.export` with `mimeType=text/plain` includes speaker notes after each slide's text | Drive export of file `REDACTED-PRIVATE-DECK`; https://developers.google.com/workspace/drive/api/reference/rest/v3/files/export | 2026-10-20 |
+| Snapshot | `proposals/source-of-record/slides.txt`, body 20,574 bytes, SHA-256 `822f5dc12f656c5af76896043175e7cda896c202f24e71d6573ac77c7b2aaac0`; header hash matches body | `sed '1,/^---$/d' … \| sha256sum`; https://developers.google.com/workspace/drive/api/reference/rest/v3/files/export | 2026-10-20 |
 | Refresh export auth | `gcloud auth login --enable-gdrive-access` grants the Drive scope `refresh-slides.sh` uses with `gcloud auth print-access-token` against `drive/v3/files/{id}/export?mimeType=text/plain` | https://cloud.google.com/sdk/gcloud/reference/auth/login | 2026-10-21 |
-| Deck re-export | Drive `modifiedTime` 2026-10-21T16:43:48.186Z; body 20,997 bytes, SHA-256 `a78cd1d6062babd6a3fd20158d9e08b8fb174adc99fc6d24ec0700ff85ac0ab9`; slides 1 to 13 and Q1 to Q3 unchanged; written to `proposals/source-of-record/slides.txt` | Drive export of file `REDACTED-PRIVATE-DECK` | 2026-10-21 |
-| Slide numbering | Numbered slides 1 to 13 are the increasing run of standalone integer lines starting at 1; title, closing and three Q&A slides are unnumbered (cited Q1 to Q3) | snapshot parse | 2026-10-20 |
+| Deck re-export | Drive `modifiedTime` 2026-10-21T16:43:48.186Z; body 20,997 bytes, SHA-256 `a78cd1d6062babd6a3fd20158d9e08b8fb174adc99fc6d24ec0700ff85ac0ab9`; slides 1 to 13 and Q1 to Q3 unchanged; written to `proposals/source-of-record/slides.txt` | Drive export of file `REDACTED-PRIVATE-DECK`; https://developers.google.com/workspace/drive/api/reference/rest/v3/files/export | 2026-10-21 |
+| Slide numbering | Numbered slides 1 to 13 are the increasing run of standalone integer lines starting at 1; title, closing and three Q&A slides are unnumbered (cited Q1 to Q3) | snapshot parse of https://docs.google.com/presentation/d/REDACTED-PRIVATE-DECK/ export (deck needs sign-in) | 2026-10-20 |
 
 ## Video toolchain
 
 | Item | Finding | Source | Date |
 |---|---|---|---|
-| Reference commit | an earlier private repository `469f0fda93535e0b4a40fe61d22d6e122064d309` (2026-10-17) | `git cat-file -t` | 2026-10-20 |
-| Reference pins | Piper by version and hash (`requirements.txt`), voice files by URL and SHA-256, Playwright by version in lockfile | `explainer/README.md` at reference commit | 2026-10-20 |
-| Reference leaves unpinned | ffmpeg, ffprobe, Xvfb, Node.js, npm, uv, browser build, page fonts; versions recorded in report (its ADR-0018 decision 3) | `explainer/README.md`, REQ-DEMO-003 | 2026-10-20 |
+| Reference commit | an earlier private repository `469f0fda93535e0b4a40fe61d22d6e122064d309` (2026-10-17) | `git cat-file -t`; an earlier private repository | 2026-10-20 |
+| Reference pins | Piper by version and hash (`requirements.txt`), voice files by URL and SHA-256, Playwright by version in lockfile | explainer/README.md in an earlier private repository | 2026-10-20 |
+| Reference leaves unpinned | ffmpeg, ffprobe, Xvfb, Node.js, npm, uv, browser build, page fonts; versions recorded in report (its ADR-0018 decision 3) | explainer/README.md in an earlier private repository, REQ-DEMO-003 | 2026-10-20 |
 | piper-tts | 1.8.0, GPL-3.0-or-later, requires Python >=3.9, uploaded 2026-09-04 | https://pypi.org/pypi/piper-tts/1.8.0/json | 2026-10-20 |
 | Voice | `en_US-ljspeech-medium` at piper-voices tag v1.0.0 (commit 375a0fe641dea077c2a47b4e9a056d6da521eed3) | https://huggingface.co/rhasspy/piper-voices/tree/v1.0.0/en/en_US/ljspeech/medium | 2026-10-20 |
 | Voice `.onnx` | 63,531,379 bytes, SHA-256 `6f52a751e2349abe7a76735eb09dc1875298c77ea2342ffd2fef79ff81b87f22`, equals the LFS oid | https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/ljspeech/medium/en_US-ljspeech-medium.onnx | 2026-10-20 |

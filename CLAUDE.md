@@ -29,7 +29,7 @@ Purpose: <!-- PAUL: one-line purpose of the repo -->
 | `.github/egress/allowlist.json` | Egress allowlist shared by triage and the B9 replay |
 | `infra/sandbox/`, `infra/org/` | Terraform: workload and roles; SCP |
 | `video/` | Walkthrough kit: page template, orchestrator, recorder, narration pins |
-| `docs/` | Verification log, deviations, reconciliation, ADRs, generated practices table |
+| `docs/` | Verification log, deviations, reconciliation, slide audit, ADRs, generated practices table |
 | `traceability.md` | Requirement → test file → gate → scenario |
 
 ## Conventions

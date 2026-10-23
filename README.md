@@ -133,6 +133,7 @@ Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and
 | [docs/verification.md](docs/verification.md) | Every version and syntax choice, with source URL and date |
 | [docs/deviations.md](docs/deviations.md) | Where the build departs from its prompt, the slides or the reference, and why |
 | [docs/slide-reconciliation.md](docs/slide-reconciliation.md) | Each slide practice and what demonstrates it |
+| [docs/slide-audit.md](docs/slide-audit.md) | Snapshot practices the `slide-auditor` agent found with no matching `practices.yaml` row |
 | [docs/decisions/0001-walkthrough-video.md](docs/decisions/0001-walkthrough-video.md) | Decisions behind the walkthrough video |
 
 ## Licence
