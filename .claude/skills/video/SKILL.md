@@ -19,10 +19,10 @@ npm run video
 ## 2. Read the report
 
 ```bash
-jq '{problems, page_sha256, commit, voice, slides, length}' build/video/report.json
+jq '{passed, problems, commit, page_sha256, video, layout}' build/video/report.json
 ```
 
-`problems` must be empty. A slide change more than 0.25 s late usually means a busy machine: rebuild. Early or missing changes are a page or timeline fault: read the capture's frame times before rebuilding.
+`problems` must be empty. A slide change at `null` means no frame scored 0.03 or more: two steps look alike. The 100 ms blank between steps in `video/page/template.html` prevents it; check that it still applies. A change more than 0.25 s late usually means a busy machine: rebuild.
 
 ## 3. Look at one frame per narration line
 
@@ -37,6 +37,18 @@ npm run video -- --frames
 | Clipping | Any text or box is cut off at an edge |
 | Overlap | Two elements cover each other |
 | Caption | The caption row does not match that line's written form |
+
+These frames come before each step's replayed output, which starts 1.2 s after the step, so terminal panes are empty in them. Check the end state too, with one frame 0.25 s before each step ends:
+
+```bash
+node -e 'const t=require("./build/video/narration/timeline.json");const b=t.entries[0].start;t.entries.forEach((e,i)=>console.log(String(i+1).padStart(2,"0"),(e.start-b+e.hold-0.25).toFixed(2)))' > build/video/ends.txt
+while read n at; do ffmpeg -nostdin -loglevel error -y -ss "$at" -i build/video/walkthrough.mp4 -frames:v 1 "build/video/end-$n.png"; done < build/video/ends.txt
+```
+
+| Check | Fail when |
+|---|---|
+| Replay | A terminal pane is empty, or a scenario's last line is not its red failure or `BOUNDARY HELD` line |
+| Verdict | The verdict line is missing, except on steps marked "Not recorded" |
 
 Fix what you find in `video/page/template.html`, then go back to step 1.
 
