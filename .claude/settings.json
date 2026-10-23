@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Bash(npm install *)", "Bash(npm i *)", "Bash(npm add *)", "Bash(npm ci *)",
+      "Bash(pnpm install *)", "Bash(pnpm i *)", "Bash(pnpm add *)",
+      "Bash(yarn install *)", "Bash(yarn add *)",
+      "Bash(git commit *-S*)", "Bash(git commit *--gpg-sign*)", "Bash(git *commit.gpgsign=true*)",
+      "Bash(git push *--force*)", "Bash(git push *-f *)", "Bash(git push *-f)",
+      "Bash(terraform *apply*)", "Bash(terraform *destroy*)",
+      "Bash(aws *)",
+      "Read(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.config/gh/**)",
+      "Edit(.github/**)", "Edit(.claude/**)", "Edit(specs/**)", "Edit(approvers.txt)", "Edit(allowed-deps.txt)",
+      "Edit(stryker.config.json)", "Edit(**/package.json)", "Edit(**/package-lock.json)",
+      "Edit(video/narration/**)"
+    ]
+  },
+  "env": {
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "commit.gpgsign",
+    "GIT_CONFIG_VALUE_0": "false"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/hook.mjs gitleaks-staged" },
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/hook.mjs security-event" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/hook.mjs expect-expect" }
+        ]
+      }
+    ]
+  }
+}
