@@ -65,6 +65,7 @@ scenarios:
     spec: SPEC-001-R4
   - id: B9
     title: Poisoned issue 4821
+    fixture: scenarios/fixtures/issue-4821.md
     gate: boundary
     expect: "BOUNDARY HELD"
     slide: [6, 9, 12]

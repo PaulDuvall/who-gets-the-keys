@@ -12,15 +12,27 @@
   .pip { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); padding: 0; cursor: pointer; }
   .pip[aria-current="step"] { background: var(--accent); border-color: var(--accent); }
   .recording nav { visibility: hidden; }
-  #slide { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 32px 40px; animation: enter .35s ease-out both; min-width: 0; }
-  @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  @media (prefers-reduced-motion: reduce) { #slide { animation: none; } }
+  #slide { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 28px 36px; min-width: 0; }
   #slide.scenario { background: var(--tint-bad); border-color: var(--bad); }
   #slide.practice { background: var(--tint-good); border-color: var(--good); }
   .kind { text-transform: uppercase; letter-spacing: .08em; font-size: 14px; color: var(--muted); }
   .kind.scenario { color: var(--bad); }
   .kind.practice { color: var(--good); }
-  h1 { font-size: 40px; line-height: 1.15; margin: 6px 0 20px; overflow-wrap: anywhere; }
+  h1 { font-size: 38px; line-height: 1.15; margin: 6px 0 18px; overflow-wrap: anywhere; }
+  .panes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 20px; align-items: start; }
+  figure { margin: 0; min-width: 0; }
+  figcaption { font: 600 14px/1.4 ui-monospace, "SFMono-Regular", Menlo, monospace; color: var(--muted); margin-bottom: 6px; }
+  .pane pre { margin: 0; background: var(--code); border: 1px solid var(--line); }
+  .add { color: var(--good); } .del { color: var(--bad); } .file, .cmd { color: var(--muted); font-weight: 600; }
+  .ln { display: block; opacity: 0; animation: show 0s var(--d) forwards; }
+  .ln.pass::before { content: "✓ "; color: var(--good); }
+  .ln.fail { color: var(--bad); font-weight: 700; } .ln.fail::before { content: "✗ "; }
+  .ln.held { color: var(--good); font-weight: 600; } .ln.held::before { content: "⛔ "; }
+  .ln.note { color: var(--muted); }
+  .verdict { font-size: 24px; font-weight: 700; margin: 18px 0 0; }
+  .verdict.scenario { color: var(--bad); } .verdict.opening, .verdict.practice { color: var(--good); }
+  @keyframes show { to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .ln { opacity: 1; animation: none; } }
   table { border-collapse: collapse; width: 100%; table-layout: fixed; }
   th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
   th { width: 22%; color: var(--muted); font-weight: 600; }
@@ -54,14 +66,21 @@ const TOUR = /*TOUR*/;
     current = Math.max(0, Math.min(steps.length - 1, k));
     const s = steps[current];
     const rows = s.rows.map(([h, v]) => `<tr><th>${esc(h)}</th><td>${esc(v)}</td></tr>`).join("");
-    const body = s.kind === "closing"
+    const table = s.kind === "closing"
       ? `<div class="gaps">${s.rows.map(([h, v]) => `<div><b>${esc(h)}</b>${esc(v)}</div>`).join("")}</div>`
-      : `<table>${rows}</table>`;
+      : rows ? `<table>${rows}</table>` : "";
+    const tone = (l) => (/^[$ ]\s*(-m|git)|^\$/.test(l) || /^\s+\(/.test(l) ? "cmd" : l.startsWith("▸") ? "file" : l.startsWith("+") ? "add" : l.startsWith("-") ? "del" : "");
+    const change = s.change ? `<figure class="pane"><figcaption>${esc(s.changeLabel || "Change")}</figcaption><pre>${s.change.split("\n").map((l) => `<span class="${tone(l)}">${esc(l)}</span>`).join("\n")}</pre></figure>` : "";
+    // Replayed output appears line by line from 1.2 s, after the slide change the video check measures.
+    let d = 1.2;
+    const lines = (s.run || []).map((l) => { if (l.kind === "fail") d += 0.35; const out = `<span class="ln ${l.kind}" style="--d:${d.toFixed(2)}s">${esc(l.text)}</span>`; d += 0.08; return out; }).join("");
+    const run = s.run ? `<figure class="pane"><figcaption>$ ${esc(s.command || "")}</figcaption><pre>${lines}</pre></figure>` : "";
+    const verdict = s.verdict ? `<p class="verdict ${s.kind} ln" style="--d:${(d + 0.25).toFixed(2)}s">${esc(s.verdict)}</p>` : "";
+    const label = { opening: "good path · main", practice: "holds on main", scenario: "bad change · blocked", closing: "closing" }[s.kind];
     const slide = $("slide");
     slide.className = s.kind;
-    slide.style.animation = "none"; void slide.offsetWidth; slide.style.animation = "";
-    slide.innerHTML = `<div class="kind ${s.kind}">${esc(s.kind)}${s.kind === "scenario" ? " · blocked" : ""}</div>` +
-      `<h1>${esc(s.title)}</h1>${body}${s.code ? `<pre>${esc(s.code)}</pre>` : ""}`;
+    slide.innerHTML = `<div class="kind ${s.kind}">${esc(label)}${s.head ? ` · ${esc(s.head)}` : ""}</div>` +
+      `<h1>${esc(s.title)}</h1>${table}${change || run ? `<div class="panes">${change}${run}</div>` : ""}${verdict}`;
     $("caption").textContent = s.say;
     $("count").textContent = `${current + 1} / ${steps.length}`;
     document.querySelectorAll(".pip").forEach((p) => p.setAttribute("aria-current", Number(p.dataset.k) === current ? "step" : "false"));

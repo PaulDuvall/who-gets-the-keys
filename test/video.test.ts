@@ -18,12 +18,15 @@ const practice = (id: string, coverage: Practice["coverage"], enforced: string[]
   ({ id, practice: `practice ${id}`, area: "testing", slides: [5], coverage, enforced_by: enforced, files: ["package.json"], reason: "r" });
 
 const input = (over: Partial<TourInput> = {}): TourInput => ({
-  repo: "who-gets-the-keys", commit: "abc1234", commitDate: "2026-10-20", gatesPassed: ["secrets", "lint"],
+  repo: "who-gets-the-keys", commit: "abc1234", commitDate: "2026-10-20", gates: ["secrets", "lint", "test"],
+  mainRun: ["gate secrets passed", "gate lint passed", "gate test passed"],
   practices: [practice("P11", "good+bad", ["gate:lint", "B1"]), practice("P13", "good-only", ["gate:test"]), practice("P09", "not-shown", []), practice("P24", "good+bad", ["B11"])],
   scenarios: [{ id: "B1", title: "Test with no assertion", patch: "p", gate: "lint", expect: "GATE lint FAILED: vitest/expect-expect" },
     { id: "B11", title: "Probe write", patch: "p", gate: "boundary", expect: "BOUNDARY HELD: with an explicit deny", requires: "sandbox-account" }],
   results: [{ id: "B1", status: "pass", line: "GATE lint FAILED: vitest/expect-expect" }],
-  patches: { B1: "--- a/x\n+++ b/x\n+  it(\"x\", () => {});\n" }, onDemand: [], existing: () => true, templates, overrides: {}, ...over,
+  logs: { B1: ["GATE lint FAILED: vitest/expect-expect", "gate secrets passed"] }, commits: { B1: ["scenario B1: Test with no assertion", "Spec: SPEC-014-R1"] },
+  patches: { B1: "diff --git a/test/x.ts b/test/x.ts\n--- a/test/x.ts\n+++ b/test/x.ts\n@@ -1 +1 @@\n+  it(\"x\", () => {});\n" }, fixtures: {},
+  onDemand: [], existing: () => true, templates, overrides: {}, ...over,
 });
 
 const timeline = planTimeline(["one", "two", "three"], [1.0, 3.0, 0.5], [0.05, 0.1, 0]);
@@ -58,19 +61,30 @@ describe("SPEC-002 walkthrough video", () => {
     expect(build).toContain('yaml<{ practices: Practice[] }>("practices.yaml")');
   });
 
-  it("SPEC-002-R5 builds opening, practice, scenario-under-practice and closing steps", () => {
+  it("SPEC-002-R5 builds opening, scenario-under-practice, good-only practice and closing steps that replay captured runs", () => {
     const steps = buildTour(input());
-    expect(steps.map((s) => s.id)).toEqual(["opening", "P11", "B1", "P13", "P24", "B11", "closing"]);
+    expect(steps.map((s) => s.id)).toEqual(["opening", "B1", "P13", "B11", "closing"]);
+    expect(steps[0]?.run?.map((l) => l.text)).toEqual(["gate secrets passed", "gate lint passed", "gate test passed"]);
+    const b1 = steps[1];
+    expect(b1?.head).toBe("P11 · practice P11");
+    expect(b1?.change).toBe('$ git commit -m "scenario B1: Test with no assertion"\n             -m "Spec: SPEC-014-R1"\n▸ test/x.ts\n+  it("x", () => {});');
+    expect(b1?.run).toEqual([{ text: "gate secrets passed", kind: "pass" }, { text: "GATE lint FAILED: vitest/expect-expect", kind: "fail" }]);
+    expect(b1?.verdict).toBe("Stopped at gate 2 of 3. Not deployed");
+    expect(steps[2]?.run).toEqual([{ text: "gate test passed", kind: "pass" }]);
     expect(steps.at(-1)?.rows).toEqual([["P09 (not-shown)", "practice P09: r"]]);
     expect(() => buildTour(input({ results: [{ id: "B1", status: "pass", line: "GATE lint FAILED: other" }] }))).toThrow(KitError);
     expect(() => buildTour(input({ existing: () => false }))).toThrow(/does not exist/);
+    expect(() => buildTour(input({ mainRun: ["gate secrets passed"] }))).toThrow(/1 of 3 gates/);
+    expect(() => buildTour(input({ practices: [practice("P11", "good+bad", ["gate:lint"])] }))).toThrow(/maps to no scenario/);
   });
 
   it("SPEC-002-R6 shows an on-demand scenario only from a real log", () => {
     const without = buildTour(input()).find((s) => s.id === "B11");
-    expect(without?.rows[1]?.[1]).toMatch(/^Not recorded: B11 needs the sandbox account/);
+    expect(without?.run?.[0]?.text).toMatch(/^Not recorded: B11 needs the sandbox account/);
+    expect(without?.verdict).toBeUndefined();
+    expect(without?.say).toMatch(/Not recorded: B11 needs the sandbox account\.$/);
     const logged = buildTour(input({ onDemand: ["BOUNDARY HELD: with an explicit deny in a service control policy"] })).find((s) => s.id === "B11");
-    expect(logged?.rows[1]?.[1]).toBe("BOUNDARY HELD: with an explicit deny in a service control policy");
+    expect(logged?.run).toEqual([{ text: "BOUNDARY HELD: with an explicit deny in a service control policy", kind: "held" }]);
   });
 
   it("SPEC-002-R7 rejects a voice file whose SHA-256 differs from its pin", () => {
@@ -96,7 +110,7 @@ describe("SPEC-002 walkthrough video", () => {
     expect(() => fillTemplate("{missing}", {})).toThrow(KitError);
     const steps = buildTour(input({ overrides: { B1: "Owner line.\n" } }));
     expect(steps.find((s) => s.id === "B1")?.say).toBe("Owner line.");
-    expect(steps.find((s) => s.id === "P11")?.say).toBe(fillTemplate(templates.practice ?? "", steps.find((s) => s.id === "P11")?.fields ?? {}));
+    expect(steps.find((s) => s.id === "P13")?.say).toBe(fillTemplate(templates.practice ?? "", steps.find((s) => s.id === "P13")?.fields ?? {}));
     expect(spoken("B12 and B8a cite SPEC-014-R1 and GHSA-35jh-r3h4-6jhm", { SCP: "S C P" })).toBe("B 12 and B 8 A cite spec 14 requirement 1 and a GitHub security advisory");
     expect(spoken("the SCP denies `it`", { SCP: "S C P" })).toBe("the S C P denies it");
     expect(readdirSync("video/narration").filter((f) => f.endsWith(".md"))).toEqual([]);

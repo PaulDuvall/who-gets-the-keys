@@ -29,16 +29,24 @@ export interface Practice {
   reason?: string;
 }
 
-export interface ScenarioDef { id: string; title: string; patch?: string; gate: string; expect: string; requires?: string }
+export interface ScenarioDef { id: string; title: string; patch?: string; fixture?: string; gate: string; expect: string; requires?: string }
 export interface ScenarioResult { id: string; status: string; line?: string }
+
+// One line of a replayed run: a gate that passed, the failure that stopped the change, a boundary that held, or a note.
+export interface RunLine { text: string; kind: "pass" | "fail" | "held" | "note" }
 
 export interface StepData {
   id: string;
   kind: "opening" | "practice" | "scenario" | "closing";
+  head?: string;
   title: string;
   fields: Record<string, string>;
   rows: [string, string][];
-  code?: string;
+  change?: string;
+  changeLabel?: string;
+  command?: string;
+  run?: RunLine[];
+  verdict?: string;
   say: string;
 }
 
@@ -46,11 +54,15 @@ export interface TourInput {
   repo: string;
   commit: string;
   commitDate: string;
-  gatesPassed: string[];
+  gates: string[];
+  mainRun: string[];
   practices: Practice[];
   scenarios: ScenarioDef[];
   results: ScenarioResult[];
+  logs: Record<string, string[]>;
+  commits: Record<string, string[]>;
   patches: Record<string, string>;
+  fixtures: Record<string, string>;
   onDemand: string[];
   existing: (path: string) => boolean;
   templates: Record<string, string>;
@@ -85,8 +97,20 @@ export function spoken(text: string, words: Readonly<Record<string, string>> = {
   return out;
 }
 
-const excerpt = (patch: string, max = 12): string =>
-  patch.split("\n").filter((l) => /^[+-](?![+-]{2} )/.test(l)).slice(0, max).join("\n");
+const MAX_CHANGE = 14;
+
+// The patch's changed lines under the name of the file they change.
+export function changeExcerpt(patch: string, max = MAX_CHANGE): string {
+  const out: string[] = [];
+  for (const line of patch.split("\n")) {
+    const file = /^diff --git a\/\S+ b\/(\S+)$/.exec(line);
+    if (file) out.push(`▸ ${file[1]}`);
+    else if (/^[+-](?![+-]{2} )/.test(line) && line.slice(1).trim() !== "") out.push(line);
+  }
+  return out.slice(0, max).join("\n");
+}
+
+const PASS = /^gate (\S+) passed$/;
 
 export function buildTour(input: TourInput): StepData[] {
   const results = new Map(input.results.map((r) => [r.id, r]));
@@ -97,32 +121,33 @@ export function buildTour(input: TourInput): StepData[] {
     if (template === undefined) throw new KitError(`no narration template for ${kind}`);
     return fillTemplate(template, fields);
   };
+  const passes = (lines: readonly string[]): RunLine[] => lines.filter((l) => PASS.test(l)).map((text) => ({ text, kind: "pass" }));
   const steps: StepData[] = [];
-  const opening = { repo: input.repo, commit: input.commit, date: input.commitDate, gate_count: String(input.gatesPassed.length) };
-  steps.push({ id: "opening", kind: "opening", title: input.repo, fields: opening,
-    rows: [["Commit", input.commit], ["Date", input.commitDate], ["Gates passed", input.gatesPassed.join(" → ")]], say: say("opening", "opening", opening) });
-  for (const p of input.practices.filter((x) => x.coverage === "good+bad" || x.coverage === "good-only")) {
+  const opening = { repo: input.repo, commit: input.commit, date: input.commitDate, gate_count: String(input.gates.length) };
+  const mainRun = passes(input.mainRun);
+  if (mainRun.length !== input.gates.length) throw new KitError(`the gate run on ${input.commit} shows ${mainRun.length} of ${input.gates.length} gates passing`);
+  steps.push({ id: "opening", kind: "opening", title: input.repo, fields: opening, rows: [["Commit", input.commit], ["Date", input.commitDate]],
+    command: "npm run gates", run: mainRun, verdict: `All ${input.gates.length} gates passed`, say: say("opening", "opening", opening) });
+
+  const shown = input.practices.filter((p) => p.coverage === "good+bad" || p.coverage === "good-only");
+  for (const p of shown) {
     const missing = p.files.find((f) => !input.existing(f));
     if (missing !== undefined) throw new KitError(`${p.id} lists ${missing}, which does not exist at this commit`);
+  }
+  const done = new Set<string>();
+  for (const p of shown) {
     const fields = { id: p.id, practice: p.practice, slides: p.slides.join(", "), coverage: p.coverage, enforced: p.enforced_by.join(", ") || "none" };
-    steps.push({ id: p.id, kind: "practice", title: p.practice, fields,
-      rows: [["Slides", fields.slides], ["Coverage", p.coverage], ["Enforced by", fields.enforced], ["Files", p.files.join(", ")]], say: say(p.id, "practice", fields) });
-    for (const s of input.scenarios.filter((x) => p.enforced_by.includes(x.id))) {
-      const result = results.get(s.id);
-      const matched = input.onDemand.filter((l) => l.startsWith(s.expect));
-      const logged = matched.length ? matched.join("; ") : undefined;
-      let line: string;
-      if (s.requires) {
-        line = logged ?? `Not recorded: ${s.id} needs ${s.requires === "github-actions" ? "the GitHub Actions B9 replay job" : "the sandbox account"}.`;
-      } else {
-        if (result?.status !== "pass" || result.line === undefined || !result.line.startsWith(s.expect)) {
-          throw new KitError(`${s.id} captured "${result?.line ?? "nothing"}", expected "${s.expect}"`);
-        }
-        line = result.line;
-      }
-      const sf = { id: s.id, title: s.title, gate: s.gate, expect: s.expect, line };
-      steps.push({ id: s.id, kind: "scenario", title: `${s.id}: ${s.title}`, fields: sf,
-        rows: [["Gate", s.gate], ["Captured", line]], code: excerpt(input.patches[s.id] ?? ""), say: say(s.id, "scenario", sf) });
+    if (p.coverage === "good-only") {
+      const gates = p.enforced_by.filter((e) => e.startsWith("gate:")).map((e) => e.slice(5));
+      steps.push({ id: p.id, kind: "practice", head: `${p.id} · slides ${fields.slides}`, title: p.practice, fields, rows: [],
+        command: "npm run gates", run: mainRun.filter((l) => gates.includes(PASS.exec(l.text)?.[1] ?? "")), verdict: `Holds on ${input.commit}`, say: say(p.id, "practice", fields) });
+      continue;
+    }
+    const mine = input.scenarios.filter((x) => p.enforced_by.includes(x.id));
+    if (mine.length === 0) throw new KitError(`${p.id} is good+bad but maps to no scenario`);
+    for (const s of mine.filter((x) => !done.has(x.id))) {
+      done.add(s.id);
+      steps.push(scenarioStep(input, s, p, results.get(s.id), say));
     }
   }
   const gaps = input.practices.filter((p) => p.coverage === "partial" || p.coverage === "not-shown");
@@ -130,6 +155,43 @@ export function buildTour(input: TourInput): StepData[] {
   steps.push({ id: "closing", kind: "closing", title: "Partial and not shown", fields: closing,
     rows: gaps.map((p): [string, string] => [`${p.id} (${p.coverage})`, `${p.practice}: ${p.reason ?? ""}`]), say: say("closing", "closing", closing) });
   return steps;
+}
+
+type Say = (id: string, kind: string, fields: Record<string, string>) => string;
+
+function scenarioStep(input: TourInput, s: ScenarioDef, p: Practice, result: ScenarioResult | undefined, say: Say): StepData {
+  const position = input.gates.indexOf(s.gate);
+  let command: string, run: RunLine[], verdict: string | undefined, line: string, outcome = `Stopped by the ${s.gate} gate`;
+  if (s.requires) {
+    const held = input.onDemand.filter((l) => l.startsWith(s.expect));
+    command = s.requires === "github-actions" ? "scenarios/b9-replay.sh   (GitHub Actions, triage token and egress)" : "scenarios/on-demand.sh   (sandbox account)";
+    if (held.length) {
+      run = held.map((text) => ({ text, kind: "held" }));
+      verdict = held.length > 1 ? `All ${held.length} injected actions denied` : "Denied";
+      line = held.join("; ");
+    } else {
+      line = `Not recorded: ${s.id} needs ${s.requires === "github-actions" ? "the GitHub Actions B9 replay job" : "the sandbox account"}.`;
+      run = [{ text: line, kind: "note" }];
+      verdict = undefined;
+      outcome = line.replace(/\.$/, "");
+    }
+  } else {
+    if (result?.status !== "pass" || result.line === undefined || !result.line.startsWith(s.expect)) {
+      throw new KitError(`${s.id} captured "${result?.line ?? "nothing"}", expected "${s.expect}"`);
+    }
+    line = result.line;
+    const before = position < 0 ? [] : (input.logs[s.id] ?? []).filter((l) => input.gates.indexOf(PASS.exec(l)?.[1] ?? "") >= 0);
+    run = [...before.map((text): RunLine => ({ text, kind: "pass" })), { text: line, kind: "fail" }];
+    command = position < 0 ? `node scripts/gates.ts ${s.gate} dist/function.zip   (deploy job)` : "npm run gates";
+    verdict = position < 0 ? "Deploy stopped before any AWS call" : `Stopped at gate ${position + 1} of ${input.gates.length}. Not deployed`;
+  }
+  const commit = (input.commits[s.id] ?? []).map((m, i) => (i === 0 ? `$ git commit -m "${m}"` : `             -m "${m}"`));
+  if (s.id === "B3") commit.push("  (no Spec: trailer)");
+  const body = s.fixture ? `▸ ${s.fixture}\n${(input.fixtures[s.id] ?? "").trim()}` : changeExcerpt(input.patches[s.id] ?? "");
+  const change = [...(s.patch ? commit : []), body].filter(Boolean).join("\n");
+  const fields = { id: s.id, title: s.title, gate: s.gate, expect: s.expect, line, outcome, practice: p.practice, practice_id: p.id };
+  return { id: s.id, kind: "scenario", head: `${p.id} · ${p.practice}`, title: `${s.id}: ${s.title}`, fields, rows: [],
+    change, changeLabel: s.fixture ? "The poisoned input" : "The agent's change", command, run, ...(verdict === undefined ? {} : { verdict }), say: say(s.id, "scenario", fields) };
 }
 
 export interface Entry { index: number; start: number; hold: number; voice_at: number; clip: string; clip_len: number; lead_in: number; spoken: string }

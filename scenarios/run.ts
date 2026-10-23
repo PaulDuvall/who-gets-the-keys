@@ -16,7 +16,12 @@ export interface Scenario {
   spec?: string;
   run?: "gates" | "deploy-verify";
   requires?: "sandbox-account" | "github-actions";
+  fixture?: string;
 }
+
+// B3 is the scenario whose commit carries no Spec: trailer; every other scenario commit names one.
+export const commitMessage = (s: Pick<Scenario, "id" | "title" | "spec">): string[] =>
+  [`scenario ${s.id}: ${s.title}`, ...(s.id === "B3" ? [] : [`Spec: ${s.spec ?? "SPEC-014-R1"}`])];
 
 export interface Outcome { id: string; status: "pass" | "fail" | "skipped"; gate?: string; line?: string; detail: string }
 
@@ -52,8 +57,7 @@ function runInWorktree(root: string, s: Scenario, env: NodeJS.ProcessEnv): { res
     sh(["git", "worktree", "add", "--detach", "--force", dir, "HEAD"], root);
     const applied = sh(["git", "apply", "--index", join(root, s.patch ?? "")], dir);
     if (applied.status !== 0) return { result: { id: s.id, status: "fail", line: `SCENARIO ${s.id} FAILED: patch does not apply`, detail: applied.out.trim() }, log: applied.out };
-    const trailer = s.id === "B3" ? [] : ["-m", `Spec: ${s.spec ?? "SPEC-014-R1"}`];
-    sh(["git", ...GIT_ID, "commit", "-q", "--no-verify", "-m", `scenario ${s.id}: ${s.title}`, ...trailer], dir);
+    sh(["git", ...GIT_ID, "commit", "-q", "--no-verify", ...commitMessage(s).flatMap((m) => ["-m", m])], dir);
     if (s.run === "deploy-verify") {
       sh(["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], dir, env);
       sh(["npm", "run", "build"], dir, env);
