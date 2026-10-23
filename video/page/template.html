@@ -60,8 +60,8 @@ const TOUR = /*TOUR*/;
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const steps = TOUR.steps;
   let current = 0, timer = null, swap = null;
-  // A step change blanks the panel for 160 ms first, so even two look-alike steps change most of the frame at the cut.
-  const BLANK_MS = 160;
+  // A step change blanks the panel for 100 ms first, so even two look-alike steps change most of the frame at the cut.
+  const BLANK_MS = 100;
   $("repo").textContent = TOUR.repo;
   $("commit").textContent = TOUR.commit;
   $("pips").innerHTML = steps.map((_, k) => `<button class="pip" type="button" data-k="${k}" aria-label="Step ${k + 1}"></button>`).join("");

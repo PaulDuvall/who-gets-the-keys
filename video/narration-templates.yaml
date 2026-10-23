@@ -5,4 +5,4 @@
 opening: "{repo}. Commit {commit}, {date}. All {gate_count} gates passed."
 practice: "{id}. {practice}. Holds on main."
 scenario: "{id}. {title}. {practice}. {outcome}."
-closing: "{count} practices are partial or not shown."
+closing: "Partial or not shown: {count} practices."
