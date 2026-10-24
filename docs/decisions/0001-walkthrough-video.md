@@ -58,6 +58,6 @@
 
 | Consequence | Mitigation |
 |---|---|
-| An unhashed browser runs on the runner | Workflow has `contents: read`, no secrets, no AWS, no caches; page SHA-256 recorded before the browser starts |
+| An unhashed browser runs on the runner | Workflow has `contents: read` and `actions: read` only (the second fetches the B9 replay log), no secrets, no AWS, no caches; page SHA-256 recorded before the browser starts |
 | GPL-3.0-or-later narration engine | Run as a separate program, never distributed |
 | A gate or scenario regression fails the video build | Intended: the video shows only verified runs |

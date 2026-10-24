@@ -159,10 +159,22 @@ describe("SPEC-002 walkthrough video", () => {
   it("SPEC-002-R15 runs the video workflow read-only, without secrets, caches or AWS, uploading even on failure", () => {
     const wf = read(".github/workflows/video.yml");
     expect(wf).toMatch(/^cache-mode: none$/m);
-    expect(wf).toContain("      contents: read\n");
+    expect(wf).toContain("    permissions:\n      contents: read\n      actions: read\n    steps:");
     expect(wf).not.toMatch(/secrets\.|id-token|aws-actions/);
     for (const uses of wf.match(/uses: \S+/g) ?? []) expect(uses).toMatch(/@[0-9a-f]{40}$/);
     expect(wf).toMatch(/if: always\(\)\n\s+uses: actions\/upload-artifact/);
+  });
+
+  it("SPEC-002-R15 passes the CI build the B9 replay log from the same commit, waiting at most 20 minutes", () => {
+    const wf = read(".github/workflows/video.yml");
+    expect(wf).toContain("actions/workflows/scenarios.yml/runs?head_sha=$SHA");
+    expect(wf).toContain("deadline=$((SECONDS + 1200))");
+    expect(wf).toContain('npm run video -- --on-demand-log "$RUNNER_TEMP/b9/b9-replay.log"');
+    expect(read(".github/workflows/scenarios.yml")).toMatch(/name: b9-replay-log\n\s+path: \$\{\{ runner\.temp \}\}\/b9-replay\.log/);
+  });
+
+  it("SPEC-002-R6 records the SHA-256 of a passed on-demand log", () => {
+    expect(build).toContain("if (log) report.on_demand_log_sha256 = sha256(readFileSync(log));");
   });
 
   it("SPEC-002-R16 keeps the kit outside the product", () => {

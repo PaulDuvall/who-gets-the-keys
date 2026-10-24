@@ -251,6 +251,7 @@ async function main(argv: string[]): Promise<number> {
   const full_ = !argv.some((a) => ["--page-only", "--frames", "--still"].includes(a));
   const log = flag("--on-demand-log");
   const onDemand = log ? readFileSync(log, "utf8").split("\n").map((l) => l.trim()).filter((l) => /^(BOUNDARY HELD|GATE \S+ FAILED)/.test(l)) : [];
+  if (log) report.on_demand_log_sha256 = sha256(readFileSync(log));
   try {
     if (argv.includes("--page-only")) {
       const inputs = JSON.parse(readFileSync(join(OUT, "inputs.json"), "utf8")) as Captured;

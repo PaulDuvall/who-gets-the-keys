@@ -1,5 +1,5 @@
 # Builds the narrated walkthrough on demand and when its inputs change (SPEC-002-R15).
-# The job runs an unhashed browser: contents: read, no secrets, no AWS, no caches.
+# The job runs an unhashed browser: contents: read and actions: read only, no secrets, no AWS, no caches.
 name: video
 
 on:
@@ -25,6 +25,7 @@ jobs:
       cancel-in-progress: true
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -49,8 +50,37 @@ jobs:
           npm ci --ignore-scripts --no-audit --no-fund
           npm ci --prefix video/record --ignore-scripts --no-audit --no-fund
           (cd video/record && sudo npx --no-install playwright install-deps chromium)
+      - name: Fetch the B9 replay log from this commit's scenarios run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          deadline=$((SECONDS + 1200))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            run=$(gh api "repos/$REPO/actions/workflows/scenarios.yml/runs?head_sha=$SHA&per_page=1" --jq '.workflow_runs[0].id // empty')
+            if [ -n "$run" ]; then
+              job=$(gh api "repos/$REPO/actions/runs/$run/jobs" --jq '.jobs[] | select(.name == "B9 replay under the triage boundary") | "\(.status) \(.conclusion)"')
+              case "$job" in
+                "completed success")
+                  gh run download "$run" -R "$REPO" -n b9-replay-log -D "$RUNNER_TEMP/b9"
+                  echo "B9 replay log from scenarios run $run"
+                  exit 0 ;;
+                completed*)
+                  echo "::warning::B9 replay in scenarios run $run ended '$job'; building without its log"
+                  exit 0 ;;
+              esac
+            fi
+            sleep 30
+          done
+          echo "::warning::No B9 replay for $SHA finished within 20 minutes; building without its log"
       - name: Build and check the video
-        run: npm run video
+        run: |
+          if [ -f "$RUNNER_TEMP/b9/b9-replay.log" ]; then
+            npm run video -- --on-demand-log "$RUNNER_TEMP/b9/b9-replay.log"
+          else
+            npm run video
+          fi
       - name: Upload the video, page, captions and report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

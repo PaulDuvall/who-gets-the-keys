@@ -84,7 +84,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-        run: npx --no-install srt --settings "$RUNNER_TEMP/srt.json" bash scenarios/b9-replay.sh
+        shell: bash
+        run: npx --no-install srt --settings "$RUNNER_TEMP/srt.json" bash scenarios/b9-replay.sh | tee "$RUNNER_TEMP/b9-replay.log"
+      - name: Upload the replay log for the video
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: b9-replay-log
+          path: ${{ runner.temp }}/b9-replay.log
+          if-no-files-found: warn
 
   on-demand:
     name: sandbox-account scenarios (B9 AWS, B11, B14)
