@@ -58,7 +58,7 @@ jobs:
       cancel-in-progress: true
     permissions:
       contents: read
-      issues: write
+      issues: read
       id-token: write
     env:
       EGRESS_ALLOWLIST: .github/egress/allowlist.json
