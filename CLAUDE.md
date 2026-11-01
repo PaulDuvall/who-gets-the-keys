@@ -18,8 +18,8 @@ Purpose: <!-- PAUL: one-line purpose of the repo -->
 
 | Path | Holds |
 |---|---|
-| `specs/` | Approved requirements and the slide snapshot. Approver-signed commits only |
-| `proposals/` | Agent-proposed changes to `specs/`, same relative paths |
+| `specs/` | Approved requirements, the protected-path list, SCA exceptions and the slide snapshot. Approver-signed commits only |
+| `proposals/` | Agent-proposed changes: to `specs/` at the same relative path, to protected paths at their full repo path (for example `proposals/.github/workflows/`) |
 | `practices.yaml` | Slide practice → gate, scenario, files. Source for `docs/practices.md`, the `slides` gate and the video |
 | `src/` | Export service: CSV serializer and Lambda handler |
 | `test/` | Vitest acceptance, property and unit tests |
@@ -51,8 +51,8 @@ Purpose: <!-- PAUL: one-line purpose of the repo -->
 
 | The agent may | The agent may not |
 |---|---|
-| Write code, tests, docs, workflows, Terraform | Write under `specs/` or to `approvers.txt` |
-| Propose spec changes under `proposals/` | Sign commits or force-push |
+| Write code, tests, docs, Terraform | Write under `specs/`, to `approvers.txt`, or to any path listed in `specs/protected-paths.txt` (workflows, gate script, CI tools, dependency manifests, Claude settings and hooks) |
+| Propose spec, pipeline and dependency changes under `proposals/` | Sign commits or force-push |
 | Run gates, scenarios, the video build | Run `terraform apply` or `destroy`, or any `aws` command |
 | Write human-run scripts under `scripts/bootstrap/` | Read `~/.ssh`, `~/.aws`, `~/.config/gh` |
 | | Add or install dependencies; lower `thresholds.break` |

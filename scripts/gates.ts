@@ -128,10 +128,23 @@ export function snapshotBody(snapshot: string): string {
 
 export const sha256 = (text: string): string => createHash("sha256").update(text, "utf8").digest("hex");
 
-export function signatureId(files: readonly string[]): string {
+// Paths listed in specs/protected-paths.txt need an approver's signature too (SPEC-001-R12).
+// A listed path ending in "/" covers everything under it; any other entry is one file.
+export const PROTECTED = "specs/protected-paths.txt";
+
+export function protectedPaths(text: string): string[] {
+  return text.split("\n").map((l) => l.trim()).filter((l) => l !== "" && !l.startsWith("#"));
+}
+
+export const guardedBy = (file: string, paths: readonly string[]): string | undefined =>
+  paths.find((p) => (p.endsWith("/") ? file.startsWith(p) : file === p));
+
+export function signatureId(files: readonly string[], paths: readonly string[] = []): string {
   if (files.includes("specs/source-of-record/slides.txt")) return "unsigned change to specs/source-of-record/slides.txt";
   if (files.some((f) => f.startsWith("specs/"))) return "unsigned change to specs/";
-  return "unsigned change to approvers.txt";
+  if (files.includes("approvers.txt")) return "unsigned change to approvers.txt";
+  const guard = files.map((f) => guardedBy(f, paths)).find((p) => p !== undefined);
+  return `unsigned change to ${guard ?? "approvers.txt"}`;
 }
 
 export const COMMANDS = {
@@ -288,12 +301,14 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
   },
 
   signatures() {
-    const log = git("log", "--reverse", "--format=%H %P", "--", "specs", "approvers.txt");
+    const log = git("log", "--reverse", "--format=%H %P");
     for (const line of log.split("\n").filter(Boolean)) {
       const [commit = "", parent] = line.split(" ");
       const files = git("show", "--name-only", "--format=", commit).split("\n").filter(Boolean);
+      const paths = protectedPaths((parent ? show(parent, PROTECTED) : undefined) ?? "");
+      if (!files.some((f) => f.startsWith("specs/") || f === "approvers.txt" || guardedBy(f, paths) !== undefined)) continue;
       const approvers = (parent ? show(parent, "approvers.txt") : undefined) ?? show(commit, "approvers.txt") ?? "";
-      if (approvers === "" || !verifySigned(commit, approvers)) throw new GateFailure("signatures", signatureId(files));
+      if (approvers === "" || !verifySigned(commit, approvers)) throw new GateFailure("signatures", signatureId(files, paths));
     }
   },
 

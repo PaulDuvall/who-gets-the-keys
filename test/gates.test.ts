@@ -6,7 +6,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import eslintConfig from "../eslint.config.js";
 import {
   COMMANDS, GateFailure, ORDER, allowedNames, dependencyNames, destructiveChanges, exportsOf, failedTestFiles,
-  jobBlock, lockfilePaths, lowered, pipelineCacheFinding, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
+  guardedBy, jobBlock, lockfilePaths, lowered, protectedPaths, pipelineCacheFinding, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
 } from "../scripts/gates.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -93,6 +93,18 @@ describe("SPEC-001 gates", () => {
       expect(signatureId(["specs/source-of-record/slides.txt", "specs/a.md"])).toBe("unsigned change to specs/source-of-record/slides.txt");
       expect(signatureId(["specs/SPEC-014-export-latency.md"])).toBe("unsigned change to specs/");
       expect(signatureId(["approvers.txt"])).toBe("unsigned change to approvers.txt");
+      expect(signatureId([".github/workflows/pipeline.yml"], [".github/", "scripts/gates.ts"])).toBe("unsigned change to .github/");
+      expect(signatureId(["src/x.ts", "scripts/gates.ts"], [".github/", "scripts/gates.ts"])).toBe("unsigned change to scripts/gates.ts");
+    });
+
+    it("SPEC-001-R12 reads the protected-path list and matches directories by prefix and files exactly", () => {
+      const paths = protectedPaths("# comment\n.github/\n\n  scripts/gates.ts  \npackage.json\n");
+      expect(paths).toEqual([".github/", "scripts/gates.ts", "package.json"]);
+      expect(guardedBy(".github/workflows/video.yml", paths)).toBe(".github/");
+      expect(guardedBy("scripts/gates.ts", paths)).toBe("scripts/gates.ts");
+      expect(guardedBy("scripts/gates.tsx", paths)).toBeUndefined();
+      expect(guardedBy("video/record/package.json", paths)).toBeUndefined();
+      expect(guardedBy("src/export.ts", paths)).toBeUndefined();
     });
 
     it("SPEC-001-R12 accepts an approver's signature and rejects an unsigned commit", () => {
