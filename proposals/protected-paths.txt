@@ -1,0 +1,10 @@
+# Paths whose every change needs an approver-signed commit, as specs/ and approvers.txt do (SPEC-001-R12).
+# The agent proposes changes to them under proposals/; a listed path ending in / covers everything under it.
+.github/
+.claude/settings.json
+.claude/hooks/
+scripts/gates.ts
+scripts/ci/
+allowed-deps.txt
+package.json
+package-lock.json
