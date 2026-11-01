@@ -134,7 +134,7 @@ Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and
 | [docs/verification.md](docs/verification.md) | Every version and syntax choice, with source URL and date |
 | [docs/deviations.md](docs/deviations.md) | Where the build departs from its prompt, the slides or the reference, and why |
 | [docs/slide-reconciliation.md](docs/slide-reconciliation.md) | Each slide practice and what demonstrates it |
-| [docs/slide-audit.md](docs/slide-audit.md) | Snapshot practices the `slide-auditor` agent found with no matching `practices.yaml` row |
+| [docs/slide-audit.md](docs/slide-audit.md) | Every claim in the deck checked against the repo: 841 findings with status, deck line and repo evidence |
 | [docs/practices.md](docs/practices.md) | Practice table generated from `practices.yaml` by `npm run practices` |
 | [docs/lockdown-check.md](docs/lockdown-check.md) | Manual check that `.claude/settings.json` denies and hooks work in a local session |
 | [docs/decisions/0001-walkthrough-video.md](docs/decisions/0001-walkthrough-video.md) | Decisions behind the walkthrough video |
