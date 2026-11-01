@@ -6,7 +6,7 @@
 |---|---|
 | Rule demonstrated | Bad changes never reach production, because the pipeline prevents them |
 | Good scenario | `main`, always green |
-| Bad scenarios | 18 scenarios (B1 to B17, with B8 split into B8a and B8b), each failing at one named gate with one expected line. 16 are patches against `main`; B9 replays an issue fixture and B11 is an AWS call |
+| Bad scenarios | 19 scenarios (B1 to B18, with B8 split into B8a and B8b), each failing at one named gate with one expected line. 17 are patches against `main`; B9 replays an issue fixture and B11 is an AWS call |
 | Source of record | Talk deck "Who Gets the Keys? Trust and Authority in Software Factories" (AI Native DevCon 2026), pinned at `specs/source-of-record/slides.txt` |
 | Status | <!-- PAUL: one-line status, e.g. which phases are complete --> |
 
@@ -93,6 +93,7 @@ Versions, sources and dates: [docs/verification.md](docs/verification.md).
 | B15 | Requirement with no test | trace | 7, 13 |
 | B16 | Capability with no requirement | trace | 7, 13, Q3 |
 | B17 | Tampered source of record | signatures | 6 |
+| B18 | Agent loosens the pipeline without a signature | signatures | 8, Q3 |
 
 Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and B14 need the sandbox account and run on demand.
 
@@ -100,10 +101,10 @@ Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and
 
 | Principal | Can | Cannot |
 |---|---|---|
-| Agent (Claude Code) | Write code, tests, docs, workflows; propose spec changes in `proposals/` | Sign commits, write `specs/`, deploy, hold cloud credentials, loosen guardrails |
+| Agent (Claude Code) | Write code, tests and docs; propose spec, pipeline and dependency changes in `proposals/` | Sign commits, write `specs/` or any path in `specs/protected-paths.txt`, deploy, hold cloud credentials, loosen guardrails |
 | Human approver | Sign spec changes and irreversible changes; use break-glass | Deploy outside the pipeline without raising an alarm |
 | `pipeline.yml` deploy role | Plan and apply `infra/sandbox` from environment `sandbox` | Be assumed from any other workflow, ref or environment |
-| Triage role | Invoke Bedrock models | Anything else; network limited to an allowlist |
+| Triage role | Invoke Bedrock models; the triage agent returns one label from a fixed schema | Write to the repo or post text; run a shell; reach the network beyond an allowlist |
 | Scenario probe role | Read state (`ReadOnlyAccess`) | Write: its one Lambda write grant exists so B11 can show the SCP deny it |
 | Break-glass role | Write, alarmed | Be assumed by any workflow |
 

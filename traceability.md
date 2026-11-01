@@ -49,6 +49,7 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R35 | `test/scenarios.test.ts` | trace | B16 |
 | SPEC-001-R36 | `test/scenarios.test.ts` | signatures | B17 |
 | SPEC-001-R37 | `test/scenarios.test.ts` | harness | all |
+| SPEC-001-R38 | `test/scenarios.test.ts` | signatures | B18 |
 | SPEC-002-R1 | `test/video.test.ts` | test | — |
 | SPEC-002-R2 | `test/video.test.ts` | test | — |
 | SPEC-002-R3 | `test/video.test.ts` | test | — |

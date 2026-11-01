@@ -25,7 +25,7 @@ Purpose: <!-- PAUL: one-line purpose of the repo -->
 | `test/` | Vitest acceptance, property and unit tests |
 | `scripts/gates.ts` | Gate dispatcher |
 | `scripts/bootstrap/` | Human-run scripts: GitHub settings, AWS bootstrap, slide refresh |
-| `scenarios/` | `scenarios.yaml`, 16 patches `B01` to `B17` (B9 and B11 have none), the B9 fixture, harness `run.ts` |
+| `scenarios/` | `scenarios.yaml`, 17 patches `B01` to `B18` (B9 and B11 have none), the B9 fixture, harness `run.ts` |
 | `.github/workflows/` | `pipeline.yml`, `issue-triage.yml`, `scenarios.yml`, `video.yml` |
 | `.github/egress/allowlist.json` | Egress allowlist shared by triage and the B9 replay |
 | `infra/sandbox/`, `infra/org/` | Terraform: workload and roles; SCP |

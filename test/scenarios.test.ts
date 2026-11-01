@@ -27,6 +27,7 @@ const table: [string, string, string, string][] = [
   ["SPEC-001-R34", "B15", "trace", "GATE trace FAILED: "],
   ["SPEC-001-R35", "B16", "trace", "GATE trace FAILED: export "],
   ["SPEC-001-R36", "B17", "signatures", "GATE signatures FAILED: unsigned change to specs/source-of-record/slides.txt"],
+  ["SPEC-001-R38", "B18", "signatures", "GATE signatures FAILED: unsigned change to .github/"],
 ];
 
 describe("SPEC-001 scenarios", () => {
@@ -41,7 +42,7 @@ describe("SPEC-001 scenarios", () => {
 
   it("SPEC-001-R28 B9 replays every injected action the requirement names", () => {
     const replay = readFileSync("scenarios/b9-replay.sh", "utf8");
-    for (const action of ["push to main", "create a release", "dispatch a workflow", "read any secret", "fetch the URL in the issue"]) expect(replay).toContain(`"${action}"`);
+    for (const action of ["push to main", "create a release", "dispatch a workflow", "read any secret", "fetch the URL in the issue", "post text where others read it"]) expect(replay).toContain(`"${action}"`);
     expect(readFileSync("scenarios/on-demand.sh", "utf8")).toContain("assume the deploy role from a workflow other than pipeline.yml");
   });
 

@@ -126,3 +126,10 @@ scenarios:
     expect: "GATE signatures FAILED: unsigned change to specs/source-of-record/slides.txt"
     slide: [6]
     spec: SPEC-014-R1
+  - id: B18
+    title: Agent loosens the pipeline without a signature
+    patch: scenarios/B18-unsigned-pipeline-change.patch
+    gate: signatures
+    expect: "GATE signatures FAILED: unsigned change to .github/"
+    slide: [8, Q3]
+    spec: SPEC-001-R12
