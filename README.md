@@ -107,6 +107,24 @@ Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and
 | Scenario probe role | Read state (`ReadOnlyAccess`) | Write: its one Lambda write grant exists so B11 can show the SCP deny it |
 | Break-glass role | Write, alarmed | Be assumed by any workflow |
 
+## Tool choices compared with the deck
+
+The deck's speaker notes name example tools for each practice. Where this repo uses something else, this table says what and why.
+
+| Practice | The deck names | This repo uses | Why |
+|---|---|---|---|
+| SAST, SCA, secrets | Semgrep or CodeQL; OSV-Scanner, Trivy or Snyk; gitleaks or TruffleHog | Semgrep, OSV-Scanner, gitleaks | The first tool the deck names for each |
+| Mutation and property tests | Stryker or PIT; fast-check or Hypothesis | Stryker, fast-check | TypeScript repo |
+| Runner egress control | StepSecurity Harden-Runner | Anthropic `srt` and Claude Code sandbox settings, both from `.github/egress/allowlist.json` | Harden-Runner block mode needs a paid plan for private repos (D04) |
+| Codified policy checks | Open Policy Agent with Conftest, or Cedar | `scripts/gates.ts`, one function per gate | One language for repo code; each gate prints one failure line |
+| Specs and acceptance criteria | Tessl, GitHub Spec Kit or Kiro; Cucumber | EARS-style tables in `specs/`; Vitest tests titled by requirement ID | The trace gate checks both directions without another toolchain |
+| Spec and pipeline approval | CODEOWNERS, rulesets, GitHub Environments required reviewers | Approver-signed commits, checked by the signatures gate for `specs/`, `approvers.txt` and every path in `specs/protected-paths.txt` | Trunk-based with no pull requests, so approval is a signature the pipeline verifies |
+| Attestation verification | Kyverno or Sigstore policy-controller; cosign | GitHub artifact attestations, verified by `gh attestation verify` before any AWS call | The deploy target is a Lambda, not Kubernetes; fails closed while the repo is private (D06) |
+| Waivers with an expiry | Snyk ignore, Trivy `expired_at`, OPA exceptions | OSV-Scanner `ignoreUntil` entries in `specs/sca-exceptions.toml`, owner-signed | OSV-Scanner is the SCA tool |
+| Dependency intake | CodeArtifact, Artifactory or Socket; pip `--require-hashes`, `npm ci` | `allowed-deps.txt`, lockfile hashes, `npm ci`, pip `--require-hashes` | No private mirror in a demo repo |
+| Break-glass | TEAM for IAM Identity Center; CloudTrail plus an EventBridge alarm | A separate IAM role with MFA and an EventBridge alarm | One sandbox account, no Identity Center |
+| Not shown | DAST (ZAP, StackHawk), CloudWatch Logs data protection, OpenTelemetry redaction, IAM Access Analyzer, Security Hub, GuardDuty, CodeDeploy or Argo rollback | none | The repo shows the pipeline, not a running production service; see `docs/slide-reconciliation.md` |
+
 ## Repository map
 
 | Path | Holds |
