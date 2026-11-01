@@ -7,7 +7,7 @@
 | Rule demonstrated | Bad changes never reach production, because the pipeline prevents them |
 | Good scenario | `main`, always green |
 | Bad scenarios | 18 scenarios (B1 to B17, with B8 split into B8a and B8b), each failing at one named gate with one expected line. 16 are patches against `main`; B9 replays an issue fixture and B11 is an AWS call |
-| Source of record | Talk deck "Who Gets the Keys?" (AI Native DevCon 2026), pinned at `specs/source-of-record/slides.txt` |
+| Source of record | Talk deck "Who Gets the Keys? Trust and Authority in Software Factories" (AI Native DevCon 2026), pinned at `specs/source-of-record/slides.txt` |
 | Status | <!-- PAUL: one-line status, e.g. which phases are complete --> |
 
 <!-- PAUL: short paragraph on why this repo exists and who it is for -->
@@ -75,23 +75,23 @@ Versions, sources and dates: [docs/verification.md](docs/verification.md).
 
 | ID | Bad thing attempted | Stopped by | Slide |
 |---|---|---|---|
-| B1 | Test with no assertion | lint | 5 |
-| B2 | Weak assertion | mutation | 5 |
-| B3 | Code change with no spec ID | trace | 3, 7 |
-| B4 | Agent rewrites acceptance criteria to fit its code | signatures | 3 |
+| B1 | Test with no assertion | lint | 5, 12 |
+| B2 | Weak assertion | mutation | 5, 7 |
+| B3 | Code change with no spec ID | trace | 3, 13 |
+| B4 | Agent rewrites acceptance criteria to fit its code | signatures | 3, 11 |
 | B5 | Hard-coded secret | secrets | 4 |
-| B6 | Invented package name | allowlist | 6 |
+| B6 | Invented package name | allowlist | 6, 12 |
 | B7 | Guardrail loosened | ratchet | 8 |
 | B8a | Cache in a deploy job | workflows | 9, 10 |
-| B8b | Action pinned by tag | workflows | 9, 10 |
+| B8b | Action pinned by tag | workflows | 10 |
 | B9 | Poisoned issue #4821 | boundary | 6, 9, 12 |
-| B10 | Unattested artifact reaches deploy | attestation | 7 |
+| B10 | Unattested artifact reaches deploy | attestation | 7, 13 |
 | B11 | Non-deploy principal writes the sandbox | boundary (SCP) | 10 |
 | B12 | Command injection in your code | sast | 4 |
 | B13 | Command injection in imported code | sca | 4 |
 | B14 | Irreversible change without approval | irreversible | 8, 10 |
-| B15 | Requirement with no test | trace | 7 |
-| B16 | Capability with no requirement | trace | 7 |
+| B15 | Requirement with no test | trace | 7, 13 |
+| B16 | Capability with no requirement | trace | 7, 13, Q3 |
 | B17 | Tampered source of record | signatures | 6 |
 
 Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and B14 need the sandbox account and run on demand.

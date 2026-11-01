@@ -110,11 +110,11 @@ describe("SPEC-001 gates", () => {
     });
   });
 
-  it("SPEC-001-R13 hashes the snapshot body and finds slides 1 to 13 and Q1 to Q3", () => {
+  it("SPEC-001-R13 hashes the snapshot body and finds slides 1 to 13 and Q1 to Q4", () => {
     const snapshot = read("specs/source-of-record/slides.txt");
     const body = snapshotBody(snapshot);
     expect(snapshot).toContain(`body-sha256: ${sha256(body)}`);
-    expect([...slideNumbers(body)]).toEqual([...Array.from({ length: 13 }, (_, i) => String(i + 1)), "Q1", "Q2", "Q3"]);
+    expect([...slideNumbers(body)]).toEqual([...Array.from({ length: 13 }, (_, i) => String(i + 1)), "Q1", "Q2", "Q3", "Q4"]);
     expect(snapshotBody("no separator")).toBe("");
   });
 
