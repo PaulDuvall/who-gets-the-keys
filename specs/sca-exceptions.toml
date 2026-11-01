@@ -1,9 +1,4 @@
 [[IgnoredVulns]]
-id = "GHSA-86w9-cpqp-85rv"
-ignoreUntil = 2026-11-19T00:00:00Z
-reason = "node-forge 1.4.0 has no fixed release (last_affected 1.4.0). Pulled in only by @anthropic-ai/sandbox-runtime 0.0.79, the egress sandbox for the triage job and the B9 replay. Approved by the owner 2026-10-20; expires in 30 days."
-
-[[IgnoredVulns]]
 id = "GHSA-mrhx-c7xc-m3w5"
 ignoreUntil = 2026-11-22T00:00:00Z
 reason = "zod 3.25.76, fixed only in 4.6.6. Pulled in only by @anthropic-ai/sandbox-runtime 0.0.79, which requires zod ^3.25.0 in every release through 0.0.81 and uses it only to validate its config file, generated from .github/egress/allowlist.json. Expires in 30 days."
@@ -17,3 +12,23 @@ reason = "mcp 1.29.0 in scripts/ci/requirements.txt, fixed in 1.30.0. semgrep 1.
 id = "GHSA-xcq7-p3pf-p88h"
 ignoreUntil = 2026-11-22T00:00:00Z
 reason = "opentelemetry-api 1.37.0 in scripts/ci/requirements.txt, fixed in 1.45.1. semgrep 1.181.0 and 1.182.1 require opentelemetry-api~=1.37.0. The advisory is in parsing inbound tracestate headers; semgrep scan serves no HTTP. CI toolchain only, not in the Lambda artifact. Expires in 30 days."
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2026-11-30T00:00:00Z
+reason = "minimatch 10.2.6, fixed only in 11.0.1. eslint 10.13.0 (^10.2.5), @eslint/config-array (^10.2.4), @stryker-mutator/core 10.0.0 (~10.2.4) and typescript-eslint 8.72.0 (^10.2.2) all require minimatch 10.x, and 10.2.6 is the last 10.x. Dev tooling only, matching glob patterns from repo config files; not in the Lambda artifact. Expires in 30 days."
+
+[[IgnoredVulns]]
+id = "GHSA-w4fh-qvv9-3v23"
+ignoreUntil = 2026-11-30T00:00:00Z
+reason = "mcp 1.29.0 in scripts/ci/requirements.txt, fixed in 1.30.0. semgrep 1.181.0 through 1.183.0 pin mcp==1.29.0. The advisory is in MCP server bearer-token authentication; the sast gate runs semgrep scan and never starts an MCP server. CI toolchain only. Expires in 30 days."
+
+[[IgnoredVulns]]
+id = "GHSA-rwrf-2pqf-9j8j"
+ignoreUntil = 2026-11-30T00:00:00Z
+reason = "mcp 1.29.0 in scripts/ci/requirements.txt, fixed in 1.30.0. semgrep 1.181.0 through 1.183.0 pin mcp==1.29.0. The advisory is in the MCP client validating tool results; semgrep scan runs no MCP client. CI toolchain only. Expires in 30 days."
+
+[[IgnoredVulns]]
+id = "GHSA-5h93-6whr-6q8j"
+ignoreUntil = 2026-11-30T00:00:00Z
+reason = "mcp 1.29.0 in scripts/ci/requirements.txt, fixed in 1.30.0. semgrep 1.181.0 through 1.183.0 pin mcp==1.29.0. The advisory is in MCP HTTP client transports following redirects; semgrep scan runs no MCP client. CI toolchain only. Expires in 30 days."
