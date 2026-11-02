@@ -267,6 +267,8 @@ resource "aws_iam_role_policy_attachment" "break_glass" {
 
 # Identity changes after the SCP is attached go through this role, with MFA, which fires the break-glass alarm.
 # PowerUserAccess grants no IAM, so this adds IAM for this workload's roles, policies and OIDC provider only.
+# Changing roles and their policies is this role's purpose, so Semgrep's privilege-escalation and resource-exposure
+# rules are suppressed for this one statement; no user, access-key or login-profile action is granted.
 resource "aws_iam_role_policy" "break_glass_identity" {
   name = "identity"
   role = aws_iam_role.break_glass.id
@@ -275,7 +277,20 @@ resource "aws_iam_role_policy" "break_glass_identity" {
     Statement = [{
       Sid    = "WorkloadIdentities"
       Effect = "Allow"
-      Action = "iam:*"
+      # nosemgrep: terraform.lang.security.iam.no-iam-priv-esc-funcs.no-iam-priv-esc-funcs, terraform.lang.security.iam.no-iam-resource-exposure.no-iam-resource-exposure
+      Action = [
+        "iam:GetRole", "iam:GetRolePolicy", "iam:GetPolicy", "iam:GetPolicyVersion", "iam:GetOpenIDConnectProvider",
+        "iam:ListRolePolicies", "iam:ListAttachedRolePolicies", "iam:ListPolicyVersions", "iam:ListRoleTags",
+        "iam:ListPolicyTags", "iam:ListOpenIDConnectProviderTags",
+        "iam:CreateRole", "iam:DeleteRole", "iam:UpdateRole", "iam:UpdateRoleDescription", "iam:UpdateAssumeRolePolicy",
+        "iam:TagRole", "iam:UntagRole", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy", "iam:PutRolePermissionsBoundary", "iam:DeleteRolePermissionsBoundary", "iam:PassRole",
+        "iam:CreatePolicy", "iam:DeletePolicy", "iam:CreatePolicyVersion", "iam:DeletePolicyVersion",
+        "iam:SetDefaultPolicyVersion", "iam:TagPolicy", "iam:UntagPolicy",
+        "iam:CreateOpenIDConnectProvider", "iam:DeleteOpenIDConnectProvider", "iam:UpdateOpenIDConnectProviderThumbprint",
+        "iam:AddClientIDToOpenIDConnectProvider", "iam:RemoveClientIDFromOpenIDConnectProvider",
+        "iam:TagOpenIDConnectProvider", "iam:UntagOpenIDConnectProvider",
+      ]
       Resource = [
         "arn:aws:iam::${local.account_id}:role${local.role_path}*",
         "arn:aws:iam::${local.account_id}:policy${local.role_path}*",
