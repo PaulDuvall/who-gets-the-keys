@@ -168,11 +168,12 @@ describe("SPEC-001 checks", () => {
     });
   });
 
-  it("SPEC-001-R13 hashes the snapshot body and finds slides 1 to 13 and Q1 to Q4", () => {
+  it("SPEC-001-R13 hashes the snapshot body and finds slides 1 to 13 of the audience deck", () => {
     const snapshot = read("specs/source-of-record/slides.txt");
     const body = snapshotBody(snapshot);
     expect(snapshot).toContain(`body-sha256: ${sha256(body)}`);
-    expect([...slideNumbers(body)]).toEqual([...Array.from({ length: 13 }, (_, i) => String(i + 1)), "Q1", "Q2", "Q3", "Q4"]);
+    expect([...slideNumbers(body)]).toEqual(Array.from({ length: 13 }, (_, i) => String(i + 1)));
+    expect([...slideNumbers("1\n2\n1\nLikely questions\n3\nLikely questions, part 2\n")]).toEqual(["1", "2", "3", "Q1", "Q2"]);
     expect(snapshotBody("no separator")).toBe("");
   });
 

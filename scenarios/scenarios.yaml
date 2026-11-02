@@ -117,7 +117,7 @@ scenarios:
     patch: scenarios/B16-capability-without-requirement.patch
     check: trace
     expect: "CHECK trace FAILED: export toJsonLines has no requirement"
-    slide: [7, 13, Q3]
+    slide: [7, 13]
     spec: SPEC-014-R1
   - id: B17
     title: Tampered source of record
@@ -131,5 +131,5 @@ scenarios:
     patch: scenarios/B18-unsigned-pipeline-change.patch
     check: signatures
     expect: "CHECK signatures FAILED: unsigned change to .github/"
-    slide: [8, Q3]
+    slide: [8]
     spec: SPEC-001-R12
