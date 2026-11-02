@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-deck_id="REDACTED-PRIVATE-DECK"
+deck_id="19RnjfRhGtxNv-KKmLKdpjWcheoN15Vvs1eWpGXjuDbQ"
 deck_url="https://docs.google.com/presentation/d/${deck_id}/"
 target="specs/source-of-record/slides.txt"
 proposal="proposals/source-of-record/slides.txt"
