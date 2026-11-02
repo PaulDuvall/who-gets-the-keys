@@ -1,7 +1,9 @@
 // Rewrites main's history in this clone before it is published to a new repository. Owner-run; never pushes.
 // Removes Gmail addresses, the private deck's Drive ID, and every slide snapshot older than the current one
 // (the private deck's slide text and speaker notes). Any other file version that quotes private deck text the
-// tip no longer publishes is replaced by the tip's version. Text the tip still holds counts as public.
+// tip no longer publishes is replaced by the tip's version, or removed if the tip no longer has that file.
+// Text the tip still holds counts as public.
+// In commit messages, private deck text is cut out in place and marked "[speaker-deck text removed]".
 // Re-signs exactly the commits that were signed, keeps every author, committer and date, and updates
 // commit SHAs quoted in commit messages. The tip's files must already be clean and stay byte-identical.
 // Usage: node scripts/bootstrap/rewrite-history.ts [--apply]
@@ -19,6 +21,7 @@ const IDENTITY = { author: /^author (.*) <(.*)> (\d+ [+-]\d{4})$/m, committer: /
 const ADDRESS = "approver@example.com";
 const REDACTED_DECK = "REDACTED-PRIVATE-DECK";
 const SHINGLE = 8;
+const REMOVE = "";
 const MIN_LINE = 20;
 
 interface Entry { mode: string; type: string; blob: string; path: string }
@@ -97,6 +100,28 @@ export function leak(text: string, markers: ReturnType<typeof privateMarkers>): 
   return undefined;
 }
 
+// Cuts every run of words that matches a private fingerprint out of a commit message, keeping the rest verbatim.
+export function scrubText(text: string, markers: ReturnType<typeof privateMarkers>): { text: string; count: number } {
+  const tokens = [...text.matchAll(/[A-Za-z0-9']+/g)].map((m) => ({ word: m[0].toLowerCase(), start: m.index, end: m.index + m[0].length }));
+  const marked = new Array<boolean>(tokens.length).fill(false);
+  const key = (from: number, length: number) => tokens.slice(from, from + length).map((t) => t.word).join(" ");
+  for (let i = 0; i + SHINGLE <= tokens.length; i++) if (markers.shingles.has(key(i, SHINGLE))) marked.fill(true, i, i + SHINGLE);
+  for (const phrase of [...markers.shortLines, ...markers.hard]) {
+    const length = phrase.split(" ").length;
+    for (let i = 0; i + length <= tokens.length; i++) if (key(i, length) === phrase) marked.fill(true, i, i + length);
+  }
+  let out = "", at = 0, count = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    if (!marked[i] || marked[i - 1]) continue;
+    let j = i;
+    while (marked[j + 1]) j++;
+    out += `${text.slice(at, tokens[i]?.start)}[speaker-deck text removed]`;
+    at = tokens[j]?.end ?? at;
+    count++;
+  }
+  return { text: out + text.slice(at), count };
+}
+
 export function remapShas(text: string, all: readonly string[], done: ReadonlyMap<string, string>): { text: string; count: number } {
   let count = 0;
   const out = text.replace(/\b[0-9a-f]{7,40}\b/g, (token) => {
@@ -134,7 +159,7 @@ function main(): void {
   if (tipLeaks.length) fail(`the current tip still holds private content; clean it first:\n${tipLeaks.map(([p, why]) => `  ${p}: ${why}`).join("\n")}`);
 
   const done = new Map<string, string>(), cache = new Map<string, string>();
-  const tally = { snapshots: 0, scrubbed: 0, replacedByTip: new Map<string, number>(), shaRefs: 0, signed: 0 };
+  const tally = { snapshots: 0, scrubbed: 0, replacedByTip: new Map<string, number>(), removed: new Map<string, number>(), shaRefs: 0, messageCuts: 0, signed: 0 };
   const index = join(scratch, "index"), messageFile = join(scratch, "message");
   const transform = (commit: string, e: Entry): string => {
     if (e.type !== "blob") return e.blob;
@@ -150,9 +175,9 @@ function main(): void {
       for (const id of markers.ids) text = text.split(id).join(REDACTED_DECK);
       if (leak(text, markers)) {
         const tip = tipEntries.get(e.path);
-        if (!tip) fail(`${e.path} in ${commit.slice(0, 7)} holds private deck text and no longer exists at the tip; remove it from history by hand`);
-        tally.replacedByTip.set(e.path, (tally.replacedByTip.get(e.path) ?? 0) + 1);
-        result = tip?.blob ?? e.blob;
+        const counts = tip ? tally.replacedByTip : tally.removed;
+        counts.set(e.path, (counts.get(e.path) ?? 0) + 1);
+        result = tip?.blob ?? REMOVE;
       } else if (text !== before) {
         tally.scrubbed++;
         result = writeBlob(text);
@@ -169,14 +194,19 @@ function main(): void {
     if (changes.length) {
       const env = { ...process.env, GIT_INDEX_FILE: index };
       git(["read-tree", c.tree], env);
-      for (const { e, blob } of changes) git(["update-index", "--cacheinfo", `${e.mode},${blob},${e.path}`], env);
+      for (const { e, blob } of changes) {
+        if (blob === REMOVE) git(["update-index", "--force-remove", "--", e.path], env);
+        else git(["update-index", "--cacheinfo", `${e.mode},${blob},${e.path}`], env);
+      }
       tree = git(["write-tree"], env);
     }
     let message = c.message.replace(GMAIL, ADDRESS);
     for (const id of markers.ids) message = message.split(id).join(REDACTED_DECK);
     const remapped = remapShas(message, all, done);
     tally.shaRefs += remapped.count;
-    message = remapped.text;
+    const scrubbed = scrubText(remapped.text, markers);
+    tally.messageCuts += scrubbed.count;
+    message = scrubbed.text;
     const why = leak(message, markers) ?? leak(`${c.author.email} ${c.committer.email}`, markers);
     if (why) fail(`the message or identity of ${c.sha.slice(0, 7)} holds ${why}; this script does not rewrite those`);
     writeFileSync(messageFile, message);
@@ -220,8 +250,9 @@ function main(): void {
   console.log(`commits: ${commits.length}; signed before: ${wasSigned}; ${apply ? `signed now: ${tally.signed}` : `would sign: ${wasSigned}`}`);
   console.log(`older slide snapshots replaced with the current one: ${tally.snapshots} (in ${privateSnapshots.size} distinct versions)`);
   console.log(`private deck IDs found: ${markers.ids.length}; private-text fingerprints: ${markers.shingles.size + markers.shortLines.length}; notes marked private: ${markers.hard.length}`);
-  console.log(`file versions scrubbed in place: ${tally.scrubbed}; commit SHAs updated in messages: ${tally.shaRefs}`);
+  console.log(`file versions scrubbed in place: ${tally.scrubbed}; commit SHAs updated in messages: ${tally.shaRefs}; private passages cut from messages: ${tally.messageCuts}`);
   for (const [path, n] of tally.replacedByTip) console.log(`replaced with the tip's version, because it quoted private deck text: ${path} (${n} versions)`);
+  for (const [path, n] of tally.removed) console.log(`removed from history, because it quoted private deck text and the tip no longer has it: ${path} (${n} versions)`);
   if (problems.length) fail(`not applied:\n${problems.map((p) => `  ${p}`).join("\n")}`);
   if (apply) {
     git(["update-ref", "refs/rewrite/original", oldTip]);
