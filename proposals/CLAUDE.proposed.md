@@ -19,7 +19,7 @@ Purpose: <!-- PAUL: one-line purpose of the repo -->
 | Path | Holds |
 |---|---|
 | `specs/` | Approved requirements, the protected-path list, SCA exceptions and the slide snapshot. Approver-signed commits only |
-| `proposals/` | Agent-proposed changes: to `specs/` at the same relative path, to protected paths at their full repo path (for example `proposals/.github/workflows/`). Paths under `.claude/` go to `proposals/claude-<dir>/`, because the local deny rule `Edit(.claude/**)` also matches `proposals/.claude/` |
+| `proposals/` | Agent-proposed changes: to `specs/` at the same relative path, to other protected paths at their full repo path (for example `proposals/scripts/gates.ts`). Paths under `.claude/` and `.github/` go to `proposals/claude-<dir>/` and `proposals/github-<dir>/` (for example `proposals/github-workflows/`), because the local permission rules also refuse writes to `proposals/.claude/` and `proposals/.github/` |
 | `practices.yaml` | Slide practice → gate, scenario, files. Source for `docs/practices.md`, the `slides` gate and the video |
 | `src/` | Export service: CSV serializer and Lambda handler |
 | `test/` | Vitest acceptance, property and unit tests |
