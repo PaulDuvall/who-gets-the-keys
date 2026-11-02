@@ -6,11 +6,14 @@
 // In commit messages, private deck text is cut out in place and marked "[speaker-deck text removed]".
 // Re-signs exactly the commits that were signed, keeps every author, committer and date, and updates
 // commit SHAs quoted in commit messages. The tip's files must already be clean and stay byte-identical.
-// Usage: node scripts/bootstrap/rewrite-history.ts [--apply]
+// Optional rules, kept outside the repository so the text they remove is never committed:
+//   --replace <file>        lines "old==>new", applied in order to every file version and commit message
+//   --drop-trailer <name>   removes every "<name>: ..." line from commit messages
+// Usage: node scripts/bootstrap/rewrite-history.ts [--replace <file>]... [--drop-trailer <name>]... [--apply]
 //   default  builds unsigned refs/rewrite/preview, checks it and reports; main is untouched
 //   --apply  builds signed history, keeps the old tip at refs/rewrite/original and moves main
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -122,6 +125,31 @@ export function scrubText(text: string, markers: ReturnType<typeof privateMarker
   return { text: out + text.slice(at), count };
 }
 
+export interface Rule { old: string; replacement: string }
+
+export function parseRules(text: string): Rule[] {
+  return text.split("\n").filter((line) => line.trim() !== "" && !line.startsWith("#")).map((line) => {
+    const at = line.indexOf("==>");
+    return at > 0 ? { old: line.slice(0, at), replacement: line.slice(at + 3) } : fail("a --replace line has no \"old==>new\" pair");
+  });
+}
+
+export const applyRules = (text: string, rules: readonly Rule[]): string => rules.reduce((t, r) => t.split(r.old).join(r.replacement), text);
+
+export function dropTrailers(message: string, names: readonly string[]): { text: string; count: number } {
+  const lines = message.split("\n");
+  const kept = lines.filter((line) => !names.some((name) => line.startsWith(`${name}: `)));
+  return { text: kept.join("\n"), count: lines.length - kept.length };
+}
+
+// Says what a rule or trailer left behind, without echoing the removed text.
+export function leftover(text: string, rules: readonly Rule[], names: readonly string[]): string | undefined {
+  const rule = rules.findIndex((r) => text.includes(r.old));
+  if (rule >= 0) return `text that replacement rule ${rule + 1} removes`;
+  const name = names.find((n) => text.split("\n").some((line) => line.startsWith(`${n}: `)));
+  return name ? `a "${name}:" trailer` : undefined;
+}
+
 export function remapShas(text: string, all: readonly string[], done: ReadonlyMap<string, string>): { text: string; count: number } {
   let count = 0;
   const out = text.replace(/\b[0-9a-f]{7,40}\b/g, (token) => {
@@ -135,7 +163,13 @@ export function remapShas(text: string, all: readonly string[], done: ReadonlyMa
 }
 
 function main(): void {
-  const apply = process.argv.includes("--apply");
+  const args = process.argv.slice(2);
+  const apply = args.includes("--apply");
+  const values = (flag: string): string[] => args.flatMap((a, i) => (a === flag ? [args[i + 1] ?? fail(`${flag} needs a value`)] : []));
+  const unknown = args.find((a, i) => a.startsWith("--") && !["--apply", "--replace", "--drop-trailer"].includes(a) && !["--replace", "--drop-trailer"].includes(args[i - 1] ?? ""));
+  if (unknown) fail(`unknown option ${unknown}`);
+  const rules = values("--replace").flatMap((file) => parseRules(readFileSync(file, "utf8")));
+  const trailers = values("--drop-trailer");
   scratch = mkdtempSync(join(tmpdir(), "rewrite-history-"));
   if (git(["status", "--porcelain"]) !== "") fail("the working tree is not clean");
   if (git(["rev-parse", "--abbrev-ref", "HEAD"]) !== "main") fail("check out main first");
@@ -156,10 +190,13 @@ function main(): void {
   const markers = privateMarkers([...privateSnapshots].map((b) => blobBytes(b).toString("utf8")), tipTexts, publicId);
   const tipLeaks = [...tipEntries.values()].filter((e) => e.type === "blob" && !blobBytes(e.blob).includes(0))
     .map((e) => [e.path, leak(blobBytes(e.blob).toString("utf8"), markers)]).filter(([, why]) => why);
+  const tipRuleHits = [...tipEntries.values()].filter((e) => e.type === "blob" && !blobBytes(e.blob).includes(0) && leftover(blobBytes(e.blob).toString("utf8"), rules, []));
+  if (tipRuleHits.length) fail(`the current tip still holds text a replacement rule removes; clean it first: ${tipRuleHits.map((e) => e.path).join(", ")}`);
   if (tipLeaks.length) fail(`the current tip still holds private content; clean it first:\n${tipLeaks.map(([p, why]) => `  ${p}: ${why}`).join("\n")}`);
 
   const done = new Map<string, string>(), cache = new Map<string, string>();
-  const tally = { snapshots: 0, scrubbed: 0, replacedByTip: new Map<string, number>(), removed: new Map<string, number>(), shaRefs: 0, messageCuts: 0, signed: 0 };
+  const tally = { snapshots: 0, scrubbed: 0, replacedByTip: new Map<string, number>(), removed: new Map<string, number>(), shaRefs: 0, messageCuts: 0, signed: 0,
+    ruleFiles: 0, ruleMessages: 0, trailers: 0 };
   const index = join(scratch, "index"), messageFile = join(scratch, "message");
   const transform = (commit: string, e: Entry): string => {
     if (e.type !== "blob") return e.blob;
@@ -173,6 +210,9 @@ function main(): void {
       const before = bytes.toString("utf8");
       let text = before.replace(GMAIL, ADDRESS);
       for (const id of markers.ids) text = text.split(id).join(REDACTED_DECK);
+      const ruled = applyRules(text, rules);
+      if (ruled !== text) tally.ruleFiles++;
+      text = ruled;
       if (leak(text, markers)) {
         const tip = tipEntries.get(e.path);
         const counts = tip ? tally.replacedByTip : tally.removed;
@@ -202,6 +242,11 @@ function main(): void {
     }
     let message = c.message.replace(GMAIL, ADDRESS);
     for (const id of markers.ids) message = message.split(id).join(REDACTED_DECK);
+    const ruledMessage = applyRules(message, rules);
+    if (ruledMessage !== message) tally.ruleMessages++;
+    const trimmed = dropTrailers(ruledMessage, trailers);
+    tally.trailers += trimmed.count;
+    message = trimmed.text;
     const remapped = remapShas(message, all, done);
     tally.shaRefs += remapped.count;
     const scrubbed = scrubText(remapped.text, markers);
@@ -226,13 +271,14 @@ function main(): void {
   if (rewritten.length !== commits.length) problems.push(`${rewritten.length} commits after the rewrite, ${commits.length} before`);
   const seen = new Set<string>();
   for (const sha of rewritten) {
-    const why = leak(git(["cat-file", "commit", sha]), markers);
+    const body = git(["cat-file", "commit", sha]);
+    const why = leak(body, markers) ?? leftover(body, rules, trailers);
     if (why) problems.push(`commit ${sha.slice(0, 7)} still holds ${why}`);
     for (const e of entries(sha)) {
       if (e.type !== "blob" || seen.has(e.blob)) continue;
       seen.add(e.blob);
       const bytes = blobBytes(e.blob);
-      const found = bytes.includes(0) ? undefined : leak(bytes.toString("utf8"), markers);
+      const found = bytes.includes(0) ? undefined : leak(bytes.toString("utf8"), markers) ?? leftover(bytes.toString("utf8"), rules, []);
       if (found) problems.push(`${e.path} in ${sha.slice(0, 7)} still holds ${found}`);
     }
   }
@@ -251,6 +297,7 @@ function main(): void {
   console.log(`older slide snapshots replaced with the current one: ${tally.snapshots} (in ${privateSnapshots.size} distinct versions)`);
   console.log(`private deck IDs found: ${markers.ids.length}; private-text fingerprints: ${markers.shingles.size + markers.shortLines.length}; notes marked private: ${markers.hard.length}`);
   console.log(`file versions scrubbed in place: ${tally.scrubbed}; commit SHAs updated in messages: ${tally.shaRefs}; private passages cut from messages: ${tally.messageCuts}`);
+  console.log(`replacement rules: ${rules.length}, applied in ${tally.ruleFiles} file versions and ${tally.ruleMessages} messages; trailer lines dropped: ${tally.trailers}`);
   for (const [path, n] of tally.replacedByTip) console.log(`replaced with the tip's version, because it quoted private deck text: ${path} (${n} versions)`);
   for (const [path, n] of tally.removed) console.log(`removed from history, because it quoted private deck text and the tip no longer has it: ${path} (${n} versions)`);
   if (problems.length) fail(`not applied:\n${problems.map((p) => `  ${p}`).join("\n")}`);
