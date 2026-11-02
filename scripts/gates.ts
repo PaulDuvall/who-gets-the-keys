@@ -193,6 +193,31 @@ export function verifySigned(commit: string, approvers: string, cwd = "."): bool
   }
 }
 
+// Files a commit changes against its first parent, or against nothing for a root commit (SPEC-001-R12).
+// Renames count as a delete plus an add, so moving a protected file away touches its protected path; -z keeps
+// names unquoted; a merge commit is compared with its first parent, so everything it brings in counts.
+export function changedFiles(commit: string, parent: string | undefined, cwd = "."): string[] {
+  const range = parent ? [parent, commit] : ["--root", commit];
+  const r = tool(["git", "diff-tree", "-r", "--no-commit-id", "--name-only", "--no-renames", "-z", ...range], cwd);
+  return r.stdout.split("\0").filter(Boolean);
+}
+
+// The allowed signers that judge a commit: approvers.txt as of its first parent. Only the commit that first adds
+// approvers.txt, when no earlier commit had one, is judged by its own copy (SPEC-001-R12).
+export function approversFor(parentCopy: string | undefined, ownCopy: string | undefined, seenBefore: boolean): string {
+  if (parentCopy !== undefined) return parentCopy;
+  return seenBefore ? "" : ownCopy ?? "";
+}
+
+// gh attestation verify, pinned to pipeline.yml on main, a GitHub-hosted runner and, in CI, this commit (SPEC-001-R17).
+export function attestationArgs(artifact: string, repo: string, sha: string | undefined): string[] {
+  return [
+    "gh", "attestation", "verify", artifact, "--repo", repo,
+    "--signer-workflow", `${repo}/.github/workflows/pipeline.yml`, "--source-ref", "refs/heads/main",
+    "--deny-self-hosted-runners", ...(sha ? ["--source-digest", sha] : []),
+  ];
+}
+
 const show = (rev: string, path: string): string | undefined => {
   const r = tool(["git", "show", `${rev}:${path}`]);
   return r.status === 0 ? r.stdout : undefined;
@@ -301,14 +326,18 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
   },
 
   signatures() {
-    const log = git("log", "--reverse", "--format=%H %P");
+    const log = git("log", "--reverse", "--topo-order", "--format=%H %P");
+    let seen = false;
     for (const line of log.split("\n").filter(Boolean)) {
       const [commit = "", parent] = line.split(" ");
-      const files = git("show", "--name-only", "--format=", commit).split("\n").filter(Boolean);
+      const files = changedFiles(commit, parent);
       const paths = protectedPaths((parent ? show(parent, PROTECTED) : undefined) ?? "");
-      if (!files.some((f) => f.startsWith("specs/") || f === "approvers.txt" || guardedBy(f, paths) !== undefined)) continue;
-      const approvers = (parent ? show(parent, "approvers.txt") : undefined) ?? show(commit, "approvers.txt") ?? "";
-      if (approvers === "" || !verifySigned(commit, approvers)) throw new GateFailure("signatures", signatureId(files, paths));
+      const parentCopy = parent ? show(parent, "approvers.txt") : undefined;
+      if (files.some((f) => f.startsWith("specs/") || f === "approvers.txt" || guardedBy(f, paths) !== undefined)) {
+        const approvers = approversFor(parentCopy, show(commit, "approvers.txt"), seen);
+        if (approvers === "" || !verifySigned(commit, approvers)) throw new GateFailure("signatures", signatureId(files, paths));
+      }
+      if (parentCopy !== undefined || files.includes("approvers.txt")) seen = true;
     }
   },
 
@@ -362,7 +391,7 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
 
   attestation([artifact = "dist/function.zip"]) {
     const repo = process.env.GITHUB_REPOSITORY ?? "PaulDuvall/who-gets-the-keys";
-    check("attestation", tool(["gh", "attestation", "verify", artifact, "--repo", repo]), artifact);
+    check("attestation", tool(attestationArgs(artifact, repo, process.env.GITHUB_SHA)), artifact);
   },
 
   irreversible([planJson = "plan.json"]) {

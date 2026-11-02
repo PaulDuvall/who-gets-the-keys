@@ -27,13 +27,30 @@ const hooks = {
     process.stderr.write(`vitest/expect-expect: ${file} has a test with no assertion. Add an expect before committing.\n${out}\n`);
     return 2;
   },
-  // PreToolUse on Bash: scan staged changes before git commit.
+  // PreToolUse on Bash: before any command that mentions commit, scan everything the commit could include:
+  // staged changes, unstaged changes to tracked files (git commit -a; git add ... && git commit) and untracked
+  // files (git add -A). The command text is not parsed, so quoting, -C and chained commands cannot skip the scan.
   "gitleaks-staged"() {
-    if (!/\bgit\b(?:\s+-\S+(?:\s+\S+)?)*\s+commit\b/.test(tool.command ?? "")) return 0;
-    const out = run("gitleaks", ["git", "--staged", "--no-banner", "--redact", "--exit-code", "1", root]);
-    if (out === null) return 0;
-    process.stderr.write(`gitleaks found a secret in staged changes. Remove it before committing.\n${out}\n`);
-    return 2;
+    if (!/\bcommit\b/.test(tool.command ?? "")) return 0;
+    if (run("gitleaks", ["version"]) !== null) {
+      process.stderr.write("gitleaks is not installed or does not run, so commits are blocked. scripts/ci/install-tools.sh installs the pinned version.\n");
+      return 2;
+    }
+    const flags = ["--no-banner", "--redact", "--exit-code", "1", "--config", join(root, ".gitleaks.toml")];
+    const untracked = execFileSync("git", ["ls-files", "--others", "--exclude-standard", "-z"], { cwd: root, encoding: "utf8" })
+      .split("\0").filter(Boolean);
+    const scans = [
+      ["staged changes", ["git", "--staged", ...flags, root]],
+      ["unstaged changes", ["git", "--pre-commit", ...flags, root]],
+      ...untracked.map((file) => [`untracked file ${file}`, ["dir", ...flags, join(root, file)]]),
+    ];
+    for (const [what, args] of scans) {
+      const out = run("gitleaks", args);
+      if (out === null) continue;
+      process.stderr.write(`gitleaks found a secret in ${what}. Remove it before committing.\n${out}\n`);
+      return 2;
+    }
+    return 0;
   },
   // PreToolUse on Bash: record dependency install or add attempts. The deny rules block them.
   "security-event"() {

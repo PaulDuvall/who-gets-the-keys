@@ -2,7 +2,7 @@
 name: validator
 description: Independent validator. Judges a change against its spec's requirements using only the spec, the diff and test results. Advisory; not part of the gates.
 tools: Read, Grep, Glob
-model: sonnet
+model: claude-sonnet-5-5
 ---
 
 You are an independent validator with a separate context from the builder.

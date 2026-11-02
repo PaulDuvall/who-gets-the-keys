@@ -1,11 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import eslintConfig from "../eslint.config.js";
 import {
-  COMMANDS, GateFailure, ORDER, allowedNames, dependencyNames, destructiveChanges, exportsOf, failedTestFiles,
+  COMMANDS, GateFailure, ORDER, allowedNames, approversFor, attestationArgs, changedFiles, dependencyNames, destructiveChanges, exportsOf, failedTestFiles,
   guardedBy, jobBlock, lockfilePaths, lowered, protectedPaths, pipelineCacheFinding, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
 } from "../scripts/gates.ts";
 
@@ -122,6 +122,49 @@ describe("SPEC-001 gates", () => {
     });
   });
 
+  describe("SPEC-001-R12 signatures across renames, merges and approver history", () => {
+    const dir = mkdtempSync(join(tmpdir(), "sig-history-"));
+    afterAll(() => rmSync(dir, { recursive: true, force: true }));
+    const git = (...args: string[]) =>
+      execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: dir, encoding: "utf8" });
+    const head = () => git("rev-parse", "HEAD").trim();
+
+    it("SPEC-001-R12 lists every file of a root commit and both paths of a rename", () => {
+      git("init", "-q", "-b", "main");
+      mkdirSync(join(dir, "specs"));
+      writeFileSync(join(dir, "specs", "a.md"), "a");
+      writeFileSync(join(dir, "b.txt"), "b");
+      git("add", ".");
+      git("commit", "-q", "-m", "root");
+      const root = head();
+      expect(changedFiles(root, undefined, dir).sort()).toEqual(["b.txt", "specs/a.md"]);
+      git("mv", "specs/a.md", "moved.md");
+      git("commit", "-q", "-m", "move");
+      expect(changedFiles(head(), root, dir).sort()).toEqual(["moved.md", "specs/a.md"]);
+    });
+
+    it("SPEC-001-R12 compares a merge commit with its first parent", () => {
+      const base = head();
+      git("checkout", "-q", "-b", "side");
+      writeFileSync(join(dir, "specs-x.md"), "x");
+      mkdirSync(join(dir, "specs"), { recursive: true });
+      writeFileSync(join(dir, "specs", "x.md"), "x");
+      git("add", ".");
+      git("commit", "-q", "-m", "side");
+      git("checkout", "-q", "main");
+      git("merge", "-q", "--no-ff", "-m", "merge", "side");
+      expect(changedFiles(head(), base, dir).sort()).toEqual(["specs-x.md", "specs/x.md"]);
+    });
+
+    it("SPEC-001-R12 lets only the first approvers.txt judge its own commit", () => {
+      expect(approversFor("parent", "own", false)).toBe("parent");
+      expect(approversFor("parent", "own", true)).toBe("parent");
+      expect(approversFor(undefined, "own", false)).toBe("own");
+      expect(approversFor(undefined, "own", true)).toBe("");
+      expect(approversFor(undefined, undefined, false)).toBe("");
+    });
+  });
+
   it("SPEC-001-R13 hashes the snapshot body and finds slides 1 to 13 and Q1 to Q4", () => {
     const snapshot = read("specs/source-of-record/slides.txt");
     const body = snapshotBody(snapshot);
@@ -148,6 +191,15 @@ describe("SPEC-001 gates", () => {
 
   it("SPEC-001-R17 prints the attestation failure line with the artifact path", () => {
     expect(new GateFailure("attestation", "dist/function.zip").message).toContain("GATE attestation FAILED");
+  });
+
+  it("SPEC-001-R17 pins the attestation to pipeline.yml on main, GitHub-hosted runners and the commit", () => {
+    expect(attestationArgs("dist/function.zip", "o/r", "abc123")).toEqual([
+      "gh", "attestation", "verify", "dist/function.zip", "--repo", "o/r",
+      "--signer-workflow", "o/r/.github/workflows/pipeline.yml", "--source-ref", "refs/heads/main",
+      "--deny-self-hosted-runners", "--source-digest", "abc123",
+    ]);
+    expect(attestationArgs("dist/function.zip", "o/r", undefined)).not.toContain("--source-digest");
   });
 
   it("SPEC-001-R18 flags deletes of stateful resources only", () => {

@@ -13,6 +13,8 @@ cache-mode: none
 jobs:
   triage:
     name: triage the issue
+    # claude-code-action rejects issue authors without write access, so skip them before the job assumes the role.
+    if: contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     concurrency:
@@ -46,6 +48,7 @@ jobs:
         with:
           role-to-assume: ${{ vars.TRIAGE_ROLE_ARN }}
           aws-region: us-east-1
+          mask-aws-account-id: true
       - id: classify
         uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
         with:

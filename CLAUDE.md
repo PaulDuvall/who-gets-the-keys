@@ -19,7 +19,7 @@ Purpose: <!-- PAUL: one-line purpose of the repo -->
 | Path | Holds |
 |---|---|
 | `specs/` | Approved requirements, the protected-path list, SCA exceptions and the slide snapshot. Approver-signed commits only |
-| `proposals/` | Agent-proposed changes: to `specs/` at the same relative path, to protected paths at their full repo path (for example `proposals/.github/workflows/`) |
+| `proposals/` | Agent-proposed changes: to `specs/` at the same relative path, to other protected paths at their full repo path (for example `proposals/scripts/gates.ts`). Paths under `.claude/` and `.github/` go to `proposals/claude-<dir>/` and `proposals/github-<dir>/` (for example `proposals/github-workflows/`), because the local permission rules also refuse writes to `proposals/.claude/` and `proposals/.github/` |
 | `practices.yaml` | Slide practice → gate, scenario, files. Source for `docs/practices.md`, the `slides` gate and the video |
 | `src/` | Export service: CSV serializer and Lambda handler |
 | `test/` | Vitest acceptance, property and unit tests |
@@ -51,10 +51,10 @@ Purpose: <!-- PAUL: one-line purpose of the repo -->
 
 | The agent may | The agent may not |
 |---|---|
-| Write code, tests, docs, Terraform | Write under `specs/`, to `approvers.txt`, or to any path listed in `specs/protected-paths.txt` (workflows, gate script, CI tools, dependency manifests, Claude settings and hooks) |
-| Propose spec, pipeline and dependency changes under `proposals/` | Sign commits or force-push |
+| Write code, tests and docs | Write under `specs/`, to `approvers.txt`, or to any path listed in `specs/protected-paths.txt` (workflows, gate script and the configs it reads, CI tools, dependency manifests, `.claude/`, this file, Terraform, bootstrap scripts, the scenario scripts that hold credentials) |
+| Propose spec, pipeline, dependency, Terraform and bootstrap-script changes under `proposals/` | Sign commits or force-push |
 | Run gates, scenarios, the video build | Run `terraform apply` or `destroy`, or any `aws` command |
-| Write human-run scripts under `scripts/bootstrap/` | Read `~/.ssh`, `~/.aws`, `~/.config/gh` |
+| | Read `~/.ssh`, `~/.aws`, `~/.config/gh` |
 | | Add or install dependencies; lower `thresholds.break` |
 | | Create secrets, change repo or account settings, install GitHub Apps |
 
