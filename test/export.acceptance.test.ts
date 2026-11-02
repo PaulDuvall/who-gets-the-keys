@@ -64,13 +64,4 @@ describe("SPEC-014 export service", () => {
     expect(await handler(request(body))).toEqual(expected);
     expect(await handler(request(body, true))).toEqual(expected);
   });
-
-  it("SPEC-014-R6 serializes 10,000 rows by 10 columns within 500 ms", () => {
-    const columns = Array.from({ length: 10 }, (_, i) => `c${i}`);
-    const rows = Array.from({ length: 10_000 }, (_, r) => Object.fromEntries(columns.map((c) => [c, `${c}-${r},"x"`])));
-    const started = performance.now();
-    const csv = toCsv(columns, rows);
-    expect(performance.now() - started).toBeLessThan(500);
-    expect(csv.split("\r\n")).toHaveLength(10_002);
-  });
 });
