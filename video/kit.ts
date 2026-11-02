@@ -40,6 +40,7 @@ export interface StepData {
   id: string;
   kind: "opening" | "practice" | "scenario" | "closing";
   head?: string;
+  ref?: string;
   title: string;
   fields: Record<string, string>;
   rows: [string, string][];
@@ -48,6 +49,7 @@ export interface StepData {
   command?: string;
   run?: RunLine[];
   verdict?: string;
+  note?: string;
   say: string;
 }
 
@@ -68,6 +70,22 @@ export interface TourInput {
   existing: (path: string) => boolean;
   templates: Record<string, string>;
   overrides: Record<string, string>;
+  explain: Explanations;
+}
+
+// Plain words for viewers (video/explanations.yaml): what each check is called and does, and what each scenario's change did.
+export interface Explanations { checks: Record<string, { name: string; does?: string }>; scenarios: Record<string, string> }
+
+const cap = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
+
+function checkWords(input: TourInput, check: string): { name: string; does?: string } {
+  const words = input.explain.checks[check];
+  if (!words) throw new KitError(`video/explanations.yaml has no plain words for check ${check}`);
+  return words;
+}
+
+function listed(names: readonly string[]): string {
+  return names.length < 3 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
 }
 
 export class KitError extends Error {}
@@ -135,34 +153,44 @@ export function buildTour(input: TourInput): StepData[] {
     const missing = p.files.find((f) => !input.existing(f));
     if (missing !== undefined) throw new KitError(`${p.id} lists ${missing}, which does not exist at this commit`);
   }
-  const done = new Set<string>();
+  const done = new Set<string>(), explained = new Set<string>();
   for (const p of shown) {
-    const fields = { id: p.id, practice: p.practice, slides: p.slides.join(", "), coverage: p.coverage, enforced: p.enforced_by.join(", ") || "none" };
+    const base = { id: p.id, practice: p.practice, slides: p.slides.join(", "), coverage: p.coverage, enforced: p.enforced_by.join(", ") || "none" };
     if (p.coverage === "good-only") {
       const checks = p.enforced_by.filter((e) => e.startsWith("check:")).map((e) => e.slice("check:".length));
-      steps.push({ id: p.id, kind: "practice", head: `${p.id} · slides ${fields.slides}`, title: p.practice, fields, rows: [],
-        command: "npm run checks", run: mainRun.filter((l) => checks.includes(PASS.exec(l.text)?.[1] ?? "")), verdict: `Holds on ${input.commit}`, say: say(p.id, "practice", fields) });
+      const all = input.checks.every((c) => checks.includes(c));
+      const held_by = all ? `all ${input.checks.length} checks pass on this commit` : `${listed(checks.map((c) => checkWords(input, c).name))} ${checks.length === 1 ? "passes" : "pass"} on this commit`;
+      const fields = { ...base, held_by };
+      steps.push({ id: p.id, kind: "practice", head: `slides ${fields.slides}`, ref: `practice ${p.id}`, title: p.practice, fields, rows: [],
+        command: "npm run checks", run: mainRun.filter((l) => checks.includes(PASS.exec(l.text)?.[1] ?? "")), verdict: `Passes on ${input.commit}`, say: say(p.id, "practice", fields) });
       continue;
     }
     const mine = input.scenarios.filter((x) => p.enforced_by.includes(x.id));
     if (mine.length === 0) throw new KitError(`${p.id} is good+bad but maps to no scenario`);
     for (const s of mine.filter((x) => !done.has(x.id))) {
       done.add(s.id);
-      steps.push(scenarioStep(input, s, p, results.get(s.id), say));
+      steps.push(scenarioStep(input, s, p, results.get(s.id), say, explained));
     }
   }
   const gaps = input.practices.filter((p) => p.coverage === "partial" || p.coverage === "not-shown");
   const closing = { count: String(gaps.length) };
-  steps.push({ id: "closing", kind: "closing", title: "Partial and not shown", fields: closing,
-    rows: gaps.map((p): [string, string] => [`${p.id} (${p.coverage})`, `${p.practice}: ${p.reason ?? ""}`]), say: say("closing", "closing", closing) });
+  steps.push({ id: "closing", kind: "closing", title: "Not shown here", fields: closing,
+    rows: gaps.map((p): [string, string] => [`${p.coverage === "partial" ? "Partly shown" : "Not shown"} · ${p.id}`, `${p.practice}: ${p.reason ?? ""}`]), say: say("closing", "closing", closing) });
   return steps;
 }
 
 type Say = (id: string, kind: string, fields: Record<string, string>) => string;
 
-function scenarioStep(input: TourInput, s: ScenarioDef, p: Practice, result: ScenarioResult | undefined, say: Say): StepData {
+// The narration explains a check the first time it stops a change; the screen explains it on every step.
+function scenarioStep(input: TourInput, s: ScenarioDef, p: Practice, result: ScenarioResult | undefined, say: Say, explained: Set<string>): StepData {
   const position = input.checks.indexOf(s.check);
-  let command: string, run: RunLine[], verdict: string | undefined, line: string, outcome = `Stopped by the ${s.check} check`;
+  const did = input.explain.scenarios[s.id];
+  if (did === undefined) throw new KitError(`video/explanations.yaml has no plain words for scenario ${s.id}`);
+  const { name, does } = checkWords(input, s.check);
+  const first = !explained.has(s.check);
+  explained.add(s.check);
+  const withWhy = (sentence: string): string => (does && first ? `${sentence} It ${does}` : sentence);
+  let command: string, run: RunLine[], verdict: string | undefined, line: string, outcome = `Stopped by the ${s.check} check`, stopped: string;
   if (s.requires) {
     const held = input.onDemand.filter((l) => l.startsWith(s.expect));
     command = s.requires === "github-actions" ? "scenarios/b9-replay.sh   (GitHub Actions, triage token and egress)" : "scenarios/on-demand.sh   (sandbox account)";
@@ -170,11 +198,13 @@ function scenarioStep(input: TourInput, s: ScenarioDef, p: Practice, result: Sce
       run = held.map((text) => ({ text, kind: "held" }));
       verdict = held.length > 1 ? `All ${held.length} injected actions denied` : "Denied";
       line = held.join("; ");
+      stopped = withWhy(held.length > 1 ? `${cap(name)} denies all ${held.length} actions the instruction needs.` : `${cap(name)} denies it.`);
     } else {
       line = `Not recorded: ${s.id} needs ${s.requires === "github-actions" ? "the GitHub Actions B9 replay job" : "the sandbox account"}.`;
       run = [{ text: line, kind: "note" }];
       verdict = undefined;
       outcome = line.replace(/\.$/, "");
+      stopped = `This one needs ${s.requires === "github-actions" ? "GitHub Actions" : "the sandbox account"}, so it is not recorded here.`;
     }
   } else {
     if (result?.status !== "pass" || result.line === undefined || !result.line.startsWith(s.expect)) {
@@ -184,15 +214,17 @@ function scenarioStep(input: TourInput, s: ScenarioDef, p: Practice, result: Sce
     const before = position < 0 ? [] : (input.logs[s.id] ?? []).filter((l) => input.checks.indexOf(PASS.exec(l)?.[1] ?? "") >= 0);
     run = [...before.map((text): RunLine => ({ text, kind: "pass" })), { text: line, kind: "fail" }];
     command = position < 0 ? `node scripts/checks.ts ${s.check} dist/function.zip   (deploy job)` : "npm run checks";
-    verdict = position < 0 ? "Deploy stopped before any AWS call" : `Stopped at check ${position + 1} of ${input.checks.length}. Not deployed`;
+    verdict = position < 0 ? "Deploy stopped before any AWS call" : `Stopped at check ${position + 1} of ${input.checks.length}: ${name}. Not deployed`;
+    stopped = withWhy(position < 0 ? `${cap(name)} stops the deploy.` : `${cap(name)} stops it.`);
   }
   const commit = (input.commits[s.id] ?? []).map((m, i) => (i === 0 ? `$ git commit -m "${m}"` : `             -m "${m}"`));
   if (s.id === "B3") commit.push("  (no Spec: trailer)");
   const body = s.fixture ? `▸ ${s.fixture}\n${(input.fixtures[s.id] ?? "").trim()}` : changeExcerpt(input.patches[s.id] ?? "");
   const change = [...(s.patch ? commit : []), body].filter(Boolean).join("\n");
-  const fields = { id: s.id, title: s.title, check: s.check, expect: s.expect, line, outcome, practice: p.practice, practice_id: p.id };
-  return { id: s.id, kind: "scenario", head: `${p.id} · ${p.practice}`, title: `${s.id}: ${s.title}`, fields, rows: [],
-    change, changeLabel: s.fixture ? "The poisoned input" : "The agent's change", command, run, ...(verdict === undefined ? {} : { verdict }), say: say(s.id, "scenario", fields) };
+  const fields = { id: s.id, title: s.title, check: s.check, expect: s.expect, line, outcome, practice: p.practice, practice_id: p.id, did, stopped };
+  return { id: s.id, kind: "scenario", head: p.practice, ref: `scenario ${s.id} · practice ${p.id}`, title: s.title, fields, rows: [],
+    change, changeLabel: s.fixture ? "The poisoned input" : "The agent's change", command, run, ...(verdict === undefined ? {} : { verdict }),
+    ...(does ? { note: `${cap(name)} ${does}` } : {}), say: say(s.id, "scenario", fields) };
 }
 
 export interface Entry { index: number; start: number; hold: number; voice_at: number; clip: string; clip_len: number; lead_in: number; spoken: string }

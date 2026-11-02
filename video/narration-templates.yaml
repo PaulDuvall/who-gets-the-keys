@@ -1,8 +1,9 @@
-# PAUL: rewrite these label-style narration templates. Placeholders only; no prose is filled in here.
-# Fields per step type: opening {repo} {commit} {date} {check_count}; practice {id} {practice} {slides}
-# {coverage} {enforced}; scenario {id} {title} {check} {expect} {line} {outcome} {practice} {practice_id}; closing {count}.
+# Narration templates, one per step type, written for a viewer who has never seen this repo (SPEC-002-R9).
+# Fields per step type: opening {repo} {commit} {date} {check_count}; practice {id} {practice} {slides} {coverage}
+# {enforced} {held_by}; scenario {id} {title} {check} {expect} {line} {outcome} {practice} {practice_id} {did} {stopped};
+# closing {count}. Plain words for {did}, {stopped} and {held_by} come from video/explanations.yaml.
 # A file video/narration/<step ID>.md, written by the owner, replaces its step's line.
-opening: "{repo}. Commit {commit}, {date}. All {check_count} checks passed."
-practice: "{id}. {practice}. Holds on main."
-scenario: "{id}. {title}. {practice}. {outcome}."
-closing: "Partial or not shown: {count} practices."
+opening: "Here an AI coding agent writes the code, and {check_count} automated checks decide what ships. Red steps show a bad change made on purpose, and the check that stops it. Green steps show a practice that holds. Right now, all {check_count} checks pass."
+practice: "{practice}. Nothing to break here: {held_by}."
+scenario: "{did} {stopped}"
+closing: "{count} more practices from the talk are only partly shown, or not shown. The screen lists each one with the reason."

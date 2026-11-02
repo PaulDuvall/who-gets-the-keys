@@ -19,6 +19,7 @@
   .kind { text-transform: uppercase; letter-spacing: .08em; font-size: 14px; color: var(--muted); }
   .kind.scenario { color: var(--bad); }
   .kind.practice { color: var(--good); }
+  .kind .ref { float: right; text-transform: none; letter-spacing: 0; color: var(--muted); }
   h1 { font-size: 38px; line-height: 1.15; margin: 6px 0 18px; overflow-wrap: anywhere; }
   .panes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 20px; align-items: start; }
   figure { margin: 0; min-width: 0; }
@@ -31,6 +32,7 @@
   .ln.held { color: var(--good); font-weight: 600; } .ln.held::before { content: "⛔ "; }
   .ln.note { color: var(--muted); }
   .verdict { font-size: 24px; font-weight: 700; margin: 18px 0 0; }
+  .note { font-size: 17px; color: var(--muted); margin: 8px 0 0; }
   .verdict.scenario { color: var(--bad); } .verdict.opening, .verdict.practice { color: var(--good); }
   @keyframes show { to { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .ln { opacity: 1; animation: none; } }
@@ -88,11 +90,12 @@ const TOUR = /*TOUR*/;
     let d = 1.2;
     const lines = (s.run || []).map((l) => { if (l.kind === "fail") d += 0.35; const out = `<span class="ln ${l.kind}" style="--d:${d.toFixed(2)}s">${esc(l.text)}</span>`; d += 0.08; return out; }).join("");
     const run = s.run ? `<figure class="pane"><figcaption>$ ${esc(s.command || "")}</figcaption><pre>${lines}</pre></figure>` : "";
-    const verdict = s.verdict ? `<p class="verdict ${s.kind} ln" style="--d:${(d + 0.25).toFixed(2)}s">${esc(s.verdict)}</p>` : "";
-    const label = { opening: "good path · main", practice: "holds on main", scenario: "bad change · blocked", closing: "closing" }[s.kind];
+    const verdict = (s.verdict ? `<p class="verdict ${s.kind} ln" style="--d:${(d + 0.25).toFixed(2)}s">${esc(s.verdict)}</p>` : "") +
+      (s.note ? `<p class="note ln" style="--d:${(d + 0.25).toFixed(2)}s">${esc(s.note)}</p>` : "");
+    const label = { opening: "starting point", practice: "practice in place", scenario: "bad change · blocked", closing: "the rest of the talk" }[s.kind];
     const slide = $("slide");
     slide.className = s.kind;
-    slide.innerHTML = `<div class="kind ${s.kind}">${esc(label)}${s.head ? ` · ${esc(s.head)}` : ""}</div>` +
+    slide.innerHTML = `<div class="kind ${s.kind}">${s.ref ? `<span class="ref">${esc(s.ref)}</span>` : ""}${esc(label)}${s.head ? ` · ${esc(s.head)}` : ""}</div>` +
       `<h1>${esc(s.title)}</h1>${table}${change || run ? `<div class="panes">${change}${run}</div>` : ""}${verdict}`;
     $("caption").textContent = s.say;
     $("count").textContent = `${current + 1} / ${steps.length}`;

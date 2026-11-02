@@ -8,7 +8,7 @@ import { commitMessage, type Scenario } from "../scenarios/run.ts";
 import {
   FPS, HEIGHT, KitError, preflight, SILENCE_DB, WIDTH, blackEnd, buildTour, captions, chapters, missingTools,
   onsetProblems, onsetResults, pinProblem, planTimeline, sceneScores, sha256, slideResults, spoken, stillAt, streamProblems,
-  type Practice, type ScenarioResult, type StepData, type Timeline, type Voice,
+  type Explanations, type Practice, type ScenarioResult, type StepData, type Timeline, type Voice,
 } from "./kit.ts";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -101,6 +101,7 @@ function tourInputs(c: Captured) {
     patches: Object.fromEntries(scenarios.map((s) => [s.id, read(s.patch)])),
     fixtures: Object.fromEntries(scenarios.map((s) => [s.id, read(s.fixture)])),
     existing: (p) => existsSync(join(ROOT, p)), templates: yaml<Record<string, string>>("video/narration-templates.yaml"),
+    explain: yaml<Explanations>("video/explanations.yaml"),
   });
 }
 

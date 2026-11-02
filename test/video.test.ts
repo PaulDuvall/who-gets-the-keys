@@ -7,12 +7,13 @@ import { describe, expect, it } from "vitest";
 import { muxCommand, readWav, run, wavInfo } from "../video/build.ts";
 import {
   FPS, HEIGHT, KitError, MATCH_MIN, WIDTH, buildTour, captions, chapters, envelope, fillTemplate, importsAwsSdk, missingTools, onsetProblems,
-  onsetResults, pinProblem, planTimeline, preflight, sceneScores, slideResults, spoken, stillAt, streamProblems, type Practice, type TourInput,
+  onsetResults, pinProblem, planTimeline, preflight, sceneScores, slideResults, spoken, stillAt, streamProblems, type Explanations, type Practice, type TourInput,
 } from "../video/kit.ts";
 
 const read = (p: string) => readFileSync(p, "utf8");
 const build = read("video/build.ts");
 const templates = parse(read("video/narration-templates.yaml")) as Record<string, string>;
+const explain = parse(read("video/explanations.yaml")) as Explanations;
 
 const practice = (id: string, coverage: Practice["coverage"], enforced: string[]): Practice =>
   ({ id, practice: `practice ${id}`, area: "testing", slides: [5], coverage, enforced_by: enforced, files: ["package.json"], reason: "r" });
@@ -26,7 +27,7 @@ const input = (over: Partial<TourInput> = {}): TourInput => ({
   results: [{ id: "B1", status: "pass", line: "CHECK lint FAILED: vitest/expect-expect" }],
   logs: { B1: ["CHECK lint FAILED: vitest/expect-expect", "check secrets passed"] }, commits: { B1: ["scenario B1: Test with no assertion", "Spec: SPEC-014-R1"] },
   patches: { B1: "diff --git a/test/x.ts b/test/x.ts\n--- a/test/x.ts\n+++ b/test/x.ts\n@@ -1 +1 @@\n+  it(\"x\", () => {});\n" }, fixtures: {},
-  onDemand: [], existing: () => true, templates, overrides: {}, ...over,
+  onDemand: [], existing: () => true, templates, overrides: {}, explain, ...over,
 });
 
 const timeline = planTimeline(["one", "two", "three"], [1.0, 3.0, 0.5], [0.05, 0.1, 0]);
@@ -66,12 +67,14 @@ describe("SPEC-002 walkthrough video", () => {
     expect(steps.map((s) => s.id)).toEqual(["opening", "B1", "P13", "B11", "closing"]);
     expect(steps[0]?.run?.map((l) => l.text)).toEqual(["check secrets passed", "check lint passed", "check test passed"]);
     const b1 = steps[1];
-    expect(b1?.head).toBe("P11 · practice P11");
+    expect(b1?.head).toBe("practice P11");
+    expect(b1?.ref).toBe("scenario B1 · practice P11");
+    expect(b1?.title).toBe("Test with no assertion");
     expect(b1?.change).toBe('$ git commit -m "scenario B1: Test with no assertion"\n             -m "Spec: SPEC-014-R1"\n▸ test/x.ts\n+  it("x", () => {});');
     expect(b1?.run).toEqual([{ text: "check secrets passed", kind: "pass" }, { text: "CHECK lint FAILED: vitest/expect-expect", kind: "fail" }]);
-    expect(b1?.verdict).toBe("Stopped at check 2 of 3. Not deployed");
+    expect(b1?.verdict).toBe("Stopped at check 2 of 3: the linter. Not deployed");
     expect(steps[2]?.run).toEqual([{ text: "check test passed", kind: "pass" }]);
-    expect(steps.at(-1)?.rows).toEqual([["P09 (not-shown)", "practice P09: r"]]);
+    expect(steps.at(-1)?.rows).toEqual([["Not shown · P09", "practice P09: r"]]);
     expect(() => buildTour(input({ results: [{ id: "B1", status: "pass", line: "CHECK lint FAILED: other" }] }))).toThrow(KitError);
     expect(() => buildTour(input({ existing: () => false }))).toThrow(/does not exist/);
     expect(() => buildTour(input({ mainRun: ["check secrets passed"] }))).toThrow(/1 of 3 checks/);
@@ -82,7 +85,7 @@ describe("SPEC-002 walkthrough video", () => {
     const without = buildTour(input()).find((s) => s.id === "B11");
     expect(without?.run?.[0]?.text).toMatch(/^Not recorded: B11 needs the sandbox account/);
     expect(without?.verdict).toBeUndefined();
-    expect(without?.say).toMatch(/Not recorded: B11 needs the sandbox account\.$/);
+    expect(without?.say).toContain("This one needs the sandbox account, so it is not recorded here.");
     const logged = buildTour(input({ onDemand: ["BOUNDARY HELD: with an explicit deny in a service control policy"] })).find((s) => s.id === "B11");
     expect(logged?.run).toEqual([{ text: "BOUNDARY HELD: with an explicit deny in a service control policy", kind: "held" }]);
   });
@@ -103,6 +106,28 @@ describe("SPEC-002 walkthrough video", () => {
     for (const block of reqs.split(/\n(?=\S)/).filter((b) => /^[a-z]/.test(b))) expect(block).toContain("--hash=sha256:");
     const files = execFileSync("git", ["ls-files", "*.ts", "*.js", "*.cjs", "*.mjs", "*.py"], { encoding: "utf8" }).split("\n").filter(Boolean);
     for (const f of files) expect(read(f)).not.toMatch(/(?:import|require)\b[^\n]*["']piper/);
+  });
+
+  it("SPEC-002-R9 narrates in plain words: no step speaks a scenario, practice or requirement ID", () => {
+    const practices = input().practices.map((p) => ({ ...p, practice: `Plain ${p.coverage} practice` }));
+    const steps = buildTour(input({ practices, onDemand: ["BOUNDARY HELD: with an explicit deny in a service control policy"] }));
+    for (const s of steps) expect(s.say).not.toMatch(/\b[BP]\d{1,2}[ab]?\b|SPEC-\d{3}/);
+    expect(steps[0]?.say).toBe("Here an AI coding agent writes the code, and 3 automated checks decide what ships. Red steps show a bad change made on purpose, and the check that stops it. Green steps show a practice that holds. Right now, all 3 checks pass.");
+    expect(steps.find((s) => s.id === "B1")?.say).toBe("The agent adds a test that asserts nothing, so it can never fail. The linter stops it.");
+    expect(steps.find((s) => s.id === "P13")?.say).toBe("Plain good-only practice. Nothing to break here: the test suite passes on this commit.");
+    expect(steps.find((s) => s.id === "B11")?.say).toBe("A role that is not the deploy role tries to change the sandbox's Lambda function. The permission boundary denies it.");
+    const twice = buildTour(input({ practices: [practice("P11", "good+bad", ["B1", "B2"])], scenarios: [
+      { id: "B1", title: "t", patch: "p", check: "trace", expect: "CHECK trace FAILED: x" }, { id: "B2", title: "t", patch: "p", check: "trace", expect: "CHECK trace FAILED: x" }],
+    checks: ["trace"], mainRun: ["check trace passed"], results: ["B1", "B2"].map((id) => ({ id, status: "pass", line: "CHECK trace FAILED: x" })) }));
+    expect(twice.filter((s) => s.kind === "scenario").map((s) => s.say.includes(" It requires every change"))).toEqual([true, false]);
+    expect(twice.filter((s) => s.kind === "scenario").map((s) => s.note)).toEqual(Array(2).fill("The traceability check requires every change, test and requirement to point at each other."));
+    expect(() => buildTour(input({ explain: { ...explain, scenarios: {} } }))).toThrow(/no plain words for scenario B1/);
+    expect(() => buildTour(input({ explain: { ...explain, checks: {} } }))).toThrow(/no plain words for check lint/);
+    const order = /const ORDER = \[([^\]]+)\]/.exec(build)?.[1]?.match(/"([a-z]+)"/g)?.map((c) => c.slice(1, -1)) ?? [];
+    const scenarios = (parse(read("scenarios/scenarios.yaml")) as { scenarios: { id: string; check: string }[] }).scenarios;
+    expect(order).toHaveLength(15);
+    expect([...order, ...scenarios.map((x) => x.check)].filter((c) => !explain.checks[c]?.name)).toEqual([]);
+    expect(scenarios.filter((x) => !/^[A-Z].*\.$/.test(explain.scenarios[x.id] ?? "")).map((x) => x.id)).toEqual([]);
   });
 
   it("SPEC-002-R9 fills templates, lets owner overrides win and speaks identifiers", () => {
