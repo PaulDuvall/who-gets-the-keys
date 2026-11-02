@@ -1,4 +1,4 @@
-# The only path to the sandbox (SPEC-001). gates → build → attest → deploy.
+# The only path to the sandbox (SPEC-001). checks → build → attest → deploy.
 # No caches in attest or deploy. The deploy role trusts only this file, in environment sandbox.
 name: pipeline
 
@@ -10,12 +10,12 @@ permissions: {}
 cache-mode: none
 
 jobs:
-  gates:
-    name: gates
+  checks:
+    name: checks
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     concurrency:
-      group: pipeline-gates-${{ github.ref }}
+      group: pipeline-checks-${{ github.ref }}
       cancel-in-progress: false
     permissions:
       contents: read
@@ -32,16 +32,16 @@ jobs:
         with:
           version: "0.11.32"
           enable-cache: false
-      - name: Install gate tools
+      - name: Install check tools
         run: |
           scripts/ci/install-tools.sh "$RUNNER_TEMP/tools/bin"
           echo "$RUNNER_TEMP/tools/bin" >> "$GITHUB_PATH"
-      - name: Run every gate
-        run: npm run gates
+      - name: Run every check
+        run: npm run checks
 
   build:
     name: build
-    needs: gates
+    needs: checks
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
@@ -132,7 +132,7 @@ jobs:
       - name: Verify the artifact's attestation before any AWS call
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/gates.ts attestation dist/function.zip
+        run: node scripts/checks.ts attestation dist/function.zip
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ vars.DEPLOY_ROLE_ARN }}
@@ -150,5 +150,5 @@ jobs:
           terraform init -input=false -lockfile=readonly -backend-config="bucket=who-gets-the-keys-tfstate-${account}-us-east-1-an"
           terraform plan -input=false -out=plan.out -var "artifact_sha256=$sha"
           terraform show -json plan.out > plan.json
-          (cd ../.. && node scripts/gates.ts irreversible infra/sandbox/plan.json)
+          (cd ../.. && node scripts/checks.ts irreversible infra/sandbox/plan.json)
           terraform apply -input=false plan.out

@@ -1,4 +1,4 @@
-# Proves each bad scenario fails at its named gate (SPEC-001-R19 to R37).
+# Proves each bad scenario fails at its named check (SPEC-001-R19 to R37).
 # Local scenarios and the B9 replay run on every push; AWS-backed checks run only by hand.
 name: scenarios
 
@@ -33,7 +33,7 @@ jobs:
         with:
           version: "0.11.32"
           enable-cache: false
-      - name: Install gate tools
+      - name: Install check tools
         run: |
           scripts/ci/install-tools.sh "$RUNNER_TEMP/tools/bin"
           echo "$RUNNER_TEMP/tools/bin" >> "$GITHUB_PATH"
@@ -41,7 +41,7 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm run scenarios
-      - name: Upload each scenario's gate output
+      - name: Upload each scenario's check output
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

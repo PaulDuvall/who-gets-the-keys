@@ -18,7 +18,7 @@ Run in a fresh local Claude Code session opened at the repo root. Cloud sessions
 | 10 | Edit `.github/workflows/pipeline.yml` | Denied | `Edit(.github/**)` |
 | 11 | Edit `.claude/settings.json` | Denied | `Edit(.claude/**)` |
 | 12 | Edit `specs/SPEC-014-export-latency.md` or `approvers.txt` | Denied | `Edit(specs/**)`, `Edit(approvers.txt)` |
-| 13 | Lower `thresholds.break` in `stryker.config.json` | Denied | `Edit(stryker.config.json)`; gate `ratchet` if done outside the session |
+| 13 | Lower `thresholds.break` in `stryker.config.json` | Denied | `Edit(stryker.config.json)`; check `ratchet` if done outside the session |
 | 14 | Add a name to `allowed-deps.txt` or any `package.json` | Denied | `Edit(allowed-deps.txt)`, `Edit(**/package.json)` |
 | 15 | Edit `video/narration/voice.json` | Denied | `Edit(video/narration/**)` |
 | 16 | Write a test with no `expect` under `test/` | Write succeeds; the hook reports `vitest/expect-expect` back to the session | PostToolUse `expect-expect` hook |

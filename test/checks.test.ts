@@ -8,16 +8,16 @@ import eslintConfig from "../eslint.config.js";
 import baseVitest from "../vitest.config.ts";
 import strykerVitest from "../vitest.stryker.config.ts";
 import {
-  COMMANDS, GateFailure, ORDER, allowedNames, approversFor, attestationArgs, changedFiles, dependencyNames, destructiveChanges, exportsOf, failedTestFiles,
+  COMMANDS, CheckFailure, ORDER, allowedNames, approversFor, attestationArgs, changedFiles, dependencyNames, destructiveChanges, exportsOf, failedTestFiles,
   guardedBy, jobBlock, lockfilePaths, lowered, protectedPaths, pipelineCacheFinding, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
-} from "../scripts/gates.ts";
+} from "../scripts/checks.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-describe("SPEC-001 gates", () => {
-  it("SPEC-001-R1 runs the fifteen gates in order and prints one stable failure line", () => {
+describe("SPEC-001 checks", () => {
+  it("SPEC-001-R1 runs the fifteen checks in order and prints one stable failure line", () => {
     expect(ORDER).toEqual(["secrets", "allowlist", "workflows", "install", "lint", "typecheck", "iac", "sast", "sca", "trace", "ratchet", "signatures", "slides", "test", "mutation"]);
-    expect(new GateFailure("lint", "vitest/expect-expect").message).toBe("GATE lint FAILED: vitest/expect-expect");
+    expect(new CheckFailure("lint", "vitest/expect-expect").message).toBe("CHECK lint FAILED: vitest/expect-expect");
   });
 
   it("SPEC-001-R2 scans with gitleaks and excludes only scenario patches from source paths", () => {
@@ -96,16 +96,16 @@ describe("SPEC-001 gates", () => {
       expect(signatureId(["specs/source-of-record/slides.txt", "specs/a.md"])).toBe("unsigned change to specs/source-of-record/slides.txt");
       expect(signatureId(["specs/SPEC-014-export-latency.md"])).toBe("unsigned change to specs/");
       expect(signatureId(["approvers.txt"])).toBe("unsigned change to approvers.txt");
-      expect(signatureId([".github/workflows/pipeline.yml"], [".github/", "scripts/gates.ts"])).toBe("unsigned change to .github/");
-      expect(signatureId(["src/x.ts", "scripts/gates.ts"], [".github/", "scripts/gates.ts"])).toBe("unsigned change to scripts/gates.ts");
+      expect(signatureId([".github/workflows/pipeline.yml"], [".github/", "scripts/checks.ts"])).toBe("unsigned change to .github/");
+      expect(signatureId(["src/x.ts", "scripts/checks.ts"], [".github/", "scripts/checks.ts"])).toBe("unsigned change to scripts/checks.ts");
     });
 
     it("SPEC-001-R12 reads the protected-path list and matches directories by prefix and files exactly", () => {
-      const paths = protectedPaths("# comment\n.github/\n\n  scripts/gates.ts  \npackage.json\n");
-      expect(paths).toEqual([".github/", "scripts/gates.ts", "package.json"]);
+      const paths = protectedPaths("# comment\n.github/\n\n  scripts/checks.ts  \npackage.json\n");
+      expect(paths).toEqual([".github/", "scripts/checks.ts", "package.json"]);
       expect(guardedBy(".github/workflows/video.yml", paths)).toBe(".github/");
-      expect(guardedBy("scripts/gates.ts", paths)).toBe("scripts/gates.ts");
-      expect(guardedBy("scripts/gates.tsx", paths)).toBeUndefined();
+      expect(guardedBy("scripts/checks.ts", paths)).toBe("scripts/checks.ts");
+      expect(guardedBy("scripts/checks.tsx", paths)).toBeUndefined();
       expect(guardedBy("video/record/package.json", paths)).toBeUndefined();
       expect(guardedBy("src/export.ts", paths)).toBeUndefined();
     });
@@ -201,7 +201,7 @@ describe("SPEC-001 gates", () => {
   });
 
   it("SPEC-001-R17 prints the attestation failure line with the artifact path", () => {
-    expect(new GateFailure("attestation", "dist/function.zip").message).toContain("GATE attestation FAILED");
+    expect(new CheckFailure("attestation", "dist/function.zip").message).toContain("CHECK attestation FAILED");
   });
 
   it("SPEC-001-R17 pins the attestation to pipeline.yml on main, GitHub-hosted runners and the commit", () => {

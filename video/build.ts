@@ -60,8 +60,8 @@ export function run(argv: readonly string[], opts: { timeout?: number; input?: s
 
 async function must(what: string, argv: readonly string[], opts: Parameters<typeof run>[1] = {}): Promise<Done> {
   const r = await run(argv, opts);
-  const gate = /^GATE \S+ FAILED.*$/m.exec(r.stdout)?.[0];
-  if (r.status !== 0) throw new KitError(`${what} failed with exit status ${r.status}: ${gate ?? (r.stderr || r.stdout).trim().split("\n").slice(-5).join(" | ")}`);
+  const failure = /^CHECK \S+ FAILED.*$/m.exec(r.stdout)?.[0];
+  if (r.status !== 0) throw new KitError(`${what} failed with exit status ${r.status}: ${failure ?? (r.stderr || r.stdout).trim().split("\n").slice(-5).join(" | ")}`);
   return r;
 }
 
@@ -82,10 +82,10 @@ const git = (...args: string[]) => spawnSync("git", args, { cwd: ROOT, encoding:
 const yaml = <T>(path: string): T => parse(readFileSync(join(ROOT, path), "utf8")) as T;
 const which = (tool: string) => spawnSync("sh", ["-c", `command -v "$0"`, tool]).status === 0;
 
-interface Captured { commit: string; gates: string[]; mainRun: string[]; results: ScenarioResult[]; logs: Record<string, string[]>; onDemand: string[] }
+interface Captured { commit: string; checks: string[]; mainRun: string[]; results: ScenarioResult[]; logs: Record<string, string[]>; onDemand: string[] }
 
-// Keep only the lines the tour replays: gate passes, gate failures and boundary results.
-const replayable = (text: string): string[] => text.split("\n").map((l) => l.trim()).filter((l) => /^(gate \S+ passed|GATE \S+ FAILED|BOUNDARY HELD)/.test(l));
+// Keep only the lines the tour replays: check passes, check failures and boundary results.
+const replayable = (text: string): string[] => text.split("\n").map((l) => l.trim()).filter((l) => /^(check \S+ passed|CHECK \S+ FAILED|BOUNDARY HELD)/.test(l));
 
 function tourInputs(c: Captured) {
   const scenarios = yaml<{ scenarios: Scenario[] }>("scenarios/scenarios.yaml").scenarios;
@@ -94,7 +94,7 @@ function tourInputs(c: Captured) {
   const read = (path: string | undefined) => (path ? readFileSync(join(ROOT, path), "utf8") : "");
   return buildTour({
     repo: "who-gets-the-keys", commit: git("rev-parse", "--short", "HEAD"), commitDate: git("log", "-1", "--format=%cs"),
-    gates: c.gates, mainRun: c.mainRun, results: c.results, logs: c.logs, onDemand: c.onDemand, overrides,
+    checks: c.checks, mainRun: c.mainRun, results: c.results, logs: c.logs, onDemand: c.onDemand, overrides,
     practices: yaml<{ practices: Practice[] }>("practices.yaml").practices, scenarios,
     commits: Object.fromEntries(scenarios.map((s) => [s.id, commitMessage(s)])),
     patches: Object.fromEntries(scenarios.map((s) => [s.id, read(s.patch)])),
@@ -145,7 +145,7 @@ async function full(onDemand: string[]): Promise<void> {
   for (const stale of ["walkthrough.html", "walkthrough.mp4", "captions.srt", "smoke", "narration", "record", "capture.mkv"]) rmSync(join(OUT, stale), { recursive: true, force: true });
   report.problems = ["the build did not finish"];
   writeReport();
-  const gates = await must("running the gates", ["npm", "run", "gates"], { timeout: 3600 });
+  const checks = await must("running the checks", ["npm", "run", "checks"], { timeout: 3600 });
   const scen = await run(["node", "scenarios/run.ts"], { timeout: 7200 });
   const results = JSON.parse(readFileSync(join(ROOT, "build", "scenarios", "results.json"), "utf8")) as ScenarioResult[];
   if (scen.status !== 0) throw new KitError(`the scenario harness failed: ${scen.stdout.trim().split("\n").slice(-20).join(" | ")}`);
@@ -154,7 +154,7 @@ async function full(onDemand: string[]): Promise<void> {
     const path = join(ROOT, "build", "scenarios", `${r.id}.log`);
     return [r.id, existsSync(path) ? replayable(readFileSync(path, "utf8")) : []];
   }));
-  const captured: Captured = { commit, gates: [...ORDER], mainRun: replayable(`${gates.stdout}\n${gates.stderr}`), results, logs, onDemand };
+  const captured: Captured = { commit, checks: [...ORDER], mainRun: replayable(`${checks.stdout}\n${checks.stderr}`), results, logs, onDemand };
   writeFileSync(join(OUT, "inputs.json"), `${JSON.stringify(captured, null, 1)}\n`);
   const steps = tourInputs(captured);
   const page = writePage(OUT, steps);
@@ -250,7 +250,7 @@ async function main(argv: string[]): Promise<number> {
   const flag = (name: string) => { const i = argv.indexOf(name); return i < 0 ? undefined : (argv[i + 1] ?? ""); };
   const full_ = !argv.some((a) => ["--page-only", "--frames", "--still"].includes(a));
   const log = flag("--on-demand-log");
-  const onDemand = log ? readFileSync(log, "utf8").split("\n").map((l) => l.trim()).filter((l) => /^(BOUNDARY HELD|GATE \S+ FAILED)/.test(l)) : [];
+  const onDemand = log ? readFileSync(log, "utf8").split("\n").map((l) => l.trim()).filter((l) => /^(BOUNDARY HELD|CHECK \S+ FAILED)/.test(l)) : [];
   if (log) report.on_demand_log_sha256 = sha256(readFileSync(log));
   try {
     if (argv.includes("--page-only")) {

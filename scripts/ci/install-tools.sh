@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs the gate CLIs at pinned versions, each checked against a pinned SHA-256 (docs/verification.md).
+# Installs the check CLIs at pinned versions, each checked against a pinned SHA-256 (docs/verification.md).
 # Usage: scripts/ci/install-tools.sh <bin-dir>. Python tools come from scripts/ci/requirements.txt with hashes.
 set -euo pipefail
 

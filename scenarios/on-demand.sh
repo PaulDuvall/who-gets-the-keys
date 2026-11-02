@@ -27,5 +27,5 @@ git -c user.name=b14 -c user.email=b14@example.com -c commit.gpgsign=false commi
 mkdir -p dist && printf 'placeholder' > dist/placeholder && (cd dist && zip -q function.zip placeholder)
 state="who-gets-the-keys-tfstate-$(aws sts get-caller-identity --query Account --output text)-us-east-1-an"
 (cd infra/sandbox && terraform init -input=false -backend-config="bucket=${state}" >/dev/null && terraform plan -input=false -lock=false -out=plan.out >/dev/null && terraform show -json plan.out > plan.json)
-node scripts/gates.ts irreversible infra/sandbox/plan.json || true
+node scripts/checks.ts irreversible infra/sandbox/plan.json || true
 exit "$status"

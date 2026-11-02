@@ -84,4 +84,4 @@ echo "git commit -S -m \"spec: refresh slide snapshot to body-sha256 ${new_sha:0
 echo "git -c gpg.ssh.allowedSignersFile=approvers.txt verify-commit HEAD"
 echo "git push origin main"
 echo
-echo "The slides gate fails until practices.yaml carries sha256 ${new_sha}. That is intended: it forces reconciliation."
+echo "The slides check fails until practices.yaml carries sha256 ${new_sha}. That is intended: it forces reconciliation."

@@ -1,6 +1,6 @@
 ---
 name: slide-auditor
-description: Lists slide practices in the pinned snapshot that have no matching row in practices.yaml. Advisory; the slides gate is the deterministic check.
+description: Lists slide practices in the pinned snapshot that have no matching row in practices.yaml. Advisory; the slides check is the deterministic check.
 tools: Read
 model: claude-haiku-5-5
 ---

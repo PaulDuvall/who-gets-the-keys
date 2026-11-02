@@ -39,7 +39,7 @@ jobs:
         with:
           version: "0.11.32"
           enable-cache: false
-      - name: Install gate tools, ffmpeg and Xvfb
+      - name: Install check tools, ffmpeg and Xvfb
         run: |
           scripts/ci/install-tools.sh "$RUNNER_TEMP/tools/bin"
           echo "$RUNNER_TEMP/tools/bin" >> "$GITHUB_PATH"

@@ -14,7 +14,7 @@
 | # | Decision |
 |---|---|
 | 1 | The kit lives under `video/`; `npm run video` builds everything into `build/video/` |
-| 2 | The page is generated from `practices.yaml`, `scenarios/scenarios.yaml` and live gate and scenario results at the current commit; it is never hand-authored |
+| 2 | The page is generated from `practices.yaml`, `scenarios/scenarios.yaml` and live check and scenario results at the current commit; it is never hand-authored |
 | 3 | The orchestrator is TypeScript; the recorder and headless check are Node.js, reused from the reference with its page contract (`window.walkthrough`, `.wrap`, caption row) |
 | 4 | Piper runs as a separate program from a hash-pinned environment under `build/`; nothing imports, links or ships it |
 | 5 | The build checks its own output against measured thresholds and writes `report.json`; one frame per line is a session's look (`.claude/skills/video/SKILL.md`) |
@@ -60,4 +60,4 @@
 |---|---|
 | An unhashed browser runs on the runner | Workflow has `contents: read` and `actions: read` only (the second fetches the B9 replay log), no secrets, no AWS, no caches; page SHA-256 recorded before the browser starts |
 | GPL-3.0-or-later narration engine | Run as a separate program, never distributed |
-| A gate or scenario regression fails the video build | Intended: the video shows only verified runs |
+| A check or scenario regression fails the video build | Intended: the video shows only verified runs |

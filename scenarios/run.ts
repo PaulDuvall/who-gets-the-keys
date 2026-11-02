@@ -1,6 +1,6 @@
 // Scenario harness (SPEC-001-R19 to R37). Usage: node scenarios/run.ts [scenario ID]
-// Each local scenario: temporary worktree from HEAD, apply patch, commit unsigned, run the gates,
-// assert the first failing gate and its line, remove the worktree. Results go to build/scenarios/results.json.
+// Each local scenario: temporary worktree from HEAD, apply patch, commit unsigned, run the checks,
+// assert the first failing check and its line, remove the worktree. Results go to build/scenarios/results.json.
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,11 +10,11 @@ export interface Scenario {
   id: string;
   title: string;
   patch?: string;
-  gate: string;
+  check: string;
   expect: string;
   slide: (number | string)[];
   spec?: string;
-  run?: "gates" | "deploy-verify";
+  run?: "checks" | "deploy-verify";
   requires?: "sandbox-account" | "github-actions";
   fixture?: string;
 }
@@ -23,18 +23,18 @@ export interface Scenario {
 export const commitMessage = (s: Pick<Scenario, "id" | "title" | "spec">): string[] =>
   [`scenario ${s.id}: ${s.title}`, ...(s.id === "B3" ? [] : [`Spec: ${s.spec ?? "SPEC-014-R1"}`])];
 
-export interface Outcome { id: string; status: "pass" | "fail" | "skipped"; gate?: string; line?: string; detail: string }
+export interface Outcome { id: string; status: "pass" | "fail" | "skipped"; check?: string; line?: string; detail: string }
 
-export function firstFailure(output: string): { gate: string; line: string } | undefined {
-  const m = /^((?:GATE (\S+) FAILED)(?::.*)?)$/m.exec(output);
-  return m ? { gate: m[2] ?? "", line: (m[1] ?? "").trimEnd() } : undefined;
+export function firstFailure(output: string): { check: string; line: string } | undefined {
+  const m = /^((?:CHECK (\S+) FAILED)(?::.*)?)$/m.exec(output);
+  return m ? { check: m[2] ?? "", line: (m[1] ?? "").trimEnd() } : undefined;
 }
 
 export function judge(s: Scenario, output: string): Outcome {
   const found = firstFailure(output);
-  if (!found) return { id: s.id, status: "fail", detail: "no gate failed" };
-  const ok = found.gate === s.gate && found.line.startsWith(s.expect);
-  return { id: s.id, status: ok ? "pass" : "fail", gate: found.gate, line: found.line, detail: ok ? "failed at its named gate" : `expected ${s.expect}` };
+  if (!found) return { id: s.id, status: "fail", detail: "no check failed" };
+  const ok = found.check === s.check && found.line.startsWith(s.expect);
+  return { id: s.id, status: ok ? "pass" : "fail", check: found.check, line: found.line, detail: ok ? "failed at its named check" : `expected ${s.expect}` };
 }
 
 const sh = (argv: readonly string[], cwd: string, env: NodeJS.ProcessEnv = process.env) => {
@@ -62,10 +62,10 @@ function runInWorktree(root: string, s: Scenario, env: NodeJS.ProcessEnv): { res
       sh(["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], dir, env);
       sh(["npm", "run", "build"], dir, env);
       sh(["bash", "-c", "mkdir -p dist/function && cp dist/src/*.js dist/function/ && cd dist/function && zip -X -q ../function.zip ./*"], dir, env);
-      const out = sh(["node", "scripts/gates.ts", "attestation", "dist/function.zip"], dir, env).out;
+      const out = sh(["node", "scripts/checks.ts", "attestation", "dist/function.zip"], dir, env).out;
       return { result: judge(s, out), log: out };
     }
-    const out = sh(["node", "scripts/gates.ts"], dir, env).out;
+    const out = sh(["node", "scripts/checks.ts"], dir, env).out;
     return { result: judge(s, out), log: out };
   } finally {
     sh(["git", "worktree", "remove", "--force", dir], root);
@@ -88,8 +88,8 @@ async function main(filter: string | undefined): Promise<number> {
     process.stderr.write(`scenario ${s.id} ...\n`);
     return runScenario(root, s, env);
   });
-  console.log("| Scenario | Result | Gate | Line |\n|---|---|---|---|");
-  for (const o of outcomes) console.log(`| ${o.id} | ${o.status} | ${o.gate ?? "—"} | ${o.line ?? o.detail} |`);
+  console.log("| Scenario | Result | Check | Line |\n|---|---|---|---|");
+  for (const o of outcomes) console.log(`| ${o.id} | ${o.status} | ${o.check ?? "—"} | ${o.line ?? o.detail} |`);
   mkdirSync("build/scenarios", { recursive: true });
   writeFileSync("build/scenarios/results.json", `${JSON.stringify(outcomes, null, 2)}\n`);
   return outcomes.some((o) => o.status === "fail") ? 1 : 0;

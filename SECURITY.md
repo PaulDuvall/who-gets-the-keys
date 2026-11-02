@@ -8,6 +8,6 @@ On the repository's **Security and quality** tab, choose **Report a vulnerabilit
 
 ## Scope
 
-In scope: the delivery pipeline and its gates (`scripts/gates.ts`, `.github/workflows/`), the Terraform under `infra/`, the bootstrap scripts under `scripts/bootstrap/`, the export service under `src/`, and the walkthrough kit under `video/`.
+In scope: the delivery pipeline and its checks (`scripts/checks.ts`, `.github/workflows/`), the Terraform under `infra/`, the bootstrap scripts under `scripts/bootstrap/`, the export service under `src/`, and the walkthrough kit under `video/`.
 
 Out of scope, because they are deliberately unsafe: the scenario patches under `scenarios/` (including the synthetic token in `scenarios/B05-hard-coded-secret.patch`) and the poisoned issue fixture under `scenarios/fixtures/`.

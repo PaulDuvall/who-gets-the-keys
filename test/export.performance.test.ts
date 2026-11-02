@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { toCsv } from "../src/export.ts";
 
-// Wall-clock check, kept in its own file so the mutation gate can leave it out: Stryker's instrumentation and
+// Wall-clock check, kept in its own file so the mutation check can leave it out: Stryker's instrumentation and
 // parallel test runners slow the serializer by an amount that depends on the machine, not on the code.
 describe("SPEC-014 export service performance", () => {
   it("SPEC-014-R6 serializes 10,000 rows by 10 columns within 500 ms", () => {

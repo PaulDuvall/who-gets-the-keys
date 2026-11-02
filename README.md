@@ -6,7 +6,7 @@
 |---|---|
 | Rule demonstrated | Bad changes never reach production, because the pipeline prevents them |
 | Good scenario | `main`, always green |
-| Bad scenarios | 19 scenarios (B1 to B18, with B8 split into B8a and B8b), each failing at one named gate with one expected line. 17 are patches against `main`; B9 replays an issue fixture and B11 is an AWS call |
+| Bad scenarios | 19 scenarios (B1 to B18, with B8 split into B8a and B8b), each failing at one named check with one expected line. 17 are patches against `main`; B9 replays an issue fixture and B11 is an AWS call |
 | Source of record | Talk deck "Who Gets the Keys? Trust and Authority in Software Factories" (AI Native DevCon 2026), pinned at `specs/source-of-record/slides.txt` |
 | Status | <!-- PAUL: one-line status, e.g. which phases are complete --> |
 
@@ -18,15 +18,15 @@
 git clone https://github.com/PaulDuvall/who-gets-the-keys.git
 cd who-gets-the-keys
 npm ci --ignore-scripts
-npm run gates
+npm run checks
 npm run scenarios
 ```
 
 | Command | Result |
 |---|---|
-| `npm run gates` | Runs every gate fail-fast; exits 0 on `main` |
-| `npm run gate:<name>` | Runs one gate |
-| `npm run scenarios` | Applies each local bad patch in a temporary worktree and asserts its gate and line |
+| `npm run checks` | Runs every check fail-fast; exits 0 on `main` |
+| `npm run check:<name>` | Runs one check |
+| `npm run scenarios` | Applies each local bad patch in a temporary worktree and asserts its check and line |
 | `npm run scenario -- B12` | Runs one scenario |
 | `npm run video` | Builds the narrated walkthrough into `build/video/` |
 | `npm run video -- --page-only` | Builds the walkthrough page alone, no browser |
@@ -37,21 +37,23 @@ npm run scenarios
 | Tool | Version | Needed for |
 |---|---|---|
 | Node.js | 24.x (`engines`) | everything |
-| gitleaks | 8.30.1 | `gate:secrets` |
-| zizmor | 1.31.1 | `gate:workflows` |
-| Terraform, tflint | 1.16.6, 0.64.0 | `gate:iac` |
-| Semgrep | 1.181.0 | `gate:sast` |
-| OSV-Scanner | 2.7.0 | `gate:sca` |
-| ssh-keygen | any OpenSSH | `gate:signatures` |
+| gitleaks | 8.30.1 | `check:secrets` |
+| zizmor | 1.31.1 | `check:workflows` |
+| Terraform, tflint | 1.16.6, 0.64.0 | `check:iac` |
+| Semgrep | 1.181.0 | `check:sast` |
+| OSV-Scanner | 2.7.0 | `check:sca` |
+| ssh-keygen | any OpenSSH | `check:signatures` |
 | ffmpeg, ffprobe, Xvfb, uv | system | `npm run video` |
 
 Versions, sources and dates: [docs/verification.md](docs/verification.md).
 
-## Gates
+## Checks
 
-`npm run gates` runs them in this order and stops at the first failure. Every failure prints one line: `GATE <name> FAILED: <identifier>`.
+A check is automated. A gate is a human approval: an approver-signed commit, or a required reviewer's approval of a deployment to the `sandbox` or `probe` environment.
 
-| # | Gate | Tool | Fails when |
+`npm run checks` runs them in this order and stops at the first failure. Every failure prints one line: `CHECK <name> FAILED: <identifier>`.
+
+| # | Check | Tool | Fails when |
 |---|---|---|---|
 | 1 | secrets | gitleaks | A secret is in the working tree |
 | 2 | allowlist | `package.json` scan | A dependency name is not in `allowed-deps.txt` |
@@ -117,9 +119,9 @@ The deck's speaker notes name example tools for each practice. Where this repo u
 | SAST, SCA, secrets | Semgrep or CodeQL; OSV-Scanner, Trivy or Snyk; gitleaks or TruffleHog | Semgrep, OSV-Scanner, gitleaks | The first tool the deck names for each |
 | Mutation and property tests | Stryker or PIT; fast-check or Hypothesis | Stryker, fast-check | TypeScript repo |
 | Runner egress control | StepSecurity Harden-Runner | Anthropic `srt` and Claude Code sandbox settings, both from `.github/egress/allowlist.json` | Harden-Runner block mode needs a paid plan for private repos (D04) |
-| Codified policy checks | Open Policy Agent with Conftest, or Cedar | `scripts/gates.ts`, one function per gate | One language for repo code; each gate prints one failure line |
-| Specs and acceptance criteria | Tessl, GitHub Spec Kit or Kiro; Cucumber | EARS-style tables in `specs/`; Vitest tests titled by requirement ID | The trace gate checks both directions without another toolchain |
-| Spec and pipeline approval | CODEOWNERS, rulesets, GitHub Environments required reviewers | Approver-signed commits, checked by the signatures gate for `specs/`, `approvers.txt` and every path in `specs/protected-paths.txt` | Trunk-based with no pull requests, so approval is a signature the pipeline verifies |
+| Codified policy checks | Open Policy Agent with Conftest, or Cedar | `scripts/checks.ts`, one function per check | One language for repo code; each check prints one failure line |
+| Specs and acceptance criteria | Tessl, GitHub Spec Kit or Kiro; Cucumber | EARS-style tables in `specs/`; Vitest tests titled by requirement ID | The trace check verifies both directions without another toolchain |
+| Spec and pipeline approval | CODEOWNERS, rulesets, GitHub Environments required reviewers | Approver-signed commits, checked by the signatures check for `specs/`, `approvers.txt` and every path in `specs/protected-paths.txt` | Trunk-based with no pull requests, so approval is a signature the pipeline verifies |
 | Attestation verification | Kyverno or Sigstore policy-controller; cosign | GitHub artifact attestations, verified by `gh attestation verify` before any AWS call | The deploy target is a Lambda, not Kubernetes; fails closed while the repo is private (D06) |
 | Waivers with an expiry | Snyk ignore, Trivy `expired_at`, OPA exceptions | OSV-Scanner `ignoreUntil` entries in `specs/sca-exceptions.toml`, owner-signed | OSV-Scanner is the SCA tool |
 | Dependency intake | CodeArtifact, Artifactory or Socket; pip `--require-hashes`, `npm ci` | `allowed-deps.txt`, lockfile hashes, `npm ci`, pip `--require-hashes` | No private mirror in a demo repo |
@@ -133,11 +135,11 @@ The deck's speaker notes name example tools for each practice. Where this repo u
 | `specs/` | Approved requirements (SPEC-001, SPEC-002, SPEC-014), SCA exceptions (`sca-exceptions.toml`) and the slide snapshot. Approver-signed commits only |
 | `proposals/` | Agent-proposed spec changes, awaiting a signed move into `specs/` |
 | `approvers.txt` | SSH allowed-signers file for approvers |
-| `allowed-deps.txt` | Package names the allowlist gate accepts |
-| `practices.yaml` | Slide practice → gate, scenario and files |
-| `traceability.md` | Requirement → test file → gate → scenario |
+| `allowed-deps.txt` | Package names the allowlist check accepts |
+| `practices.yaml` | Slide practice → check, scenario and files |
+| `traceability.md` | Requirement → test file → check → scenario |
 | `src/`, `test/` | Export service and its acceptance, property and unit tests |
-| `scripts/gates.ts` | Gate dispatcher |
+| `scripts/checks.ts` | Check dispatcher |
 | `scripts/bootstrap/` | Scripts the owner runs: GitHub settings, AWS bootstrap, slide refresh |
 | `scenarios/` | Scenario definitions, patches and harness |
 | `.github/workflows/` | `pipeline.yml`, `issue-triage.yml`, `scenarios.yml`, `video.yml` |

@@ -1,5 +1,5 @@
-// Gate dispatcher (SPEC-001-R1 to R18). Usage: node scripts/gates.ts [gate | practices-md]
-// No gate imports a package before the install gate has run, so the first three need only Node.js built-ins.
+// Check dispatcher (SPEC-001-R1 to R18). Usage: node scripts/checks.ts [check | practices-md]
+// No check imports a package before the install check has run, so the first three need only Node.js built-ins.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -11,12 +11,12 @@ export const ORDER = [
   "sast", "sca", "trace", "ratchet", "signatures", "slides", "test", "mutation",
 ] as const;
 
-export class GateFailure extends Error {
-  readonly gate: string;
+export class CheckFailure extends Error {
+  readonly check: string;
   readonly id: string;
-  constructor(gate: string, id: string) {
-    super(`GATE ${gate} FAILED: ${id}`);
-    this.gate = gate;
+  constructor(check: string, id: string) {
+    super(`CHECK ${check} FAILED: ${id}`);
+    this.check = check;
     this.id = id;
   }
 }
@@ -30,20 +30,20 @@ function tool(argv: readonly string[], cwd = "."): Result {
   return { status: r.status ?? 1, stdout: r.stdout, stderr: r.stderr };
 }
 
-function check(gate: string, result: Result, id: string): void {
+function mustPass(check: string, result: Result, id: string): void {
   if (result.status === 0) return;
   process.stderr.write(`${(result.stdout + result.stderr).slice(-4000)}\n`);
-  throw new GateFailure(gate, id);
+  throw new CheckFailure(check, id);
 }
 
 const git = (...args: string[]): string => tool(["git", ...args]).stdout;
 const tracked = (...patterns: string[]): string[] => git("ls-files", "-z", "--", ...patterns).split("\0").filter(Boolean);
 
-// Every committed lockfile for the sca gate: npm lockfiles and the hash-pinned Python requirements.
+// Every committed lockfile for the sca check: npm lockfiles and the hash-pinned Python requirements.
 export const lockfilePaths = (): string[] => tracked("package-lock.json", "**/package-lock.json", "requirements.txt", "**/requirements.txt");
 const first = (ids: readonly string[]): string | undefined => [...ids].sort()[0];
 
-// ---------- pure helpers, unit-tested in test/gates.test.ts ----------
+// ---------- pure helpers, unit-tested in test/checks.test.ts ----------
 
 export function dependencyNames(pkg: Record<string, unknown>): string[] {
   const keys = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
@@ -179,7 +179,7 @@ export function destructiveChanges(plan: { resource_changes?: { address: string;
     .map((r) => r.address);
 }
 
-// ---------- gates ----------
+// ---------- checks ----------
 
 export function verifySigned(commit: string, approvers: string, cwd = "."): boolean {
   const dir = mkdtempSync(join(tmpdir(), "signers-"));
@@ -223,7 +223,7 @@ const show = (rev: string, path: string): string | undefined => {
   return r.status === 0 ? r.stdout : undefined;
 };
 
-const gates: Record<string, (args: string[]) => void | Promise<void>> = {
+const checks: Record<string, (args: string[]) => void | Promise<void>> = {
   secrets() {
     const dir = mkdtempSync(join(tmpdir(), "gitleaks-"));
     const report = join(dir, "report.json");
@@ -231,7 +231,7 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
       const r = tool([...COMMANDS.secrets, "--report-path", report]);
       if (r.status === 0) return;
       const findings = existsSync(report) ? (JSON.parse(readFileSync(report, "utf8")) as { RuleID: string }[]) : [];
-      check("secrets", r, first(findings.map((f) => f.RuleID)) ?? "gitleaks error");
+      mustPass("secrets", r, first(findings.map((f) => f.RuleID)) ?? "gitleaks error");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -243,27 +243,27 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
       dependencyNames(JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown>).filter((n) => !allowed.has(n)),
     );
     const name = first(missing);
-    if (name !== undefined) throw new GateFailure("allowlist", name);
+    if (name !== undefined) throw new CheckFailure("allowlist", name);
   },
 
   workflows() {
     const r = tool(COMMANDS.workflows);
     if (r.status !== 0) {
       const findings = (r.stdout.trim().startsWith("[") ? JSON.parse(r.stdout) : []) as { ident: string }[];
-      check("workflows", r, first(findings.map((f) => f.ident)) ?? "zizmor error");
+      mustPass("workflows", r, first(findings.map((f) => f.ident)) ?? "zizmor error");
     }
-    if (pipelineCacheFinding(readFileSync(".github/workflows/pipeline.yml", "utf8"))) throw new GateFailure("workflows", "deploy-cache");
+    if (pipelineCacheFinding(readFileSync(".github/workflows/pipeline.yml", "utf8"))) throw new CheckFailure("workflows", "deploy-cache");
     const triage = readFileSync(".github/workflows/issue-triage.yml", "utf8");
     const replay = readFileSync(".github/workflows/scenarios.yml", "utf8");
     for (const key of ["permissions", "env"]) {
       const a = jobBlock(triage, "triage", key);
       const b = jobBlock(replay, "b9-replay", key);
-      if (a.length === 0 || a.join("\n") !== b.join("\n")) throw new GateFailure("workflows", "replay-parity");
+      if (a.length === 0 || a.join("\n") !== b.join("\n")) throw new CheckFailure("workflows", "replay-parity");
     }
   },
 
   install() {
-    check("install", tool(COMMANDS.install), "package-lock.json");
+    mustPass("install", tool(COMMANDS.install), "package-lock.json");
   },
 
   lint() {
@@ -271,22 +271,22 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
     if (r.status === 0) return;
     const files = (JSON.parse(r.stdout || "[]") as { filePath: string; messages: { ruleId: string | null; severity: number }[] }[]);
     const ids = files.flatMap((f) => f.messages.filter((m) => m.severity === 2).map((m) => m.ruleId ?? "parse-error"));
-    check("lint", r, first(ids) ?? "eslint error");
+    mustPass("lint", r, first(ids) ?? "eslint error");
   },
 
   typecheck() {
     const r = tool(["node_modules/.bin/tsc", "--noEmit", "-p", "."]);
-    check("typecheck", r, /^([^\s(]+)\(\d+,\d+\): error/m.exec(r.stdout)?.[1] ?? "tsc error");
+    mustPass("typecheck", r, /^([^\s(]+)\(\d+,\d+\): error/m.exec(r.stdout)?.[1] ?? "tsc error");
   },
 
   iac() {
     for (const dir of ["infra/sandbox", "infra/org"]) {
-      check("iac", tool(["terraform", "fmt", "-check", "-recursive"], dir), dir);
-      check("iac", tool(["terraform", "init", "-backend=false", "-input=false", "-no-color"], dir), dir);
-      check("iac", tool(["terraform", "validate", "-no-color"], dir), dir);
+      mustPass("iac", tool(["terraform", "fmt", "-check", "-recursive"], dir), dir);
+      mustPass("iac", tool(["terraform", "init", "-backend=false", "-input=false", "-no-color"], dir), dir);
+      mustPass("iac", tool(["terraform", "validate", "-no-color"], dir), dir);
       const config = join(process.cwd(), ".tflint.hcl");
-      check("iac", tool(["tflint", "--init", "--config", config], dir), dir);
-      check("iac", tool(["tflint", "--no-color", "--config", config], dir), dir);
+      mustPass("iac", tool(["tflint", "--init", "--config", config], dir), dir);
+      mustPass("iac", tool(["tflint", "--no-color", "--config", config], dir), dir);
     }
   },
 
@@ -294,7 +294,7 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
     const r = tool(COMMANDS.sast);
     if (r.status === 0) return;
     const results = (JSON.parse(r.stdout || "{}") as { results?: { check_id: string }[] }).results ?? [];
-    check("sast", r, first(results.map((x) => x.check_id)) ?? "semgrep error");
+    mustPass("sast", r, first(results.map((x) => x.check_id)) ?? "semgrep error");
   },
 
   sca() {
@@ -304,7 +304,7 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
     if (r.status === 0) return;
     const parsed = JSON.parse(r.stdout || "{}") as { results?: { packages?: { groups?: AdvisoryGroup[] }[] }[] };
     const groups = (parsed.results ?? []).flatMap((x) => (x.packages ?? []).flatMap((p) => p.groups ?? []));
-    check("sca", r, topAdvisory(groups) ?? "osv-scanner error");
+    mustPass("sca", r, topAdvisory(groups) ?? "osv-scanner error");
   },
 
   trace() {
@@ -312,16 +312,16 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
     const log = git("log", "--format=%H%x1f%(trailers:key=Spec,valueonly,separator=%x2C)%x1e", "--", "src", "test");
     for (const entry of log.split("\x1e").map((e) => e.trim()).filter(Boolean)) {
       const values = (entry.split("\x1f")[1] ?? "").split(",").map((v) => v.trim()).filter(Boolean);
-      if (values.length === 0 || !values.every((v) => ids.has(v))) throw new GateFailure("trace", "missing Spec trailer");
+      if (values.length === 0 || !values.every((v) => ids.has(v))) throw new CheckFailure("trace", "missing Spec trailer");
     }
     const listed = tool(["node_modules/.bin/vitest", "list", "--json"]);
-    if (listed.status !== 0) check("trace", listed, "vitest list error");
+    if (listed.status !== 0) mustPass("trace", listed, "vitest list error");
     const tests = (JSON.parse(listed.stdout) as { name: string }[]).map((t) => t.name).join("\n");
     const untested = [...ids].find((id) => !names(tests, id));
-    if (untested !== undefined) throw new GateFailure("trace", `${untested} has no test`);
+    if (untested !== undefined) throw new CheckFailure("trace", `${untested} has no test`);
     for (const file of tracked("src/*.ts", "src/**/*.ts")) {
       const bad = exportsOf(readFileSync(file, "utf8")).find((e) => e.tags.length === 0 || !e.tags.every((t) => ids.has(t)));
-      if (bad) throw new GateFailure("trace", `export ${bad.name} has no requirement`);
+      if (bad) throw new CheckFailure("trace", `export ${bad.name} has no requirement`);
     }
   },
 
@@ -335,7 +335,7 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
       const parentCopy = parent ? show(parent, "approvers.txt") : undefined;
       if (files.some((f) => f.startsWith("specs/") || f === "approvers.txt" || guardedBy(f, paths) !== undefined)) {
         const approvers = approversFor(parentCopy, show(commit, "approvers.txt"), seen);
-        if (approvers === "" || !verifySigned(commit, approvers)) throw new GateFailure("signatures", signatureId(files, paths));
+        if (approvers === "" || !verifySigned(commit, approvers)) throw new CheckFailure("signatures", signatureId(files, paths));
       }
       if (parentCopy !== undefined || files.includes("approvers.txt")) seen = true;
     }
@@ -348,18 +348,18 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
       practices: { id: string; slides: (number | string)[]; enforced_by: string[]; files: string[] }[];
     };
     const body = snapshotBody(readFileSync(practices.source.snapshot, "utf8"));
-    if (sha256(body) !== practices.source.sha256) throw new GateFailure("slides", "snapshot hash");
+    if (sha256(body) !== practices.source.sha256) throw new CheckFailure("slides", "snapshot hash");
     const slides = slideNumbers(body);
     for (const p of practices.practices) {
       const missing = p.slides.find((s) => !slides.has(String(s)));
-      if (missing !== undefined) throw new GateFailure("slides", `${p.id} slide ${missing}`);
+      if (missing !== undefined) throw new CheckFailure("slides", `${p.id} slide ${missing}`);
     }
     const scenarios = (parse(readFileSync("scenarios/scenarios.yaml", "utf8")) as { scenarios: { id: string }[] }).scenarios;
     const enforced = new Set(practices.practices.flatMap((p) => p.enforced_by));
     const orphan = scenarios.find((s) => !enforced.has(s.id));
-    if (orphan) throw new GateFailure("slides", `${orphan.id} has no practice`);
+    if (orphan) throw new CheckFailure("slides", `${orphan.id} has no practice`);
     const absent = practices.practices.flatMap((p) => p.files).find((f) => !existsSync(f));
-    if (absent !== undefined) throw new GateFailure("slides", absent);
+    if (absent !== undefined) throw new CheckFailure("slides", absent);
   },
 
   ratchet() {
@@ -367,7 +367,7 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
     const history = git("log", "--format=%H", "--", "stryker.config.json").split("\n").filter(Boolean);
     const highest = Math.max(0, ...history.map((c) => breakOf(show(c, "stryker.config.json"))));
     if (lowered(breakOf(readFileSync("stryker.config.json", "utf8")), highest)) {
-      throw new GateFailure("ratchet", "break threshold lowered");
+      throw new CheckFailure("ratchet", "break threshold lowered");
     }
   },
 
@@ -378,7 +378,7 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
       const r = tool(["node_modules/.bin/vitest", "run", "--reporter=json", `--outputFile=${out}`]);
       if (r.status === 0) return;
       const results = existsSync(out) ? (JSON.parse(readFileSync(out, "utf8")) as { testResults: { name: string; status: string }[] }).testResults : [];
-      check("test", r, first(failedTestFiles(results, process.cwd())) ?? "vitest error");
+      mustPass("test", r, first(failedTestFiles(results, process.cwd())) ?? "vitest error");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -386,12 +386,12 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
 
   mutation() {
     const r = tool(["node_modules/.bin/stryker", "run"]);
-    check("mutation", r, mutationId(r.stdout + r.stderr));
+    mustPass("mutation", r, mutationId(r.stdout + r.stderr));
   },
 
   attestation([artifact = "dist/function.zip"]) {
     const repo = process.env.GITHUB_REPOSITORY ?? "PaulDuvall/who-gets-the-keys";
-    check("attestation", tool(attestationArgs(artifact, repo, process.env.GITHUB_SHA)), artifact);
+    mustPass("attestation", tool(attestationArgs(artifact, repo, process.env.GITHUB_SHA)), artifact);
   },
 
   irreversible([planJson = "plan.json"]) {
@@ -399,7 +399,7 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
     const address = first(destructiveChanges(plan));
     if (address === undefined) return;
     const approvers = existsSync("approvers.txt") ? readFileSync("approvers.txt", "utf8") : "";
-    if (approvers === "" || !verifySigned("HEAD", approvers)) throw new GateFailure("irreversible", address);
+    if (approvers === "" || !verifySigned("HEAD", approvers)) throw new CheckFailure("irreversible", address);
   },
 
   async "practices-md"() {
@@ -416,22 +416,22 @@ const gates: Record<string, (args: string[]) => void | Promise<void>> = {
   },
 };
 
-export async function runGate(name: string, args: string[] = []): Promise<void> {
-  const gate = gates[name];
-  if (!gate) throw new Error(`unknown gate: ${name}`);
-  await gate(args);
+export async function runCheck(name: string, args: string[] = []): Promise<void> {
+  const check = checks[name];
+  if (!check) throw new Error(`unknown check: ${name}`);
+  await check(args);
 }
 
 async function main(argv: string[]): Promise<number> {
   const [name, ...args] = argv;
   try {
-    for (const gate of name ? [name] : ORDER) {
-      await runGate(gate, args);
-      if (!name) process.stderr.write(`gate ${gate} passed\n`);
+    for (const check of name ? [name] : ORDER) {
+      await runCheck(check, args);
+      if (!name) process.stderr.write(`check ${check} passed\n`);
     }
     return 0;
   } catch (err) {
-    if (err instanceof GateFailure) {
+    if (err instanceof CheckFailure) {
       process.stdout.write(`${err.message}\n`);
       return 1;
     }

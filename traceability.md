@@ -2,9 +2,9 @@
 
 <!-- PAUL: one-line description of what this matrix is for -->
 
-Requirement IDs refer to `specs/`. Each listed test file holds a test whose title names the requirement ID; the trace gate fails if any ID has none.
+Requirement IDs refer to `specs/`. Each listed test file holds a test whose title names the requirement ID; the trace check fails if any ID has none.
 
-| Requirement | Test file | Gate | Scenario |
+| Requirement | Test file | Check | Scenario |
 |---|---|---|---|
 | SPEC-014-R1 | `test/export.acceptance.test.ts`, `test/export.property.test.ts` | test, mutation | — |
 | SPEC-014-R2 | `test/export.acceptance.test.ts`, `test/export.property.test.ts` | test, mutation | — |
@@ -12,24 +12,24 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-014-R4 | `test/export.acceptance.test.ts` | test, mutation | — |
 | SPEC-014-R5 | `test/export.acceptance.test.ts` | test, mutation | — |
 | SPEC-014-R6 | `test/export.performance.test.ts` | test | — |
-| SPEC-001-R1 | `test/gates.test.ts` | gates (runner) | — |
-| SPEC-001-R2 | `test/gates.test.ts` | secrets | — |
-| SPEC-001-R3 | `test/gates.test.ts` | allowlist | — |
-| SPEC-001-R4 | `test/gates.test.ts` | workflows | — |
-| SPEC-001-R5 | `test/gates.test.ts` | install | — |
-| SPEC-001-R6 | `test/gates.test.ts` | lint | — |
-| SPEC-001-R7 | `test/gates.test.ts` | typecheck | — |
-| SPEC-001-R8 | `test/gates.test.ts` | iac | — |
-| SPEC-001-R9 | `test/gates.test.ts` | sast | — |
-| SPEC-001-R10 | `test/gates.test.ts` | sca | — |
-| SPEC-001-R11 | `test/gates.test.ts` | trace | — |
-| SPEC-001-R12 | `test/gates.test.ts` | signatures | — |
-| SPEC-001-R13 | `test/gates.test.ts` | slides | — |
-| SPEC-001-R14 | `test/gates.test.ts` | ratchet | — |
-| SPEC-001-R15 | `test/gates.test.ts` | test | — |
-| SPEC-001-R16 | `test/gates.test.ts` | mutation | — |
-| SPEC-001-R17 | `test/gates.test.ts` | attestation | — |
-| SPEC-001-R18 | `test/gates.test.ts` | irreversible | — |
+| SPEC-001-R1 | `test/checks.test.ts` | checks (runner) | — |
+| SPEC-001-R2 | `test/checks.test.ts` | secrets | — |
+| SPEC-001-R3 | `test/checks.test.ts` | allowlist | — |
+| SPEC-001-R4 | `test/checks.test.ts` | workflows | — |
+| SPEC-001-R5 | `test/checks.test.ts` | install | — |
+| SPEC-001-R6 | `test/checks.test.ts` | lint | — |
+| SPEC-001-R7 | `test/checks.test.ts` | typecheck | — |
+| SPEC-001-R8 | `test/checks.test.ts` | iac | — |
+| SPEC-001-R9 | `test/checks.test.ts` | sast | — |
+| SPEC-001-R10 | `test/checks.test.ts` | sca | — |
+| SPEC-001-R11 | `test/checks.test.ts` | trace | — |
+| SPEC-001-R12 | `test/checks.test.ts` | signatures | — |
+| SPEC-001-R13 | `test/checks.test.ts` | slides | — |
+| SPEC-001-R14 | `test/checks.test.ts` | ratchet | — |
+| SPEC-001-R15 | `test/checks.test.ts` | test | — |
+| SPEC-001-R16 | `test/checks.test.ts` | mutation | — |
+| SPEC-001-R17 | `test/checks.test.ts` | attestation | — |
+| SPEC-001-R18 | `test/checks.test.ts` | irreversible | — |
 | SPEC-001-R19 | `test/scenarios.test.ts` | lint | B1 |
 | SPEC-001-R20 | `test/scenarios.test.ts` | mutation | B2 |
 | SPEC-001-R21 | `test/scenarios.test.ts` | trace | B3 |

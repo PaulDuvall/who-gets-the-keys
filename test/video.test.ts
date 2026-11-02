@@ -18,13 +18,13 @@ const practice = (id: string, coverage: Practice["coverage"], enforced: string[]
   ({ id, practice: `practice ${id}`, area: "testing", slides: [5], coverage, enforced_by: enforced, files: ["package.json"], reason: "r" });
 
 const input = (over: Partial<TourInput> = {}): TourInput => ({
-  repo: "who-gets-the-keys", commit: "abc1234", commitDate: "2026-10-20", gates: ["secrets", "lint", "test"],
-  mainRun: ["gate secrets passed", "gate lint passed", "gate test passed"],
-  practices: [practice("P11", "good+bad", ["gate:lint", "B1"]), practice("P13", "good-only", ["gate:test"]), practice("P09", "not-shown", []), practice("P24", "good+bad", ["B11"])],
-  scenarios: [{ id: "B1", title: "Test with no assertion", patch: "p", gate: "lint", expect: "GATE lint FAILED: vitest/expect-expect" },
-    { id: "B11", title: "Probe write", patch: "p", gate: "boundary", expect: "BOUNDARY HELD: with an explicit deny", requires: "sandbox-account" }],
-  results: [{ id: "B1", status: "pass", line: "GATE lint FAILED: vitest/expect-expect" }],
-  logs: { B1: ["GATE lint FAILED: vitest/expect-expect", "gate secrets passed"] }, commits: { B1: ["scenario B1: Test with no assertion", "Spec: SPEC-014-R1"] },
+  repo: "who-gets-the-keys", commit: "abc1234", commitDate: "2026-10-20", checks: ["secrets", "lint", "test"],
+  mainRun: ["check secrets passed", "check lint passed", "check test passed"],
+  practices: [practice("P11", "good+bad", ["check:lint", "B1"]), practice("P13", "good-only", ["check:test"]), practice("P09", "not-shown", []), practice("P24", "good+bad", ["B11"])],
+  scenarios: [{ id: "B1", title: "Test with no assertion", patch: "p", check: "lint", expect: "CHECK lint FAILED: vitest/expect-expect" },
+    { id: "B11", title: "Probe write", patch: "p", check: "boundary", expect: "BOUNDARY HELD: with an explicit deny", requires: "sandbox-account" }],
+  results: [{ id: "B1", status: "pass", line: "CHECK lint FAILED: vitest/expect-expect" }],
+  logs: { B1: ["CHECK lint FAILED: vitest/expect-expect", "check secrets passed"] }, commits: { B1: ["scenario B1: Test with no assertion", "Spec: SPEC-014-R1"] },
   patches: { B1: "diff --git a/test/x.ts b/test/x.ts\n--- a/test/x.ts\n+++ b/test/x.ts\n@@ -1 +1 @@\n+  it(\"x\", () => {});\n" }, fixtures: {},
   onDemand: [], existing: () => true, templates, overrides: {}, ...over,
 });
@@ -49,10 +49,10 @@ describe("SPEC-002 walkthrough video", () => {
     expect((await run(["sh", "-c", "exit 3"])).status).toBe(3);
   });
 
-  it("SPEC-002-R3 runs the gates and the scenario harness before generating the page", () => {
-    const gates = build.indexOf('"npm", "run", "gates"');
-    expect(gates).toBeGreaterThan(0);
-    expect(gates).toBeLessThan(build.indexOf('"node", "scenarios/run.ts"'));
+  it("SPEC-002-R3 runs the checks and the scenario harness before generating the page", () => {
+    const checks = build.indexOf('"npm", "run", "checks"');
+    expect(checks).toBeGreaterThan(0);
+    expect(checks).toBeLessThan(build.indexOf('"node", "scenarios/run.ts"'));
     expect(build.indexOf('"node", "scenarios/run.ts"')).toBeLessThan(build.indexOf("writePage(OUT"));
   });
 
@@ -64,18 +64,18 @@ describe("SPEC-002 walkthrough video", () => {
   it("SPEC-002-R5 builds opening, scenario-under-practice, good-only practice and closing steps that replay captured runs", () => {
     const steps = buildTour(input());
     expect(steps.map((s) => s.id)).toEqual(["opening", "B1", "P13", "B11", "closing"]);
-    expect(steps[0]?.run?.map((l) => l.text)).toEqual(["gate secrets passed", "gate lint passed", "gate test passed"]);
+    expect(steps[0]?.run?.map((l) => l.text)).toEqual(["check secrets passed", "check lint passed", "check test passed"]);
     const b1 = steps[1];
     expect(b1?.head).toBe("P11 · practice P11");
     expect(b1?.change).toBe('$ git commit -m "scenario B1: Test with no assertion"\n             -m "Spec: SPEC-014-R1"\n▸ test/x.ts\n+  it("x", () => {});');
-    expect(b1?.run).toEqual([{ text: "gate secrets passed", kind: "pass" }, { text: "GATE lint FAILED: vitest/expect-expect", kind: "fail" }]);
+    expect(b1?.run).toEqual([{ text: "check secrets passed", kind: "pass" }, { text: "CHECK lint FAILED: vitest/expect-expect", kind: "fail" }]);
     expect(b1?.verdict).toBe("Stopped at check 2 of 3. Not deployed");
-    expect(steps[2]?.run).toEqual([{ text: "gate test passed", kind: "pass" }]);
+    expect(steps[2]?.run).toEqual([{ text: "check test passed", kind: "pass" }]);
     expect(steps.at(-1)?.rows).toEqual([["P09 (not-shown)", "practice P09: r"]]);
-    expect(() => buildTour(input({ results: [{ id: "B1", status: "pass", line: "GATE lint FAILED: other" }] }))).toThrow(KitError);
+    expect(() => buildTour(input({ results: [{ id: "B1", status: "pass", line: "CHECK lint FAILED: other" }] }))).toThrow(KitError);
     expect(() => buildTour(input({ existing: () => false }))).toThrow(/does not exist/);
-    expect(() => buildTour(input({ mainRun: ["gate secrets passed"] }))).toThrow(/1 of 3 gates/);
-    expect(() => buildTour(input({ practices: [practice("P11", "good+bad", ["gate:lint"])] }))).toThrow(/maps to no scenario/);
+    expect(() => buildTour(input({ mainRun: ["check secrets passed"] }))).toThrow(/1 of 3 checks/);
+    expect(() => buildTour(input({ practices: [practice("P11", "good+bad", ["check:lint"])] }))).toThrow(/maps to no scenario/);
   });
 
   it("SPEC-002-R6 shows an on-demand scenario only from a real log", () => {

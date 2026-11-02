@@ -1,6 +1,6 @@
 ---
 name: validator
-description: Independent validator. Judges a change against its spec's requirements using only the spec, the diff and test results. Advisory; not part of the gates.
+description: Independent validator. Judges a change against its spec's requirements using only the spec, the diff and test results. Advisory; not part of the checks.
 tools: Read, Grep, Glob
 model: claude-sonnet-5-5
 ---
