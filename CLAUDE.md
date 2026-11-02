@@ -41,7 +41,7 @@ Purpose: <!-- PAUL: one-line purpose of the repo -->
 - Agent commits carry `Agent: Claude Code`.
 - Every export from `src/` carries `@requirement <ID>` in its doc comment.
 - Every test names the requirement ID it checks.
-- Gate order: secrets → allowlist → workflows → install → lint → typecheck → iac → sast → sca → trace → signatures → slides → ratchet → test → mutation.
+- Gate order: secrets → allowlist → workflows → install → lint → typecheck → iac → sast → sca → trace → ratchet → signatures → slides → test → mutation.
 - A failing gate prints one line: `GATE <name> FAILED: <identifier>`.
 - Say "customer", never "client".
 - Commands written for a human to paste carry no `#` comments.

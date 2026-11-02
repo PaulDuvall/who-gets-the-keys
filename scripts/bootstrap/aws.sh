@@ -72,3 +72,9 @@ echo "terraform -chdir=infra/org apply -var sandbox_account_id=${expected}"
 echo
 echo "3. Repository variables from the outputs:"
 echo "TRIAGE_MODEL=<bedrock model or inference profile ID> scripts/bootstrap/github.sh --vars"
+echo
+echo "4. After the SCP, the pipeline applies only the export Lambda, its table, its log group and its role's policies."
+echo "   Changes to the other roles, the OIDC provider, the Lambda role boundary, the KMS key or the break-glass alarm"
+echo "   fail in the deploy job. Apply them yourself as who-gets-the-keys-break-glass, with MFA; this fires the alarm:"
+echo "terraform -chdir=infra/sandbox plan -out=plan.out -var artifact_sha256=\$(openssl dgst -sha256 -binary dist/function.zip | base64)"
+echo "terraform -chdir=infra/sandbox apply plan.out"

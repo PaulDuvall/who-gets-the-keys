@@ -18,7 +18,7 @@ const PAGE_OUT = join(ROOT, "build", "video-page");
 const STEP_TIMEOUT = 600;
 const STOP_GRACE = 5;
 const RECORD_MARGIN = 300;
-const ORDER = ["secrets", "allowlist", "workflows", "install", "lint", "typecheck", "iac", "sast", "sca", "trace", "signatures", "slides", "ratchet", "test", "mutation"];
+const ORDER = ["secrets", "allowlist", "workflows", "install", "lint", "typecheck", "iac", "sast", "sca", "trace", "ratchet", "signatures", "slides", "test", "mutation"];
 
 interface Done { status: number; stdout: string; stderr: string }
 let running: ReturnType<typeof spawn> | undefined;

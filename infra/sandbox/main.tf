@@ -67,8 +67,9 @@ resource "aws_cloudwatch_log_group" "export" {
 }
 
 resource "aws_iam_role" "export_lambda" {
-  name = "who-gets-the-keys-export-lambda"
-  path = local.role_path
+  name                 = "who-gets-the-keys-export-lambda"
+  path                 = local.role_path
+  permissions_boundary = aws_iam_policy.export_lambda_boundary.arn
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{

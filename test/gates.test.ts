@@ -13,7 +13,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 describe("SPEC-001 gates", () => {
   it("SPEC-001-R1 runs the fifteen gates in order and prints one stable failure line", () => {
-    expect(ORDER).toEqual(["secrets", "allowlist", "workflows", "install", "lint", "typecheck", "iac", "sast", "sca", "trace", "signatures", "slides", "ratchet", "test", "mutation"]);
+    expect(ORDER).toEqual(["secrets", "allowlist", "workflows", "install", "lint", "typecheck", "iac", "sast", "sca", "trace", "ratchet", "signatures", "slides", "test", "mutation"]);
     expect(new GateFailure("lint", "vitest/expect-expect").message).toBe("GATE lint FAILED: vitest/expect-expect");
   });
 

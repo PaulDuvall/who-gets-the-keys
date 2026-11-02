@@ -8,7 +8,7 @@ import { join } from "node:path";
 
 export const ORDER = [
   "secrets", "allowlist", "workflows", "install", "lint", "typecheck", "iac",
-  "sast", "sca", "trace", "signatures", "slides", "ratchet", "test", "mutation",
+  "sast", "sca", "trace", "ratchet", "signatures", "slides", "test", "mutation",
 ] as const;
 
 export class GateFailure extends Error {
