@@ -165,6 +165,19 @@ describe("SPEC-002 walkthrough video", () => {
     expect(wf).toMatch(/if: always\(\)\n\s+uses: actions\/upload-artifact/);
   });
 
+  it("SPEC-002-R15 names the artifact walkthrough-<short SHA>-<UTC build time> and keeps only the newest video", () => {
+    const wf = read(".github/workflows/video.yml");
+    expect(wf).toContain('name="walkthrough-${sha}-$(date -u -r build/video/walkthrough.mp4 +%Y%m%dT%H%MZ)"');
+    expect(wf).toContain('name="walkthrough-${sha}-$(date -u +%Y%m%dT%H%MZ)-no-video"');
+    expect(wf).toContain("name: ${{ steps.stamp.outputs.name }}");
+    const prune = wf.slice(wf.indexOf("\n  prune:\n"));
+    expect(prune).toContain("    needs: build\n    if: needs.build.result == 'success'\n");
+    expect(prune).toMatch(/\n    permissions:\n      actions: write # [^\n]*\n    steps:/);
+    expect(prune).not.toMatch(/uses:|contents:|secrets\./);
+    expect(prune).toContain('select((.name | startswith("walkthrough")) and (.expired | not))');
+    expect(prune).toContain("awk '$3 !~ /-no-video$/ {print $2; exit}'");
+  });
+
   it("SPEC-002-R15 passes the CI build the B9 replay log from the same commit, waiting at most 20 minutes", () => {
     const wf = read(".github/workflows/video.yml");
     expect(wf).toContain("actions/workflows/scenarios.yml/runs?head_sha=$SHA");

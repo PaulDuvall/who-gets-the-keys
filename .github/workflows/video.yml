@@ -81,14 +81,56 @@ jobs:
           else
             npm run video
           fi
+      - name: Name the video walkthrough-<short SHA>-<UTC build time>
+        id: stamp
+        if: always()
+        run: |
+          sha="$(jq -r '.commit // empty' build/video/report.json 2>/dev/null | cut -c1-7)"
+          sha="${sha:-${GITHUB_SHA::7}}"
+          if [ -f build/video/walkthrough.mp4 ]; then
+            name="walkthrough-${sha}-$(date -u -r build/video/walkthrough.mp4 +%Y%m%dT%H%MZ)"
+            mv build/video/walkthrough.mp4 "build/video/${name}.mp4"
+          else
+            name="walkthrough-${sha}-$(date -u +%Y%m%dT%H%MZ)-no-video"
+          fi
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "Artifact and video: ${name}"
       - name: Upload the video, page, captions and report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: walkthrough
+          name: ${{ steps.stamp.outputs.name }}
           path: |
-            build/video/walkthrough.mp4
+            build/video/walkthrough-*.mp4
             build/video/walkthrough.html
             build/video/captions.srt
             build/video/report.json
           if-no-files-found: warn
+
+  prune:
+    name: keep only the newest walkthrough
+    needs: build
+    if: needs.build.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: video-prune
+      cancel-in-progress: false
+    permissions:
+      actions: write # deletes earlier walkthrough artifacts; nothing else in this job
+    steps:
+      - name: Delete every walkthrough artifact except the newest video
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          list="$(gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select((.name | startswith("walkthrough")) and (.expired | not)) | "\(.created_at) \(.id) \(.name)"' | sort -r)"
+          keep="$(printf '%s\n' "$list" | awk '$3 !~ /-no-video$/ {print $2; exit}')"
+          [ -n "$keep" ] || { echo "No walkthrough video found; nothing deleted."; exit 0; }
+          printf '%s\n' "$list" | while read -r created id name; do
+            { [ -z "$id" ] || [ "$id" = "$keep" ]; } && continue
+            gh api -X DELETE "repos/$REPO/actions/artifacts/$id"
+            echo "Deleted ${name} (${created})"
+          done
+          echo "Kept artifact ${keep}."
