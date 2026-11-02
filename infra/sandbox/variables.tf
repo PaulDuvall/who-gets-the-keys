@@ -16,12 +16,6 @@ variable "github_repository" {
   default     = "PaulDuvall/who-gets-the-keys"
 }
 
-variable "state_bucket" {
-  description = "Terraform state bucket in this account"
-  type        = string
-  default     = "pduvall-who-gets-the-keys-tfstate"
-}
-
 variable "artifact_path" {
   description = "Path to the Lambda zip built and attested by pipeline.yml"
   type        = string

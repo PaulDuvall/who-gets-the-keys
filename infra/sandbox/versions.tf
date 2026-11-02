@@ -8,8 +8,9 @@ terraform {
     }
   }
 
+  # Partial configuration: the bucket name carries the account ID, so it is passed at init with
+  # -backend-config=bucket=who-gets-the-keys-tfstate-<account>-us-east-1-an (see local.state_bucket).
   backend "s3" {
-    bucket       = "pduvall-who-gets-the-keys-tfstate"
     key          = "sandbox/terraform.tfstate"
     region       = "us-east-1"
     encrypt      = true

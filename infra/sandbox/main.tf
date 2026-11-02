@@ -4,6 +4,9 @@ locals {
   account_id    = data.aws_caller_identity.current.account_id
   function_name = "who-gets-the-keys-export"
   role_path     = "/who-gets-the-keys/"
+  # State bucket in the S3 account regional namespace: only this account can create a name with this suffix.
+  # scripts/bootstrap/aws.sh creates it; the backend gets the same name through -backend-config at init.
+  state_bucket = "who-gets-the-keys-tfstate-${local.account_id}-us-east-1-an"
 }
 
 resource "aws_kms_key" "sandbox" {

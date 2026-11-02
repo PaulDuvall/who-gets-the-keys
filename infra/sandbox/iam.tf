@@ -55,7 +55,7 @@ data "aws_iam_policy_document" "deploy" {
   statement {
     sid       = "State"
     actions   = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    resources = ["arn:aws:s3:::${var.state_bucket}", "arn:aws:s3:::${var.state_bucket}/sandbox/*"]
+    resources = ["arn:aws:s3:::${local.state_bucket}", "arn:aws:s3:::${local.state_bucket}/sandbox/*"]
   }
   statement {
     sid     = "Workload"
