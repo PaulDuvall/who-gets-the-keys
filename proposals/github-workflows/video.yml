@@ -1,0 +1,108 @@
+# Builds the narrated walkthrough on demand and when its inputs change (SPEC-002-R15).
+# The job runs an unhashed browser: contents: read and actions: read only, no secrets, no AWS, no caches.
+name: video
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "video/**"
+      - "practices.yaml"
+      - "scenarios/**"
+      - ".github/workflows/video.yml"
+
+permissions: {}
+cache-mode: none
+
+jobs:
+  build:
+    name: build and check the video
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    concurrency:
+      group: video-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.32"
+          enable-cache: false
+      - name: Install gate tools, ffmpeg and Xvfb
+        run: |
+          scripts/ci/install-tools.sh "$RUNNER_TEMP/tools/bin"
+          echo "$RUNNER_TEMP/tools/bin" >> "$GITHUB_PATH"
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends ffmpeg xvfb
+      - name: Install dependencies and the browser's system libraries
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --prefix video/record --ignore-scripts --no-audit --no-fund
+          (cd video/record && sudo npx --no-install playwright install-deps chromium)
+      - name: Fetch the B9 replay log from this commit's scenarios run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          deadline=$((SECONDS + 1200))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            run=$(gh api "repos/$REPO/actions/workflows/scenarios.yml/runs?head_sha=$SHA&per_page=1" --jq '.workflow_runs[0].id // empty')
+            if [ -n "$run" ]; then
+              job=$(gh api "repos/$REPO/actions/runs/$run/jobs" --jq '.jobs[] | select(.name == "B9 replay under the triage boundary") | "\(.status) \(.conclusion)"')
+              case "$job" in
+                "completed success")
+                  gh run download "$run" -R "$REPO" -n b9-replay-log -D "$RUNNER_TEMP/b9"
+                  echo "B9 replay log from scenarios run $run"
+                  exit 0 ;;
+                completed*)
+                  echo "::warning::B9 replay in scenarios run $run ended '$job'; building without its log"
+                  exit 0 ;;
+              esac
+            fi
+            sleep 30
+          done
+          echo "::warning::No B9 replay for $SHA finished within 20 minutes; building without its log"
+      - name: Build and check the video
+        run: |
+          if [ -f "$RUNNER_TEMP/b9/b9-replay.log" ]; then
+            npm run video -- --on-demand-log "$RUNNER_TEMP/b9/b9-replay.log"
+          else
+            npm run video
+          fi
+      - name: Name the video walkthrough-<short SHA>-<UTC build time>
+        id: stamp
+        if: always()
+        run: |
+          sha="$(jq -r '.commit // empty' build/video/report.json 2>/dev/null | cut -c1-7)"
+          sha="${sha:-${GITHUB_SHA::7}}"
+          if [ -f build/video/walkthrough.mp4 ]; then
+            name="walkthrough-${sha}-$(date -u -r build/video/walkthrough.mp4 +%Y%m%dT%H%MZ)"
+            mv build/video/walkthrough.mp4 "build/video/${name}.mp4"
+          else
+            name="walkthrough-${sha}-$(date -u +%Y%m%dT%H%MZ)-no-video"
+          fi
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "Artifact and video: ${name}"
+      - name: Upload the video, page, captions and report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.stamp.outputs.name }}
+          path: |
+            build/video/walkthrough-*.mp4
+            build/video/walkthrough.html
+            build/video/captions.srt
+            build/video/report.json
+          if-no-files-found: warn
