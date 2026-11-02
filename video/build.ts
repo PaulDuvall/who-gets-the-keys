@@ -6,9 +6,9 @@ import { basename, join, resolve } from "node:path";
 import { parse } from "yaml";
 import { commitMessage, type Scenario } from "../scenarios/run.ts";
 import {
-  FPS, HEIGHT, KitError, preflight, SILENCE_DB, SILENCE_MIN, WIDTH, blackEnd, buildTour, captions, chapters, missingTools,
-  onsetResults, pinProblem, planTimeline, sceneScores, sha256, silenceEnds, slideResults, spoken, stillAt, streamProblems,
-  type Practice, type ScenarioResult, type StepData, type Timeline,
+  FPS, HEIGHT, KitError, preflight, SILENCE_DB, WIDTH, blackEnd, buildTour, captions, chapters, missingTools,
+  onsetProblems, onsetResults, pinProblem, planTimeline, sceneScores, sha256, slideResults, spoken, stillAt, streamProblems,
+  type Practice, type ScenarioResult, type StepData, type Timeline, type Voice,
 } from "./kit.ts";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -18,6 +18,7 @@ const PAGE_OUT = join(ROOT, "build", "video-page");
 const STEP_TIMEOUT = 600;
 const STOP_GRACE = 5;
 const RECORD_MARGIN = 300;
+const AUDIO_RATE = 48000;
 const ORDER = ["secrets", "allowlist", "workflows", "install", "lint", "typecheck", "iac", "sast", "sca", "trace", "ratchet", "signatures", "slides", "test", "mutation"];
 
 interface Done { status: number; stdout: string; stderr: string }
@@ -112,7 +113,7 @@ function writePage(dir: string, steps: StepData[]): string {
   return path;
 }
 
-export function wavInfo(path: string): { seconds: number; leadIn: number } {
+export function readWav(path: string): Voice {
   const b = readFileSync(path);
   let at = 12, rate = 22050, data = Buffer.alloc(0);
   while (at + 8 <= b.length) {
@@ -121,10 +122,20 @@ export function wavInfo(path: string): { seconds: number; leadIn: number } {
     if (id === "data") data = b.subarray(at + 8, at + 8 + size);
     at += 8 + size + (size % 2);
   }
+  return { samples: pcm(data), rate };
+}
+
+function pcm(data: Buffer): Int16Array {
+  const out = new Int16Array(Math.floor(data.length / 2));
+  for (let i = 0; i < out.length; i++) out[i] = data.readInt16LE(i * 2);
+  return out;
+}
+
+export function wavInfo(path: string): { seconds: number; leadIn: number } {
+  const { samples, rate } = readWav(path);
   const threshold = 32768 * 10 ** (SILENCE_DB / 20);
-  let first = data.length / 2;
-  for (let i = 0; i + 1 < data.length; i += 2) if (Math.abs(data.readInt16LE(i)) > threshold) { first = i / 2; break; }
-  return { seconds: data.length / 2 / rate, leadIn: first / rate };
+  const first = samples.findIndex((v) => Math.abs(v) > threshold);
+  return { seconds: samples.length / rate, leadIn: (first < 0 ? samples.length : first) / rate };
 }
 
 async function fetchVoice(dir: string): Promise<string> {
@@ -212,14 +223,18 @@ export function muxCommand(raw: string, cover: number, shift: number, t: Timelin
     `${t.entries.map((_, k) => `[a${k}]`).join("")}amix=inputs=${t.entries.length}:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=11[aout]`;
   return ["ffmpeg", "-y", "-loglevel", "error", "-ss", cover.toFixed(3), "-i", raw, ...inputs, "-i", join(clips, "chapters.txt"),
     "-filter_complex", mix, "-map", "[vout]", "-map", "[aout]", "-map_chapters", String(t.entries.length + 1), "-t", (t.total - base).toFixed(3),
-    "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", String(FPS), "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-movflags", "+faststart", out];
+    "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", String(FPS), "-c:a", "aac", "-b:a", "160k", "-ar", String(AUDIO_RATE), "-movflags", "+faststart", out];
 }
 
 async function check(video: string, timeline: Timeline, chapterCount: number, browser: string): Promise<void> {
   const probe = JSON.parse((await must("reading the video's streams", ["ffprobe", "-v", "error", "-show_streams", "-show_format", "-show_chapters", "-of", "json", video])).stdout) as Parameters<typeof streamProblems>[0];
-  const silences = await must("measuring the voice starts", ["ffmpeg", "-hide_banner", "-i", video, "-af", `silencedetect=noise=${SILENCE_DB}dB:d=${SILENCE_MIN}`, "-vn", "-f", "null", "-"]);
+  const narration = join(OUT, "narration"), soundtrack = join(narration, "soundtrack.s16");
+  await must("decoding the soundtrack", ["ffmpeg", "-y", "-loglevel", "error", "-i", video, "-vn", "-ac", "1", "-ar", String(AUDIO_RATE), "-f", "s16le", "-c:a", "pcm_s16le", soundtrack]);
+  const decoded: Voice = { samples: pcm(readFileSync(soundtrack)), rate: AUDIO_RATE };
+  rmSync(soundtrack, { force: true });
+  const audioStart = Number(probe.streams?.find((s) => s.codec_type === "audio")?.start_time ?? 0);
   const scenes = await must("measuring the slide changes", ["ffmpeg", "-hide_banner", "-i", video, "-vf", "select='gte(scene,0)',metadata=print:key=lavfi.scene_score", "-an", "-f", "null", "-"]);
-  const onsets = onsetResults(timeline, silenceEnds(silences.stderr));
+  const onsets = onsetResults(timeline, timeline.entries.map((e) => readWav(join(narration, e.clip))), decoded, Number.isFinite(audioStart) ? audioStart : 0);
   const slides = slideResults(timeline, sceneScores(scenes.stderr));
   const first = (s: string) => s.split("\n").find((l) => l.trim()) ?? "unknown";
   report.tools = { ffmpeg: first((await must("reading ffmpeg's version", ["ffmpeg", "-version"])).stdout), node: process.version, browser };
@@ -228,7 +243,7 @@ async function check(video: string, timeline: Timeline, chapterCount: number, br
   report.video = { bytes: statSync(video).size, sha256: sha256(readFileSync(video)), seconds: Number(probe.format?.duration) };
   report.problems = [
     ...streamProblems(probe, timeline, chapterCount),
-    ...onsets.filter((o) => !o.ok).map((o) => `line ${o.line}: voice starts at ${o.measured} s, expected ${o.expected} s within 0.05 s`),
+    ...onsetProblems(onsets),
     ...slides.filter((s) => !s.ok).map((s) => `line ${s.line}: slide change at ${s.measured} s, expected ${s.expected} s within 0.25 s`),
   ];
   report.passed = (report.problems as string[]).length === 0;

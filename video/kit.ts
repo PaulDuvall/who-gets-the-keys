@@ -11,7 +11,8 @@ export const SLIDE_TOLERANCE = 0.25;
 export const SLIDE_WINDOW = 1.0;
 export const SLIDE_MIN_SCORE = 0.03;
 export const SILENCE_DB = -40;
-export const SILENCE_MIN = 0.3;
+export const ONSET_REACH = 0.3;
+export const MATCH_MIN = 0.8;
 export const LEAD = 0.4;
 export const TAIL = 0.55;
 export const MIN_HOLD = 3.0;
@@ -250,17 +251,56 @@ export function pinProblem(name: string, expected: string, actual: string): stri
   return expected === actual ? undefined : `${name}: SHA-256 ${actual} does not match its pin ${expected}`;
 }
 
-export function silenceEnds(stderr: string): number[] {
-  return [...stderr.matchAll(/silence_end: ([0-9.]+)/g)].map((m) => Number(m[1]));
+export interface Voice { samples: Int16Array; rate: number }
+
+/** RMS level, 0 to 1, of each whole millisecond of 16-bit samples, so clips and soundtrack compare at any sample rate. */
+export function envelope(voice: Voice): Float64Array {
+  const out = new Float64Array(Math.floor((voice.samples.length * 1000) / voice.rate));
+  for (let k = 0; k < out.length; k++) {
+    const a = Math.floor((k * voice.rate) / 1000), b = Math.max(a + 1, Math.floor(((k + 1) * voice.rate) / 1000));
+    let sum = 0;
+    for (let i = a; i < b; i++) sum += (voice.samples[i] ?? 0) ** 2;
+    out[k] = Math.sqrt(sum / (b - a)) / 32768;
+  }
+  return out;
 }
 
-export function onsetResults(timeline: Timeline, ends: readonly number[]) {
+/** The millisecond within `reach` of `from` where `clip` lines up best with `mix`, scored by cosine similarity (1 is a perfect match). */
+export function bestMatch(clip: Float64Array, mix: Float64Array, from: number, reach: number): { at: number; score: number } {
+  let clipEnergy = 0;
+  for (const v of clip) clipEnergy += v * v;
+  let best = { at: from, score: 0 };
+  for (let at = Math.max(0, from - reach); at <= from + reach; at++) {
+    let dot = 0, energy = 0;
+    for (let k = 0; k < clip.length; k++) {
+      const m = mix[at + k] ?? 0;
+      dot += (clip[k] ?? 0) * m;
+      energy += m * m;
+    }
+    const score = dot > 0 ? dot / Math.sqrt(clipEnergy * energy) : 0;
+    if (score > best.score) best = { at, score };
+  }
+  return best;
+}
+
+// A voice starts where its clip sits in the delivered soundtrack plus the clip's own lead-in. The clip is found by its loudness
+// envelope, which loudness normalisation scales but does not move; a fixed -40 dB crossing moves with that gain and with AAC.
+export function onsetResults(timeline: Timeline, clips: readonly Voice[], soundtrack: Voice, soundtrackStart = 0) {
   const base = timeline.entries[0]?.start ?? 0;
+  const mix = envelope(soundtrack);
   return timeline.entries.map((e) => {
     const expected = r3(e.voice_at - base + e.lead_in);
-    const measured = ends.length ? ends.reduce((a, b) => (Math.abs(b - expected) < Math.abs(a - expected) ? b : a)) : null;
-    return { line: e.index + 1, expected, measured, ok: measured !== null && Math.abs(measured - expected) <= ONSET_TOLERANCE };
+    const clip = clips[e.index];
+    const match = clip ? bestMatch(envelope(clip), mix, Math.round((e.voice_at - base - soundtrackStart) * 1000), Math.round(ONSET_REACH * 1000)) : { at: 0, score: 0 };
+    const measured = match.score >= MATCH_MIN ? r3(soundtrackStart + match.at / 1000 + e.lead_in) : null;
+    return { line: e.index + 1, expected, measured, match: r3(match.score), ok: measured !== null && Math.abs(measured - expected) <= ONSET_TOLERANCE + 1e-9 };
   });
+}
+
+export function onsetProblems(onsets: readonly ReturnType<typeof onsetResults>[number][]): string[] {
+  return onsets.filter((o) => !o.ok).map((o) => o.measured === null
+    ? `line ${o.line}: voice not found within ${ONSET_REACH} s of ${o.expected} s (best match ${o.match}, needs ${MATCH_MIN})`
+    : `line ${o.line}: voice starts at ${o.measured} s, expected ${o.expected} s within ${ONSET_TOLERANCE} s`);
 }
 
 export function sceneScores(stderr: string): [number, number][] {
@@ -284,7 +324,7 @@ export function slideResults(timeline: Timeline, scores: readonly [number, numbe
   });
 }
 
-interface Probe { streams?: { codec_type?: string; codec_name?: string; width?: number; height?: number; r_frame_rate?: string }[]; format?: { duration?: string }; chapters?: unknown[] }
+interface Probe { streams?: { codec_type?: string; codec_name?: string; width?: number; height?: number; r_frame_rate?: string; start_time?: string }[]; format?: { duration?: string }; chapters?: unknown[] }
 
 export function streamProblems(probe: Probe, timeline: Timeline, chapterCount: number): string[] {
   const streams = probe.streams ?? [];

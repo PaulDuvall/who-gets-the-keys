@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { muxCommand, run, wavInfo } from "../video/build.ts";
+import { muxCommand, readWav, run, wavInfo } from "../video/build.ts";
 import {
-  FPS, HEIGHT, KitError, WIDTH, buildTour, captions, chapters, fillTemplate, importsAwsSdk, missingTools, onsetResults, pinProblem,
-  planTimeline, preflight, sceneScores, silenceEnds, slideResults, spoken, stillAt, streamProblems, type Practice, type TourInput,
+  FPS, HEIGHT, KitError, MATCH_MIN, WIDTH, buildTour, captions, chapters, envelope, fillTemplate, importsAwsSdk, missingTools, onsetProblems,
+  onsetResults, pinProblem, planTimeline, preflight, sceneScores, slideResults, spoken, stillAt, streamProblems, type Practice, type TourInput,
 } from "../video/kit.ts";
 
 const read = (p: string) => readFileSync(p, "utf8");
@@ -124,10 +124,37 @@ describe("SPEC-002 walkthrough video", () => {
     expect(read("video/record/record.cjs")).toContain("window.walkthrough.setRecording(true)");
   });
 
-  it("SPEC-002-R11 checks voice onsets, slide changes, streams and length against the thresholds", () => {
-    expect(silenceEnds("silence_end: 0.452 | x\nsilence_end: 3.1")).toEqual([0.452, 3.1]);
-    const onsets = onsetResults(timeline, [0.46, 3.45 + 0.1 + 0.2]);
-    expect(onsets.map((o) => o.ok)).toEqual([true, false, false]);
+  it("SPEC-002-R11 measures each voice start by finding its clip in the delivered soundtrack", () => {
+    const syllable = (line: number, t: number) => {
+      let x = (line + 1) * 7919 + Math.floor(t / 0.02);
+      x = (x * 1103515245 + 12345) % 2147483648;
+      return 0.2 + 0.8 * (x / 2147483648);
+    };
+    const voice = (line: number, t: number) => {
+      const e = timeline.entries[line]!;
+      return t < e.lead_in || t >= e.clip_len ? 0 : syllable(line, t) * Math.sin(2 * Math.PI * 220 * t);
+    };
+    const clips = timeline.entries.map((e) => ({ rate: 8000, samples: Int16Array.from({ length: e.clip_len * 8000 }, (_, i) => Math.round(20000 * voice(e.index, i / 8000))) }));
+    const soundtrack = (shift: Record<number, number>, start = 0, missing = -1) => ({ rate: 16000, samples: Int16Array.from({ length: (timeline.total - start) * 16000 }, (_, i) => {
+      const t = start + i / 16000, gain = 0.5 + 0.3 * Math.sin(Math.PI * t);
+      return Math.round(20000 * gain * timeline.entries.reduce((sum, e) => sum + (e.index === missing ? 0 : voice(e.index, t - e.voice_at - (shift[e.index] ?? 0))), 0));
+    }) });
+    expect([...envelope({ rate: 4000, samples: Int16Array.from([0, 0, 0, 0, 16384, -16384, 16384, -16384]) })]).toEqual([0, 0.5]);
+    const expected = timeline.entries.map((e) => e.voice_at + e.lead_in);
+    const onsets = onsetResults(timeline, clips, soundtrack({ 0: 0.03, 1: 0.08 }));
+    expect(onsets.map((o) => o.measured)).toEqual(expected.map((x, k) => Math.round((x + [0.03, 0.08, 0][k]!) * 1000) / 1000));
+    expect(onsets.map((o) => o.ok)).toEqual([true, false, true]);
+    expect(onsets.every((o) => o.match >= MATCH_MIN)).toBe(true);
+    expect(onsetProblems(onsets)).toEqual([`line 2: voice starts at ${onsets[1]!.measured} s, expected ${onsets[1]!.expected} s within 0.05 s`]);
+    expect(onsetResults(timeline, clips, soundtrack({ 2: -0.06 }, 0.25), 0.25).map((o) => o.ok)).toEqual([true, true, false]);
+    const absent = onsetResults(timeline, clips, soundtrack({}, 0, 2));
+    expect(absent.map((o) => o.measured === null)).toEqual([false, false, true]);
+    expect(onsetProblems(absent)[0]).toMatch(/^line 3: voice not found within 0.3 s of 7.35 s \(best match 0(\.\d+)?, needs 0.8\)$/);
+    expect(build).toContain('"-i", video, "-vn", "-ac", "1"');
+    expect(build).not.toContain("silencedetect");
+  });
+
+  it("SPEC-002-R11 checks slide changes, streams and length against the thresholds", () => {
     const scores = sceneScores("pts_time:3.0 x\nlavfi.scene_score=0.5\npts_time:6.9\nlavfi.scene_score=0.02\npts_time:6.4\nlavfi.scene_score=0.2");
     const slides = slideResults(timeline, scores);
     expect(slides.map((s) => s.measured)).toEqual([3, 6.4]);
@@ -207,5 +234,6 @@ describe("SPEC-002 walkthrough video", () => {
     header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34); header.write("data", 36); header.writeUInt32LE(data.length, 40);
     writeFileSync(join(dir, "a.wav"), Buffer.concat([header, data]));
     expect(wavInfo(join(dir, "a.wav"))).toEqual({ seconds: 1, leadIn: 0.25 });
+    expect(readWav(join(dir, "a.wav"))).toEqual({ rate, samples });
   });
 });
