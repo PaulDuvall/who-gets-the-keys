@@ -1,6 +1,6 @@
 # Verification log
 
-<!-- PAUL: one-line description of what this log is for -->
+Every version, flag and syntax choice in the repo, with the primary source it was checked against and the date.
 
 All rows verified 2026-10-20 unless the Date column says otherwise. "Session" means the Part B cloud session container.
 

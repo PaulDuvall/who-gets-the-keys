@@ -1,6 +1,6 @@
 # Lockdown check
 
-<!-- PAUL: one-line description of when to run this check -->
+Run this after any change to `.claude/settings.json` or the hooks, to confirm the local denies and hooks still hold.
 
 Run in a fresh local Claude Code session opened at the repo root. Cloud sessions with several repositories read only `enabledPlugins` and `extraKnownMarketplaces` from a repo's `.claude/settings.json` (docs/verification.md), so permissions, hooks and env are not applied there.
 

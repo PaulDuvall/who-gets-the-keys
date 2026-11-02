@@ -1,6 +1,6 @@
 # Deviations
 
-<!-- PAUL: one-line description of what this log is for -->
+Where the build departs from its prompt, the slides, a reference implementation or a signed spec, why, and since when.
 
 Commit SHAs follow the history rewritten on 2026-11-02 (D24). GitHub Actions run IDs from before that date belong to the earlier repository, now the private `who-gets-the-keys-archive`.
 

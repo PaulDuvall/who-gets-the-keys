@@ -1,6 +1,6 @@
 # Slide reconciliation
 
-<!-- PAUL: one-line description of what this table is for -->
+Which practices the talk's audience slides state, and what in this repo demonstrates each one.
 
 Snapshot: `specs/source-of-record/slides.txt`, body SHA-256 `f78bb192ae51591962c75009192243bbcdcaa44da78a86287c90f02f35885aa1`, exported 2026-11-02 from the audience deck (13 numbered slides, no speaker notes, no Q&A slides). One row per practice the slide text states, then the controls this repo has that the slides do not name. Checked by hand against the repo on 2026-11-02; it replaces the reconciliation and the claim-by-claim audit written against the earlier speaker deck.
 

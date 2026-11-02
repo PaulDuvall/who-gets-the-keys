@@ -1,6 +1,6 @@
 # Traceability
 
-<!-- PAUL: one-line description of what this matrix is for -->
+Each requirement, the test that names it, the check that runs the test, and the scenario that shows the check stopping a bad change.
 
 Requirement IDs refer to `specs/`. Each listed test file holds a test whose title names the requirement ID; the trace check fails if any ID has none.
 

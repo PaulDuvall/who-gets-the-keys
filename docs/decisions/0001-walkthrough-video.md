@@ -7,7 +7,7 @@
 
 ## Context
 
-<!-- PAUL: one-paragraph context for why the repo generates its own walkthrough video -->
+Slides can claim a practice. A reader of the repo needs to see it run. The walkthrough video is built from repo state at one commit: it runs the checks and every scenario, then shows each bad change and the check that stopped it. Because each build regenerates it from the commit it names, the video cannot drift from the code. Its own checks fail the build if the voice or the slide changes fall out of sync.
 
 ## Decisions
 
