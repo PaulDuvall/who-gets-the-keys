@@ -106,3 +106,31 @@ jobs:
             build/video/captions.srt
             build/video/report.json
           if-no-files-found: warn
+
+  prune:
+    name: keep only the newest walkthrough
+    needs: build
+    if: needs.build.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: video-prune
+      cancel-in-progress: false
+    permissions:
+      actions: write # deletes earlier walkthrough artifacts; nothing else in this job
+    steps:
+      - name: Delete every walkthrough artifact except the newest video
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          list="$(gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select((.name | startswith("walkthrough")) and (.expired | not)) | "\(.created_at) \(.id) \(.name)"' | sort -r)"
+          keep="$(printf '%s\n' "$list" | awk '$3 !~ /-no-video$/ {print $2; exit}')"
+          [ -n "$keep" ] || { echo "No walkthrough video found; nothing deleted."; exit 0; }
+          printf '%s\n' "$list" | while read -r created id name; do
+            { [ -z "$id" ] || [ "$id" = "$keep" ]; } && continue
+            gh api -X DELETE "repos/$REPO/actions/artifacts/$id"
+            echo "Deleted ${name} (${created})"
+          done
+          echo "Kept artifact ${keep}."
