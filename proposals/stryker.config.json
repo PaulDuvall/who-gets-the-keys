@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.config.ts"
+  },
+  "mutate": [
+    "src/**/*.ts"
+  ],
+  "ignorePatterns": [
+    "**/.terraform",
+    "build",
+    "reports"
+  ],
+  "incremental": true,
+  "coverageAnalysis": "perTest",
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "thresholds": {
+    "high": 100,
+    "low": 95,
+    "break": 95
+  }
+}
