@@ -7,7 +7,7 @@ variable "region" {
 variable "github_subject_prefix" {
   description = "Immutable OIDC subject prefix: repo:OWNER@OWNER_ID/REPO@REPO_ID"
   type        = string
-  default     = "repo:PaulDuvall@1619259/who-gets-the-keys@1443528435"
+  default     = "repo:PaulDuvall@1619259/who-gets-the-keys@1443586681"
 }
 
 variable "github_repository" {
