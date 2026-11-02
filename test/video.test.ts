@@ -69,7 +69,7 @@ describe("SPEC-002 walkthrough video", () => {
     expect(b1?.head).toBe("P11 · practice P11");
     expect(b1?.change).toBe('$ git commit -m "scenario B1: Test with no assertion"\n             -m "Spec: SPEC-014-R1"\n▸ test/x.ts\n+  it("x", () => {});');
     expect(b1?.run).toEqual([{ text: "gate secrets passed", kind: "pass" }, { text: "GATE lint FAILED: vitest/expect-expect", kind: "fail" }]);
-    expect(b1?.verdict).toBe("Stopped at gate 2 of 3. Not deployed");
+    expect(b1?.verdict).toBe("Stopped at check 2 of 3. Not deployed");
     expect(steps[2]?.run).toEqual([{ text: "gate test passed", kind: "pass" }]);
     expect(steps.at(-1)?.rows).toEqual([["P09 (not-shown)", "practice P09: r"]]);
     expect(() => buildTour(input({ results: [{ id: "B1", status: "pass", line: "GATE lint FAILED: other" }] }))).toThrow(KitError);

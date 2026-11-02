@@ -123,11 +123,11 @@ export function buildTour(input: TourInput): StepData[] {
   };
   const passes = (lines: readonly string[]): RunLine[] => lines.filter((l) => PASS.test(l)).map((text) => ({ text, kind: "pass" }));
   const steps: StepData[] = [];
-  const opening = { repo: input.repo, commit: input.commit, date: input.commitDate, gate_count: String(input.gates.length) };
+  const opening = { repo: input.repo, commit: input.commit, date: input.commitDate, check_count: String(input.gates.length) };
   const mainRun = passes(input.mainRun);
   if (mainRun.length !== input.gates.length) throw new KitError(`the gate run on ${input.commit} shows ${mainRun.length} of ${input.gates.length} gates passing`);
   steps.push({ id: "opening", kind: "opening", title: input.repo, fields: opening, rows: [["Commit", input.commit], ["Date", input.commitDate]],
-    command: "npm run gates", run: mainRun, verdict: `All ${input.gates.length} gates passed`, say: say("opening", "opening", opening) });
+    command: "npm run gates", run: mainRun, verdict: `All ${input.gates.length} checks passed`, say: say("opening", "opening", opening) });
 
   const shown = input.practices.filter((p) => p.coverage === "good+bad" || p.coverage === "good-only");
   for (const p of shown) {
@@ -161,7 +161,7 @@ type Say = (id: string, kind: string, fields: Record<string, string>) => string;
 
 function scenarioStep(input: TourInput, s: ScenarioDef, p: Practice, result: ScenarioResult | undefined, say: Say): StepData {
   const position = input.gates.indexOf(s.gate);
-  let command: string, run: RunLine[], verdict: string | undefined, line: string, outcome = `Stopped by the ${s.gate} gate`;
+  let command: string, run: RunLine[], verdict: string | undefined, line: string, outcome = `Stopped by the ${s.gate} check`;
   if (s.requires) {
     const held = input.onDemand.filter((l) => l.startsWith(s.expect));
     command = s.requires === "github-actions" ? "scenarios/b9-replay.sh   (GitHub Actions, triage token and egress)" : "scenarios/on-demand.sh   (sandbox account)";
@@ -183,13 +183,13 @@ function scenarioStep(input: TourInput, s: ScenarioDef, p: Practice, result: Sce
     const before = position < 0 ? [] : (input.logs[s.id] ?? []).filter((l) => input.gates.indexOf(PASS.exec(l)?.[1] ?? "") >= 0);
     run = [...before.map((text): RunLine => ({ text, kind: "pass" })), { text: line, kind: "fail" }];
     command = position < 0 ? `node scripts/gates.ts ${s.gate} dist/function.zip   (deploy job)` : "npm run gates";
-    verdict = position < 0 ? "Deploy stopped before any AWS call" : `Stopped at gate ${position + 1} of ${input.gates.length}. Not deployed`;
+    verdict = position < 0 ? "Deploy stopped before any AWS call" : `Stopped at check ${position + 1} of ${input.gates.length}. Not deployed`;
   }
   const commit = (input.commits[s.id] ?? []).map((m, i) => (i === 0 ? `$ git commit -m "${m}"` : `             -m "${m}"`));
   if (s.id === "B3") commit.push("  (no Spec: trailer)");
   const body = s.fixture ? `▸ ${s.fixture}\n${(input.fixtures[s.id] ?? "").trim()}` : changeExcerpt(input.patches[s.id] ?? "");
   const change = [...(s.patch ? commit : []), body].filter(Boolean).join("\n");
-  const fields = { id: s.id, title: s.title, gate: s.gate, expect: s.expect, line, outcome, practice: p.practice, practice_id: p.id };
+  const fields = { id: s.id, title: s.title, check: s.gate, expect: s.expect, line, outcome, practice: p.practice, practice_id: p.id };
   return { id: s.id, kind: "scenario", head: `${p.id} · ${p.practice}`, title: `${s.id}: ${s.title}`, fields, rows: [],
     change, changeLabel: s.fixture ? "The poisoned input" : "The agent's change", command, run, ...(verdict === undefined ? {} : { verdict }), say: say(s.id, "scenario", fields) };
 }

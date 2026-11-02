@@ -1,8 +1,8 @@
 # PAUL: rewrite these label-style narration templates. Placeholders only; no prose is filled in here.
-# Fields per step type: opening {repo} {commit} {date} {gate_count}; practice {id} {practice} {slides}
-# {coverage} {enforced}; scenario {id} {title} {gate} {expect} {line} {outcome} {practice} {practice_id}; closing {count}.
+# Fields per step type: opening {repo} {commit} {date} {check_count}; practice {id} {practice} {slides}
+# {coverage} {enforced}; scenario {id} {title} {check} {expect} {line} {outcome} {practice} {practice_id}; closing {count}.
 # A file video/narration/<step ID>.md, written by the owner, replaces its step's line.
-opening: "{repo}. Commit {commit}, {date}. All {gate_count} gates passed."
+opening: "{repo}. Commit {commit}, {date}. All {check_count} checks passed."
 practice: "{id}. {practice}. Holds on main."
 scenario: "{id}. {title}. {practice}. {outcome}."
 closing: "Partial or not shown: {count} practices."
