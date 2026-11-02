@@ -3,7 +3,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { configDefaults } from "vitest/config";
 import eslintConfig from "../eslint.config.js";
+import baseVitest from "../vitest.config.ts";
+import strykerVitest from "../vitest.stryker.config.ts";
 import {
   COMMANDS, GateFailure, ORDER, allowedNames, approversFor, attestationArgs, changedFiles, dependencyNames, destructiveChanges, exportsOf, failedTestFiles,
   guardedBy, jobBlock, lockfilePaths, lowered, protectedPaths, pipelineCacheFinding, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
@@ -187,6 +190,14 @@ describe("SPEC-001 gates", () => {
     expect(mutationId("Final mutation score 80.00 under breaking threshold 90")).toBe("below break threshold");
     expect(mutationId("Error: cannot find vitest")).toBe("stryker error");
     expect((JSON.parse(read("stryker.config.json")) as { thresholds: { break: number } }).thresholds.break).toBe(95);
+  });
+
+  it("SPEC-001-R16 leaves only the wall-clock test file out of mutation runs", () => {
+    const stryker = JSON.parse(read("stryker.config.json")) as { vitest?: { configFile?: string } };
+    expect(stryker.vitest?.configFile).toBe("vitest.stryker.config.ts");
+    expect(strykerVitest.test?.include).toEqual(baseVitest.test?.include);
+    expect(strykerVitest.test?.exclude).toEqual([...configDefaults.exclude, "test/export.performance.test.ts"]);
+    expect(baseVitest.test?.exclude).toBeUndefined();
   });
 
   it("SPEC-001-R17 prints the attestation failure line with the artifact path", () => {

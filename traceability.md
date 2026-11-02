@@ -11,7 +11,7 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-014-R3 | `test/export.acceptance.test.ts` | test, mutation | — |
 | SPEC-014-R4 | `test/export.acceptance.test.ts` | test, mutation | — |
 | SPEC-014-R5 | `test/export.acceptance.test.ts` | test, mutation | — |
-| SPEC-014-R6 | `test/export.performance.test.ts` | test, mutation | — |
+| SPEC-014-R6 | `test/export.performance.test.ts` | test | — |
 | SPEC-001-R1 | `test/gates.test.ts` | gates (runner) | — |
 | SPEC-001-R2 | `test/gates.test.ts` | secrets | — |
 | SPEC-001-R3 | `test/gates.test.ts` | allowlist | — |

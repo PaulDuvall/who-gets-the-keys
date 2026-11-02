@@ -9,6 +9,7 @@ scripts/ci/
 .tflint.hcl
 eslint.config.js
 vitest.config.ts
+vitest.stryker.config.ts
 stryker.config.json
 tsconfig.json
 # Dependency manifests and pins, including the video kit's
