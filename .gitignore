@@ -9,3 +9,12 @@ infra/**/.terraform/
 *.tfstate
 *.tfstate.*
 plan.out
+plan.json
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+.env
+.env.*
+*.pem
+*.key
