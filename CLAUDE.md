@@ -1,6 +1,6 @@
 # who-gets-the-keys
 
-Purpose: <!-- PAUL: one-line purpose of the repo -->
+Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code, the pipeline holds the keys, and 19 deliberately bad changes are stopped before they ship.
 
 ## Commands
 
@@ -46,7 +46,7 @@ Purpose: <!-- PAUL: one-line purpose of the repo -->
 - Say "customer", never "client".
 - Say "check" for automated verification and "gate" only for a human approval: an approver's signature or a required reviewer.
 - Commands written for a human to paste carry no `#` comments.
-- A delivered video is named `walkthrough-<short SHA>-<UTC build time>.mp4`, for example `walkthrough-b2ae2c5-20261023T1554Z.mp4`. The SHA is the commit in `build/video/report.json`; the time is the video file's own write time, not the time it is sent.
+- A delivered video is named `walkthrough-<short SHA>-<UTC build time>.mp4`, for example `walkthrough-ab285d9-20261023T1554Z.mp4`. The SHA is the commit in `build/video/report.json`; the time is the video file's own write time, not the time it is sent.
 
 ## Authority boundaries
 

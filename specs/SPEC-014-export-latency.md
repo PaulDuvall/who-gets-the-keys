@@ -1,6 +1,6 @@
 # SPEC-014: Export service
 
-<!-- PAUL: one-line description of the customer intent behind this spec -->
+Customer intent: a customer exports up to 10,000 rows of a table as a CSV file that opens correctly in a spreadsheet, within half a second.
 
 Status: approved by signed commit.
 

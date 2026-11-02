@@ -1,6 +1,6 @@
 # SPEC-002: Walkthrough video
 
-<!-- PAUL: one-line description of the intent behind this spec -->
+Intent: anyone can watch the pipeline stop each bad change, in a narrated video built from the repo's own check output at a named commit.
 
 Status: approved by signed commit. Adapted from an earlier private repository at commit `469f0fda93535e0b4a40fe61d22d6e122064d309`, `specs/requirements.md`. "Source" names the reference requirement each one came from; "prompt" means the build prompt.
 

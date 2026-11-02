@@ -1,6 +1,6 @@
 # SPEC-001: Delivery pipeline
 
-<!-- PAUL: one-line description of the intent behind this spec -->
+Intent: every change, the agent's or a human's, reaches the sandbox only through one pipeline, and each kind of bad change is stopped there with one named failure line.
 
 Status: approved by signed commit.
 
