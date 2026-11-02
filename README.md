@@ -1,6 +1,6 @@
 # who-gets-the-keys
 
-<!-- PAUL: one-line description of the repo -->
+Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code, the pipeline holds the keys, and 19 deliberately bad changes are stopped before they ship.
 
 | | |
 |---|---|
