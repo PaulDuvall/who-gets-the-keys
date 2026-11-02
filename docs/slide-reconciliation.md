@@ -2,7 +2,7 @@
 
 <!-- PAUL: one-line description of what this table is for -->
 
-Snapshot: `specs/source-of-record/slides.txt`, body SHA-256 `f78bb192ae51591962c75009192243bbcdcaa44da78a86287c90f02f35885aa1`, exported 2026-11-02 from the audience deck (13 numbered slides, no speaker notes, no Q&A slides). One row per practice the slide text states. Checked by hand against the repo on 2026-11-02; it replaces the reconciliation and the claim-by-claim audit written against the earlier speaker deck.
+Snapshot: `specs/source-of-record/slides.txt`, body SHA-256 `f78bb192ae51591962c75009192243bbcdcaa44da78a86287c90f02f35885aa1`, exported 2026-11-02 from the audience deck (13 numbered slides, no speaker notes, no Q&A slides). One row per practice the slide text states, then the controls this repo has that the slides do not name. Checked by hand against the repo on 2026-11-02; it replaces the reconciliation and the claim-by-claim audit written against the earlier speaker deck.
 
 | # | Slide | Practice | Demonstrated by | Status |
 |---|---|---|---|---|
@@ -73,3 +73,14 @@ These rows of `practices.yaml` came from the earlier speaker deck. The owner kep
 | P43 The pipeline has an andon cord | 12 | not shown: nothing can stop the line automatically |
 | P46 Agent-written text leaves only through a schema or the pipeline | 9, 12 | triage returns one label through `--json-schema`; B9 |
 | P48 Waivers name who can skip a failing check, for how long, with an expiry and a log | 12 | `specs/sca-exceptions.toml`, checks `sca` and `signatures` |
+
+## Controls beyond the slides
+
+Controls the repo demonstrates that no audience slide names. They count toward no slide practice.
+
+| # | Control | Demonstrated by | Status |
+|---|---|---|---|
+| C01 | Infrastructure as code is checked before deploy | check `iac`: `terraform fmt -check`, `terraform validate` and tflint in `infra/sandbox` and `infra/org` | covered |
+| C02 | Separation of duties: the agent cannot approve its own change | agent commits are unsigned; changes to `specs/` and protected paths need an approver-signed commit, check `signatures`; the `validator` subagent works in its own context but is advisory. The owner's own changes are self-approved: `github.sh` sets `prevent_self_review` to false | partial |
+| C03 | An agent that reads untrusted input cannot propose spec or pipeline changes | the triage agent's job has `contents: read` and `issues: read`, so it cannot write `proposals/`; a separate job with no agent applies its label. A coding session that reads an issue can still write a proposal | partial |
+| C04 | The model is pinned | triage runs `--model ${{ vars.TRIAGE_MODEL }}`, a full model ID set by `github.sh --vars`; agent commits record no model in provenance (D05); no canary for a new model | partial |
