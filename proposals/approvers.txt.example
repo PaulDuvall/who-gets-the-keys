@@ -1,0 +1,5 @@
+# SSH allowed-signers format: <principal> <options> <key-type> <public-key>
+# See ALLOWED SIGNERS in ssh-keygen(1). One line per approver.
+# Approver keys live on a FIDO2 security key (sk-ssh-ed25519@openssh.com), created with -O verify-required so every
+# signature needs a touch and a PIN (SPEC-001-R12). scripts/bootstrap/rotate-approver-key.sh creates one.
+approver@example.com namespaces="git" sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tEXAMPLEEXAMPLEEXAMPLE
