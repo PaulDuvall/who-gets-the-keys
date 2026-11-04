@@ -107,7 +107,7 @@ echo
 echo "1. Commit approvers.txt with the applied proposals, signed with the old key, and check it:"
 echo "git add approvers.txt"
 echo "git status --short"
-echo "git commit -S -m \"spec: approver keys live on a security key; touch and PIN on every signature\" -m \"Spec: SPEC-001-R12\""
+echo "git commit -S -m \"spec: approver keys live on a security key; touch and PIN on every signature\" --trailer \"Spec: SPEC-001-R12\" --trailer \"Spec: SPEC-001-R39\""
 echo "npm run checks"
 echo "git show HEAD:approvers.txt"
 echo "git push origin HEAD:main"

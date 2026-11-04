@@ -23,7 +23,7 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R9 | `test/checks.test.ts` | sast | — |
 | SPEC-001-R10 | `test/checks.test.ts` | sca | — |
 | SPEC-001-R11 | `test/checks.test.ts` | trace | — |
-| SPEC-001-R12 | `test/checks.test.ts`, `test/signatures.test.ts`, `test/hook.test.ts` | signatures | — |
+| SPEC-001-R12 | `test/checks.test.ts`, `test/signatures.test.ts` | signatures | — |
 | SPEC-001-R13 | `test/checks.test.ts` | slides | — |
 | SPEC-001-R14 | `test/checks.test.ts` | ratchet | — |
 | SPEC-001-R15 | `test/checks.test.ts` | test | — |
@@ -50,6 +50,7 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R36 | `test/scenarios.test.ts` | signatures | B17 |
 | SPEC-001-R37 | `test/scenarios.test.ts` | harness | all |
 | SPEC-001-R38 | `test/scenarios.test.ts` | signatures | B18 |
+| SPEC-001-R39 | `test/hook.test.ts` | test | — |
 | SPEC-002-R1 | `test/video.test.ts` | test | — |
 | SPEC-002-R2 | `test/video.test.ts` | test | — |
 | SPEC-002-R3 | `test/video.test.ts` | test | — |

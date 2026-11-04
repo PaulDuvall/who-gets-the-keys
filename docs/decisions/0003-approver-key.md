@@ -2,7 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-11-04
-- Requirements: SPEC-001-R12, amended
+- Requirements: SPEC-001-R12, amended; SPEC-001-R39, new
 - Follows: the "Related finding" in `docs/decisions/0002-agent-receipt.md`
 
 ## Context
@@ -47,7 +47,7 @@ Until the rotation commit is pushed, the old software key can still approve. An 
 | 2 | Check `signatures` fails with `approver signature without touch and PIN: <first 12 characters of the SHA>` when a security-key signature (`sk-` or `webauthn-sk-`) lacks either flag, or when a signature's key type is neither a security key nor a plain software key |
 | 3 | Check `signatures` fails with `approver key is not a security key: <principal>` while `approvers.txt` at HEAD lists any other key type. Lines are read by position, as `sshsig.c` reads them |
 | 4 | One commit carries the new `approvers.txt` and the code, signed with the old key. `approvers.txt` as of a commit's parent decides who may sign it, and `main` never has the new rule without the new key |
-| 5 | Deny rules and the `no-sign` hook are tripwires. The hook ignores commit messages (`-m` arguments and a `git commit -F -` heredoc), so a message that mentions signing is not blocked. It logs each block to `.claude/security-events.log` |
+| 5 | Deny rules and the `no-sign` hook (SPEC-001-R39) are tripwires. The hook ignores commit messages (`-m` arguments and a `git commit -F -` heredoc), so a message that mentions signing is not blocked. It logs each block to `.claude/security-events.log` |
 | 6 | Node.js built-ins only. No new dependency |
 
 ## Proposals
@@ -56,17 +56,17 @@ Every file is staged under `proposals/`, so one signed commit lands the whole ch
 
 | Proposal | Moves to | Protected | What |
 |---|---|---|---|
-| `proposals/SPEC-001-delivery-pipeline.md` | `specs/SPEC-001-delivery-pipeline.md` | yes | The "approver" term and two new identifiers in R12 |
+| `proposals/SPEC-001-delivery-pipeline.md` | `specs/SPEC-001-delivery-pipeline.md` | yes | The "approver" term, two new identifiers in R12, and R39 for the `no-sign` hook |
 | `proposals/scripts/checks.ts` | `scripts/checks.ts` | yes | `approverKeys`, `commitSignature`, `sshSignature`, `lacksTouchAndPin`; two new failures in `signatures` |
 | `proposals/claude-hooks/hook.mjs` | `.claude/hooks/hook.mjs` | yes | The `no-sign` hook |
 | `proposals/claude-settings.json` | `.claude/settings.json` | yes | 15 more deny rules; registers `no-sign` |
 | `proposals/scripts/bootstrap/rotate-approver-key.sh` | `scripts/bootstrap/rotate-approver-key.sh` | yes | Creates the key, proves a test signature carries both flags, writes `approvers.txt` |
 | `proposals/CLAUDE.proposed.md` | `CLAUDE.md` | yes | The rotation script in the file map |
 | `proposals/test/signatures.test.ts` | `test/signatures.test.ts` | no | 5 tests, named SPEC-001-R12 |
-| `proposals/test/hook.test.ts` | `test/hook.test.ts` | no | 2 tests: 29 commands blocked, 17 allowed |
+| `proposals/test/hook.test.ts` | `test/hook.test.ts` | no | 2 tests, named SPEC-001-R39: 29 commands blocked, 17 allowed |
 | `proposals/approvers.txt.example` | `approvers.txt.example` | no | A security-key example line |
 | `proposals/docs/lockdown-check.md` | `docs/lockdown-check.md` | no | Rows 19 to 25 for signing |
-| `proposals/traceability.md` | `traceability.md` | no | The two new test files for R12 |
+| `proposals/traceability.md` | `traceability.md` | no | `test/signatures.test.ts` for R12, and a row for R39 |
 | `proposals/README.proposed.md` | `README.md` | no | The `signatures` row, the OpenSSH prerequisite and the approver's row |
 
 The tests sign with a software Ed25519 key published as `sk-ssh-ed25519@openssh.com`. That lets a test choose the flags a real authenticator would assert, and `ssh-keygen` verifies those signatures as it verifies hardware-made ones. CI needs no security key. The same technique is why decision 2 cannot prove hardware.
@@ -155,7 +155,7 @@ scripts/bootstrap/rotate-approver-key.sh
 
 The script creates the key, signs a test message (touch and PIN), verifies it, requires both flags and writes `approvers.txt`. For a backup key, plug in the second device and run it again with `KEY_FILE=~/.ssh/id_ed25519_sk_approver_backup APPEND=1` before committing. It then prints the remaining commands:
 
-1. Stage `approvers.txt`, commit signed with the old key, check `git show HEAD:approvers.txt`, run `npm run checks` and push.
+1. Stage `approvers.txt`, commit signed with the old key with `Spec:` trailers for R12 and R39, check `git show HEAD:approvers.txt`, run `npm run checks` and push.
 2. Point this repository's git at the security key.
 3. Refresh `gh`'s scopes and add the new key to GitHub as a signing key.
 4. Remove the old key from ssh-agent and move its file to offline storage.
@@ -169,6 +169,7 @@ The script creates the key, signs a test message (touch and PIN), verifies it, r
 | `lint`, `typecheck`, `trace`, `slides`, `secrets`, `allowlist`, `workflows`, `sast` | pass |
 | `signatures` | fails with `approver key is not a security key: 1619259+PaulDuvall@users.noreply.github.com`, as designed, until `approvers.txt` holds the security key |
 | Scenario patches B1 to B18 | all 17 still apply |
+| The 12 `git mv` owner steps, run in a scratch worktree | all succeed; then lint, typecheck, trace and slides pass and all 97 tests pass, with R39 named by the hook tests |
 | Scenarios end to end | not run: they need the approver-signed rotation commit on `main` first |
 | An adversarial review | 14 findings, all applied: the scope of the check (above), WebAuthn signatures, hook false positives, the rewrite limit, Homebrew and keychain steps, the backup key, and smaller corrections |
 

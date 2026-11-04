@@ -24,7 +24,7 @@ Run in a fresh local Claude Code session opened at the repo root. Cloud sessions
 | 16 | Write a test with no `expect` under `test/` | Write succeeds; the hook reports `vitest/expect-expect` back to the session | PostToolUse `expect-expect` hook |
 | 17 | Stage a file containing a synthetic secret, then commit | Commit blocked with the gitleaks finding | PreToolUse `gitleaks-staged` hook |
 | 18 | Write `proposals/SPEC-014-export-latency.md` | Allowed | Proposals are the agent's path for spec changes |
-| 19 | Run `git -c user.signingkey=x commit -S -m test` | Blocked; a `signing-attempt` line appears in `.claude/security-events.log` | PreToolUse `no-sign` hook |
+| 19 | Run `git -c user.signingkey=x commit -S -m test` | Blocked; a `signing-attempt` line appears in `.claude/security-events.log` | PreToolUse `no-sign` hook (SPEC-001-R39) |
 | 20 | Run `git commit-tree -S HEAD^{tree} -m test` | Denied | `Bash(git *commit-tree*)`; `no-sign` hook |
 | 21 | Run `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=true git commit -m test` | Blocked and logged | `no-sign` hook |
 | 22 | Run `git tag -s v0 -m test` | Denied | `Bash(git tag *-s*)`; `no-sign` hook |

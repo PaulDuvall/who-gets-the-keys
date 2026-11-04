@@ -63,3 +63,11 @@ Each scenario requirement reads: WHEN the scenario's patch is applied to `main` 
 | SPEC-001-R38 | B18 unsigned change to a workflow file | signatures | `CHECK signatures FAILED: unsigned change to .github/` |
 
 A `<...>` identifier is the value recorded for that scenario in `scenarios/scenarios.yaml`, taken from a verified failing run.
+
+## Local sessions
+
+The approver's security key and SPEC-001-R12 are the control against an agent signing. This requirement is a tripwire in front of them: it reads only command text, so a script the agent writes and runs can pass it.
+
+| ID | Requirement |
+|---|---|
+| SPEC-001-R39 | WHEN a local Claude Code session runs a Bash command that could sign a commit or tag, or reach a signing key (a git signing option or signing configuration, `ssh-keygen -Y sign`, `ssh-add`, `SSH_AUTH_SOCK`, writing a commit object, or running `scripts/bootstrap/rewrite-history.ts`), THE `no-sign` PreToolUse hook SHALL exit with status 2 and append one `signing-attempt` line to `.claude/security-events.log`. Text in a commit message, meaning a `-m` argument or the heredoc of `git commit -F -`, SHALL NOT count. |

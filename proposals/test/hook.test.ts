@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
-// The no-sign hook is defence in depth for SPEC-001-R12: it reads a Bash command as Claude Code passes it (JSON on
+// The no-sign hook (SPEC-001-R39) is defence in depth for SPEC-001-R12: it reads a Bash command as Claude Code passes it (JSON on
 // standard input) and exits 2 to block. It cannot see inside a script the agent writes; the security key is the control.
-describe("SPEC-001-R12 the no-sign hook", () => {
+describe("SPEC-001-R39 the no-sign hook", () => {
   const project = mkdtempSync(join(tmpdir(), "no-sign-"));
   mkdirSync(join(project, ".claude"));
   afterAll(() => rmSync(project, { recursive: true, force: true }));
@@ -17,7 +17,7 @@ describe("SPEC-001-R12 the no-sign hook", () => {
       encoding: "utf8",
     }).status;
 
-  it("SPEC-001-R12 blocks commands that could sign or reach a signing key, and logs each one", () => {
+  it("SPEC-001-R39 blocks commands that could sign or reach a signing key, and logs each one", () => {
     const blocked = [
       "git commit -S -m x",
       "git commit -Sm x",
@@ -55,7 +55,7 @@ describe("SPEC-001-R12 the no-sign hook", () => {
     expect(JSON.parse(log[0] ?? "{}")).toMatchObject({ event: "signing-attempt", session: "s", command: blocked[0] });
   });
 
-  it("SPEC-001-R12 allows the agent's unsigned commits and everyday git", () => {
+  it("SPEC-001-R39 allows the agent's unsigned commits and everyday git", () => {
     const allowed = [
       "git -c commit.gpgsign=false commit -q -F - <<'EOF'\nSpec: SPEC-001-R12\nEOF",
       "git commit -am \"docs: fix -s typo\"",
