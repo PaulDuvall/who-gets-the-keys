@@ -7,8 +7,11 @@ usage() {
   echo "  that its signatures carry both, and writes it to approvers.txt. It never commits, pushes or uploads."
   echo "  Run it from the repository root on the approver's machine, with the security key plugged in, after the"
   echo "  approver-key proposals are in the working tree (docs/decisions/0003-approver-key.md)."
+  echo "  Close every Claude Code session first and keep them closed until the last step: until then the old key"
+  echo "  can still approve, and an agent session on this machine could reach it."
   echo "  Environment: KEY_FILE (default ~/.ssh/id_ed25519_sk_approver), SSH_KEYGEN, RESIDENT=1 to store the key on"
-  echo "  the security key as well, so a new machine can fetch it with ssh-keygen -K."
+  echo "  the security key as well, so a new machine can fetch it with ssh-keygen -K, and APPEND=1 to add a backup"
+  echo "  key as a second approvers.txt line instead of replacing the file."
 }
 
 confirm() { read -r -p "$1 [y/N] " answer; [ "$answer" = "y" ]; }
@@ -86,7 +89,14 @@ echo
 echo "New approvers.txt line:"
 echo "$new_line"
 old_key="$(printf '%s\n' "$old_line" | awk '{ for (i = 2; i < NF; i++) if ($i ~ /^(ssh-|sk-|ecdsa-)/) { print $i, $(i + 1); exit } }')"
-echo "Old approver key: $(printf '%s\n' "$old_key" | "$keygen" -lf - 2>/dev/null || printf '%s\n' "$old_key" | cut -c1-80)"
+echo "Current approver key: $(printf '%s\n' "$old_key" | "$keygen" -lf - 2>/dev/null || printf '%s\n' "$old_key" | cut -c1-80)"
+echo "New approver key: $("$keygen" -lf "${key}.pub")"
+if [ "${APPEND:-}" = "1" ]; then
+  confirm "Add the new line to approvers.txt?" || { echo "approvers.txt unchanged."; exit 1; }
+  printf '%s\n' "$new_line" >> approvers.txt
+  echo "Added. Commit this with the rotation, or as its own commit signed by an approver key already listed."
+  exit 0
+fi
 confirm "Replace approvers.txt with the new line?" || { echo "approvers.txt unchanged."; exit 1; }
 printf '%s\n' "$new_line" > approvers.txt
 
@@ -95,10 +105,13 @@ echo "Run these yourself, in order. The first commit must be signed with the OLD
 echo "of a commit's parent decides who may sign it (SPEC-001-R12)."
 echo
 echo "1. Commit approvers.txt with the applied proposals, signed with the old key, and check it:"
-echo "git add -A"
+echo "git add approvers.txt"
+echo "git status --short"
 echo "git commit -S -m \"spec: approver keys live on a security key; touch and PIN on every signature\" -m \"Spec: SPEC-001-R12\""
 echo "npm run checks"
+echo "git show HEAD:approvers.txt"
 echo "git push origin HEAD:main"
+echo "Before pushing, check that approvers.txt names only your principal and the new key above."
 echo
 echo "2. From now on, sign with the security key in this repository:"
 echo "git config --local gpg.format ssh"
@@ -106,7 +119,9 @@ echo "git config --local gpg.ssh.program ${keygen}"
 echo "git config --local user.signingkey ${key}"
 echo
 echo "3. Let GitHub show the new key's signatures as Verified:"
+echo "gh auth refresh -h github.com -s admin:ssh_signing_key"
 echo "gh ssh-key add ${key}.pub --type signing --title \"who-gets-the-keys approver (security key)\""
 echo
-echo "4. Take the old key out of reach of local agent sessions: remove it from ssh-agent with ssh-add -d and its"
-echo "   file, and from GitHub's signing keys if nothing else uses it. It can no longer approve a change here."
+echo "4. Take the old key out of reach of local agent sessions before opening one again: remove it from ssh-agent"
+echo "   with ssh-add -d, and move its file to offline storage. Do not delete it: rewriting history needs it for the"
+echo "   commits up to and including the rotation. It can no longer approve a new change here."

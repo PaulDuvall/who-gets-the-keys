@@ -20,32 +20,39 @@ The laptop route is inferred from OpenSSH's source and the deny rules. It has no
 
 ## What changes
 
-| Layer | Stops | Does not stop |
+| Layer | What it does | What it cannot do |
 |---|---|---|
-| The approver key is a FIDO2 security key created with `verify-required` | Any signature without the approver's PIN and touch. The authenticator enforces the PIN for this credential (CTAP 2.1 `credProtect`) | The approver entering the PIN for a prompt the agent started |
-| The `signatures` check reads each approver signature's flags and requires a touch (0x01) and a PIN (0x04); `approvers.txt` at HEAD may hold only security keys | A software key, or a security key without a PIN, approving any change after the rotation | Commits before the rotation, which stay judged by `approvers.txt` as of their parent |
-| Broader deny rules and a PreToolUse `no-sign` hook that blocks and logs signing commands | The commands an agent would normally write | A script the agent writes and runs |
+| **The control:** the approver's private key lives on a FIDO2 security key, created with `verify-required` | No signature without the approver's PIN and a touch. The authenticator enforces the PIN for this credential (CTAP 2.1 `credProtect`) | Stop the approver from entering the PIN for a prompt the agent started |
+| The `signatures` check reads each approver signature's flags | Fails when a security-key signature lacks a touch (0x01) or a PIN (0x04), and fails closed on any key type it does not recognise. This catches an approver key created without `verify-required` | Prove a key lives on hardware. Whoever holds a private key chooses its flags, so a software key published under an `sk-` type passes |
+| The `signatures` check reads `approvers.txt` at HEAD | Fails while it lists any key that is not a security-key type, such as a software key added by mistake | The same: a key type is a label, not proof |
+| Broader deny rules and a PreToolUse `no-sign` hook | Block and log the signing commands an agent would normally write | Stop a script the agent writes and runs |
 
-### Why the check reads the flags itself
+### What the check can and cannot prove
 
-`ssh-keygen -Y verify`, and so `git verify-commit`, checks only the signature, the key and its namespace. It does not require a touch or a PIN, and an allowed-signers file has no option that would (`sshsig.c` accepts only `cert-authority`, `namespaces`, `valid-after` and `valid-before`). The flags are inside the signed data, though, so they cannot be changed without breaking the signature. The check therefore parses each approver signature (OpenSSH `PROTOCOL.sshsig` and `PROTOCOL.u2f`) and requires both flags.
+`ssh-keygen -Y verify`, and so `git verify-commit`, checks only the signature, the key and its namespace. It does not require a touch or a PIN, and an allowed-signers file has no option that would (`sshsig.c` accepts only `cert-authority`, `namespaces`, `valid-after` and `valid-before`). The flags are inside the signed data, so they cannot be changed without breaking the signature. The check therefore parses each approver signature (OpenSSH `PROTOCOL.sshsig` and `PROTOCOL.u2f`) and requires both flags.
+
+That proves the holder of the approver key asserted a touch and a PIN. It proves nothing about where the key lives: a review built a software key typed `sk-ssh-ed25519@openssh.com`, signed with flags 0x05, and passed the check. The only thing that stops the agent is that the approver's private key is on a device the agent cannot use, and that `approvers.txt` lists only that key. Changing `approvers.txt` needs an approver signature, so after the rotation the agent cannot add a key of its own.
 
 A green "Verified" on GitHub does not prove a touch either. GitHub reports `openssh-portable` commits whose security-key signatures carry flags `0x00` as verified.
+
+### The rotation window
+
+Until the rotation commit is pushed, the old software key can still approve. An agent session that reached it could sign an `approvers.txt` change adding a key of its own, and that key would then pass every check. The owner steps close the window: no Claude Code session runs from the start of the rotation until the old key is out of ssh-agent. Before rotating, the owner reviews every past change to `approvers.txt`; after it, the owner confirms the file holds only the new key.
 
 ## Decisions
 
 | # | Decision |
 |---|---|
-| 1 | The approver key is `ed25519-sk`, created with `-O verify-required` and `-O application=ssh:who-gets-the-keys` |
-| 2 | Check `signatures` fails with `approver signature without touch and PIN: <first 12 characters of the SHA>` when a security-key signature lacks either flag |
-| 3 | Check `signatures` fails with `approver key is not a security key: <principal>` while `approvers.txt` at HEAD holds any other key type |
+| 1 | The approver key is `ed25519-sk`, created with `-O verify-required` and `-O application=ssh:who-gets-the-keys`. A backup key on a second device may be a second line |
+| 2 | Check `signatures` fails with `approver signature without touch and PIN: <first 12 characters of the SHA>` when a security-key signature (`sk-` or `webauthn-sk-`) lacks either flag, or when a signature's key type is neither a security key nor a plain software key |
+| 3 | Check `signatures` fails with `approver key is not a security key: <principal>` while `approvers.txt` at HEAD lists any other key type. Lines are read by position, as `sshsig.c` reads them |
 | 4 | One commit carries the new `approvers.txt` and the code, signed with the old key. `approvers.txt` as of a commit's parent decides who may sign it, and `main` never has the new rule without the new key |
-| 5 | Deny rules and the `no-sign` hook are tripwires. They log to `.claude/security-events.log` |
+| 5 | Deny rules and the `no-sign` hook are tripwires. The hook ignores commit messages (`-m` arguments and a `git commit -F -` heredoc), so a message that mentions signing is not blocked. It logs each block to `.claude/security-events.log` |
 | 6 | Node.js built-ins only. No new dependency |
 
 ## Proposals
 
-Every protected file is staged under `proposals/`. The other three go with them, so one signed commit lands the whole change.
+Every file is staged under `proposals/`, so one signed commit lands the whole change. `proposals/infra/` and `proposals/scripts/bootstrap/aws.sh` belong to the earlier OIDC change (D25) and are not part of this one.
 
 | Proposal | Moves to | Protected | What |
 |---|---|---|---|
@@ -54,19 +61,30 @@ Every protected file is staged under `proposals/`. The other three go with them,
 | `proposals/claude-hooks/hook.mjs` | `.claude/hooks/hook.mjs` | yes | The `no-sign` hook |
 | `proposals/claude-settings.json` | `.claude/settings.json` | yes | 15 more deny rules; registers `no-sign` |
 | `proposals/scripts/bootstrap/rotate-approver-key.sh` | `scripts/bootstrap/rotate-approver-key.sh` | yes | Creates the key, proves a test signature carries both flags, writes `approvers.txt` |
+| `proposals/CLAUDE.proposed.md` | `CLAUDE.md` | yes | The rotation script in the file map |
 | `proposals/test/signatures.test.ts` | `test/signatures.test.ts` | no | 5 tests, named SPEC-001-R12 |
-| `proposals/test/hook.test.ts` | `test/hook.test.ts` | no | 2 tests: 23 commands blocked, 11 allowed |
+| `proposals/test/hook.test.ts` | `test/hook.test.ts` | no | 2 tests: 29 commands blocked, 17 allowed |
 | `proposals/approvers.txt.example` | `approvers.txt.example` | no | A security-key example line |
 | `proposals/docs/lockdown-check.md` | `docs/lockdown-check.md` | no | Rows 19 to 25 for signing |
+| `proposals/traceability.md` | `traceability.md` | no | The two new test files for R12 |
+| `proposals/README.proposed.md` | `README.md` | no | The `signatures` row, the OpenSSH prerequisite and the approver's row |
 
-The tests sign with a software Ed25519 key published as `sk-ssh-ed25519@openssh.com`. That lets a test choose the flags a real authenticator would assert, and `ssh-keygen` verifies those signatures as it verifies hardware-made ones. CI needs no security key.
+The tests sign with a software Ed25519 key published as `sk-ssh-ed25519@openssh.com`. That lets a test choose the flags a real authenticator would assert, and `ssh-keygen` verifies those signatures as it verifies hardware-made ones. CI needs no security key. The same technique is why decision 2 cannot prove hardware.
 
 ## Owner steps
 
-On the approver's Mac, with the security key plugged in and a FIDO2 PIN set on it. macOS's own OpenSSH has no built-in security-key support, so the script refuses `/usr/bin/ssh-keygen`.
+On the approver's Mac, with the security key plugged in and a FIDO2 PIN set on it. Close every Claude Code session first, and keep them closed until step 4 of the script's output.
+
+macOS's own OpenSSH has no built-in security-key support, so the script refuses `/usr/bin/ssh-keygen`.
 
 ```bash
 brew install openssh
+```
+
+Homebrew's `ssh` now comes before Apple's on `PATH`, and git uses it for SSH remotes. If `~/.ssh/config` sets `UseKeychain`, add `IgnoreUnknown UseKeychain` on the line above it first, or `git pull` and `git push` stop with `Bad configuration option: usekeychain`. If the old signing key's passphrase is kept only in the macOS keychain, load it into ssh-agent before the rotation commit:
+
+```bash
+/usr/bin/ssh-add --apple-load-keychain
 ```
 
 ```bash
@@ -75,6 +93,12 @@ cd ~/Code/who-gets-the-keys
 
 ```bash
 git pull --ff-only origin main
+```
+
+Review every change ever made to `approvers.txt`. Each one should be yours:
+
+```bash
+git log -p --format='%h %an %ad %s' -- approvers.txt
 ```
 
 ```bash
@@ -98,6 +122,10 @@ git mv proposals/scripts/bootstrap/rotate-approver-key.sh scripts/bootstrap/rota
 ```
 
 ```bash
+git mv -f proposals/CLAUDE.proposed.md CLAUDE.md
+```
+
+```bash
 git mv proposals/test/signatures.test.ts test/signatures.test.ts
 ```
 
@@ -114,15 +142,23 @@ git mv -f proposals/docs/lockdown-check.md docs/lockdown-check.md
 ```
 
 ```bash
+git mv -f proposals/traceability.md traceability.md
+```
+
+```bash
+git mv -f proposals/README.proposed.md README.md
+```
+
+```bash
 scripts/bootstrap/rotate-approver-key.sh
 ```
 
-The script creates the key, signs a test message (touch and PIN), verifies it, requires both flags and writes `approvers.txt`. It then prints the remaining commands:
+The script creates the key, signs a test message (touch and PIN), verifies it, requires both flags and writes `approvers.txt`. For a backup key, plug in the second device and run it again with `KEY_FILE=~/.ssh/id_ed25519_sk_approver_backup APPEND=1` before committing. It then prints the remaining commands:
 
-1. Commit, signed with the old key, then run `npm run checks` and push.
+1. Stage `approvers.txt`, commit signed with the old key, check `git show HEAD:approvers.txt`, run `npm run checks` and push.
 2. Point this repository's git at the security key.
-3. Add the new key to GitHub as a signing key.
-4. Remove the old key from ssh-agent.
+3. Refresh `gh`'s scopes and add the new key to GitHub as a signing key.
+4. Remove the old key from ssh-agent and move its file to offline storage.
 
 ## Verified before proposing
 
@@ -134,12 +170,14 @@ The script creates the key, signs a test message (touch and PIN), verifies it, r
 | `signatures` | fails with `approver key is not a security key: 1619259+PaulDuvall@users.noreply.github.com`, as designed, until `approvers.txt` holds the security key |
 | Scenario patches B1 to B18 | all 17 still apply |
 | Scenarios end to end | not run: they need the approver-signed rotation commit on `main` first |
+| An adversarial review | 14 findings, all applied: the scope of the check (above), WebAuthn signatures, hook false positives, the rewrite limit, Homebrew and keychain steps, the backup key, and smaller corrections |
 
 ## Options considered
 
 | Option | Verdict |
 |---|---|
-| A security key without `verify-required` | Rejected. The touch is requested by the client, so a process holding the key handle can ask for a signature without one. The PIN is enforced by the authenticator, and the check rejects a signature lacking either flag |
+| A security key without `verify-required` | Rejected. The touch is requested by the host software (`ssh-keygen`), so a process holding the key handle can ask for a signature without one. The PIN is enforced by the authenticator, and the check rejects a signature lacking either flag |
+| FIDO attestation (`-O write-attestation`), checked against the vendor's root | Not now. It would prove at enrolment that the key was made on hardware, which the flags cannot. It needs X.509 and CBOR parsing that Node.js built-ins do not provide |
 | A passphrase key kept out of ssh-agent | Rejected. Whether the agent's shell can reach the approver's terminal or an askpass dialog is unverified |
 | `ssh-add -c`, confirm each use | Rejected. The dialog does not say what is being signed, and macOS needs a third-party askpass program |
 | `ssh-add -h`, destination constraints | Rejected. It stops git signing for everyone, the approver included |
@@ -151,26 +189,28 @@ The script creates the key, signs a test message (touch and PIN), verifies it, r
 | Decision | Options | Recommendation |
 |---|---|---|
 | Resident key | Store the key on the security key too (`RESIDENT=1`), so a new machine can fetch it with `ssh-keygen -K`; or keep the handle file only | Resident. Losing the handle file then costs nothing |
-| A second approver key | One security key; or a backup key on a second device, in `approvers.txt` as a second line | A backup. One lost key otherwise leaves no approver |
+| A backup approver key | One security key; or a second device, added with `APPEND=1` before the rotation commit | A backup. One lost key otherwise leaves no approver |
 | Claude Code sandbox | Enable it in `.claude/settings.json` with the ssh-agent socket blocked; or leave it off | Leave it off until its socket default is confirmed |
 
 ## Limits
 
 | Limit | Note |
 |---|---|
-| Touching the key and entering the PIN for a prompt the agent started | Never do either for a prompt you did not start |
+| The approver entering the PIN for a prompt the agent started | Never touch the key or enter its PIN for a prompt you did not start |
+| The check cannot tell a hardware key from a software key typed `sk-` | The approver keeps `approvers.txt` to keys on devices they hold |
 | The rule binds approver commits after the rotation | Earlier commits were signed by the software key and stay valid |
-| `scripts/bootstrap/rewrite-history.ts` re-signs every approver commit | 20 today, so 20 touches and PINs |
-| Homebrew OpenSSH cannot read passphrases stored in the macOS keychain | GitHub's docs say so; it matters only for other keys |
+| `scripts/bootstrap/rewrite-history.ts` signs every signed commit with one key and checks only against the tip's `approvers.txt` | After the rotation it cannot run unchanged: commits up to and including the rotation are judged by the old key, later ones by the security key. Keep the old key file offline, not deleted |
+| Homebrew OpenSSH cannot read passphrases stored in the macOS keychain | It also affects git's SSH remotes and the old key's signature in step 1; the owner steps cover both |
 | Malware that has both the PIN and the device | Out of scope |
 
 ## Not yet verified
 
 | Item | How to settle it |
 |---|---|
-| GitHub shows `sk-ssh-ed25519` signatures as Verified | Observed only for `sk-ecdsa-sha2-nistp256`. Step 3 of the script settles it |
+| GitHub shows `sk-ssh-ed25519` signatures as Verified | Observed only for `sk-ecdsa-sha2-nistp256`. The first approver commit signed with the security key settles it: check its badge, or `gh api repos/PaulDuvall/who-gets-the-keys/commits/<sha> --jq .commit.verification.verified` |
 | Whether a Claude Code Bash command on macOS can open the approver's terminal for a PIN prompt | Lockdown row 25, in a local session |
 | Claude Code sandbox default for the ssh-agent socket | Before enabling the sandbox |
+| `gh ssh-key add --type signing` needs the `admin:ssh_signing_key` scope | Step 3 refreshes it first; a scope error would name the right one |
 
 ## Sources
 
@@ -188,6 +228,7 @@ The script creates the key, signs a test message (touch and PIN), verifies it, r
 | https://git-scm.com/docs/git-config | 2026-11-04 |
 | https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification | 2026-11-04 |
 | https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account | 2026-11-04 |
+| https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent | 2026-11-04 |
 | https://code.claude.com/docs/en/permissions | 2026-11-04 |
 | https://code.claude.com/docs/en/hooks | 2026-11-04 |
 | https://code.claude.com/docs/en/sandboxing | 2026-11-04 |

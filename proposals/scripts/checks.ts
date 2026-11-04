@@ -209,18 +209,25 @@ export function approversFor(parentCopy: string | undefined, ownCopy: string | u
   return seenBefore ? "" : ownCopy ?? "";
 }
 
-// Approver keys live on a FIDO2 security key (SPEC-001-R12). A signature from one carries flags the authenticator
-// asserted for that signature alone: 0x01 user presence (a touch) and 0x04 user verification (a PIN). The flags are
-// inside the signed data, so a verified signature's flags cannot be altered, but ssh-keygen -Y verify does not
-// require them and allowed-signers files have no option that does. The signatures check therefore reads them itself.
+// Approver keys are meant to live on a FIDO2 security key (SPEC-001-R12). A signature from one carries flags the
+// authenticator asserted for that signature alone: 0x01 user presence (a touch) and 0x04 user verification (a PIN).
+// The flags are inside the signed data, so a verified signature's flags cannot be altered, but ssh-keygen -Y verify
+// does not require them and allowed-signers files have no option that does. The signatures check reads them itself.
+// This catches an approver's misconfigured key, such as one created without verify-required. It cannot prove that a
+// key lives on hardware: whoever holds a key's private half chooses its flags. The control against the agent is the
+// approver's private key on a device the agent cannot use (docs/decisions/0003-approver-key.md).
 export const SECURITY_KEY_TYPES: readonly string[] = ["sk-ssh-ed25519@openssh.com", "sk-ecdsa-sha2-nistp256@openssh.com"];
+export const SOFTWARE_KEY_TYPES: readonly string[] = ["ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521"];
 export const TOUCH_AND_PIN = 0x05;
+const FLAGGED = /^(?:sk-|webauthn-sk-)/;
 
-// Principal and key type of each approvers.txt line (allowed-signers format: principals, options, key type, key).
+// Principal and key type of each approvers.txt line, read by position as sshsig.c does: principals, then an options
+// token unless the next two tokens are a key type and a base64 key, then the key type.
 export function approverKeys(approvers: string): { principal: string; keyType: string }[] {
   return approvers.split("\n").map((l) => l.trim()).filter((l) => l !== "" && !l.startsWith("#")).map((line) => {
-    const tokens = line.match(/(?:[^\s"]+|"[^"]*")+/g) ?? [];
-    return { principal: tokens[0] ?? "", keyType: tokens.slice(1).find((t) => /^(?:ssh-|sk-|ecdsa-)/.test(t)) ?? "" };
+    const [principal = "", second = "", third = "", fourth = ""] = line.match(/(?:[^\s"]+|"[^"]*")+/g) ?? [];
+    const isKey = (type: string, key: string) => /^[a-z0-9.@-]+$/.test(type) && /^AAAA[A-Za-z0-9+/]*={0,2}$/.test(key);
+    return { principal, keyType: isKey(second, third) ? second : isKey(third, fourth) ? third : "" };
   });
 }
 
@@ -263,18 +270,22 @@ export function sshSignature(armored: string): SshSignature | undefined {
     sig.string();
     sig.string();
     const inner = sshReader(sig.string());
+    const sigType = inner.string().toString("latin1");
     inner.string();
-    inner.string();
-    return { keyType, flags: SECURITY_KEY_TYPES.includes(keyType) ? inner.byte() : undefined };
+    return { keyType, flags: FLAGGED.test(keyType) || FLAGGED.test(sigType) ? inner.byte() : undefined };
   } catch {
     return undefined;
   }
 }
 
-// SPEC-001-R12: an approver signature made with a security key must assert both a touch and a PIN. Other key types
-// carry no flags; whether they may approve is decided by the key types in approvers.txt. Unreadable fails closed.
-export const lacksTouchAndPin = (sig: SshSignature | undefined): boolean =>
-  sig === undefined || (sig.flags !== undefined && (sig.flags & TOUCH_AND_PIN) !== TOUCH_AND_PIN);
+// SPEC-001-R12: an approver signature from a security key must assert both a touch and a PIN. A plain software key
+// type carries no flags; whether it may approve is decided by the key types in approvers.txt. A signature that is
+// unreadable, or of any other type, fails closed.
+export const lacksTouchAndPin = (sig: SshSignature | undefined): boolean => {
+  if (sig === undefined) return true;
+  if (sig.flags !== undefined) return (sig.flags & TOUCH_AND_PIN) !== TOUCH_AND_PIN;
+  return FLAGGED.test(sig.keyType) || !SOFTWARE_KEY_TYPES.includes(sig.keyType);
+};
 
 // gh attestation verify, pinned to pipeline.yml on main, a GitHub-hosted runner and, in CI, this commit (SPEC-001-R17).
 export function attestationArgs(artifact: string, repo: string, sha: string | undefined): string[] {

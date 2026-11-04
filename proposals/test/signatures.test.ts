@@ -59,6 +59,10 @@ describe("SPEC-001-R12 approver signatures come from a security key, with a touc
       { principal: "bob@example.com", keyType: "ssh-ed25519" },
       { principal: "carol@example.com", keyType: "sk-ecdsa-sha2-nistp256@openssh.com" },
     ]);
+    expect(approverKeys(`a@example.com ${SK} ssh-ed25519 AAAAC3Nza\nb@example.com nonsense\n`)).toEqual([
+      { principal: "a@example.com", keyType: "ssh-ed25519" },
+      { principal: "b@example.com", keyType: "" },
+    ]);
     expect(approverKeys(readFileSync("approvers.txt.example", "utf8")).every((k) => SECURITY_KEY_TYPES.includes(k.keyType))).toBe(true);
   });
 
@@ -76,6 +80,17 @@ describe("SPEC-001-R12 approver signatures come from a security key, with a touc
     const plain = sshSignature(readFileSync(join(dir, "msg.sig"), "utf8"));
     expect(plain).toEqual({ keyType: "ssh-ed25519", flags: undefined });
     expect(lacksTouchAndPin(plain)).toBe(false);
+    // A WebAuthn security-key signature carries the same flags; an unknown key type fails closed.
+    const shaped = (keyType: string, sigType: string, flags: number[] | null) => armor(Buffer.concat([Buffer.from("SSHSIG"), u32(1),
+      str(Buffer.concat([str(keyType), str("pk")])), str("git"), str(""), str("sha512"),
+      str(Buffer.concat([str(sigType), str("sig"), ...(flags === null ? [] : [Buffer.from(flags), u32(1)])]))]));
+    const webauthn = sshSignature(shaped("sk-ecdsa-sha2-nistp256@openssh.com", "webauthn-sk-ecdsa-sha2-nistp256@openssh.com", [TOUCH]));
+    expect(webauthn).toEqual({ keyType: "sk-ecdsa-sha2-nistp256@openssh.com", flags: TOUCH });
+    expect(lacksTouchAndPin(webauthn)).toBe(true);
+    expect(lacksTouchAndPin(sshSignature(shaped("webauthn-sk-ecdsa-sha2-nistp256@openssh.com", "webauthn-sk-ecdsa-sha2-nistp256@openssh.com", [TOUCH])))).toBe(true);
+    expect(lacksTouchAndPin({ keyType: "ssh-ed25519-cert-v01@openssh.com", flags: undefined })).toBe(true);
+    expect(lacksTouchAndPin({ keyType: SK, flags: undefined })).toBe(true);
+    expect(sshSignature(shaped(SK, SK, null))).toBeUndefined();
     expect(sshSignature("not a signature")).toBeUndefined();
     expect(sshSignature(armor(Buffer.from("SSHSIG\u0000\u0000")))).toBeUndefined();
     expect(lacksTouchAndPin(undefined)).toBe(true);

@@ -42,6 +42,12 @@ describe("SPEC-001-R12 the no-sign hook", () => {
       "git hash-object -t commit -w --stdin < obj",
       "node scripts/bootstrap/rewrite-history.ts --apply",
       "git commit \\\n  -S -m x",
+      "git commit -m \"x\" -S",
+      "git -c \"user.signingkey=k\" commit -m x",
+      "git config user.signingkey ~/.ssh/k",
+      "bash -c \"git commit -S -m x\"",
+      "bash <<'EOF'\ngit commit -S -m x\nEOF",
+      "git -c commit.gpgsign=false commit -F - <<'EOF'\nmessage\nEOF\ngit commit --amend -S --no-edit",
     ];
     for (const command of blocked) expect([command, hook(command)]).toEqual([command, 2]);
     const log = readFileSync(join(project, ".claude/security-events.log"), "utf8").trim().split("\n");
@@ -62,6 +68,12 @@ describe("SPEC-001-R12 the no-sign hook", () => {
       "npm run checks",
       "git push origin HEAD:main",
       "grep -n replace scripts/bootstrap/rewrite-history.ts",
+      "git commit -m \"add -Signed-off handling to parser\"",
+      "git commit -m \"fix: validate -S flag in CLI\"",
+      "git config --get user.signingkey",
+      "git log --grep=signingkey --oneline",
+      "grep -rn signingkey docs/",
+      "git -c commit.gpgsign=false commit -q -F - <<'EOF'\nThe deny rules miss git -c x=y commit -S\n\nAgent: Claude Code\nEOF",
     ];
     for (const command of allowed) expect([command, hook(command)]).toEqual([command, 0]);
   });
