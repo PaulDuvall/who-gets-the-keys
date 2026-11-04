@@ -25,7 +25,7 @@ Snapshot: `specs/source-of-record/slides.txt`, body SHA-256 `f78bb192ae51591962c
 | R17 | 6, 8 | O: the agent reads telemetry redacted, read-only and untrusted, with no standing prod credentials | OIDC roles only, no standing keys; no redacted telemetry path for the agent | partial |
 | R18 | 6, 12 | Slopsquatting: a hallucinated package name is rejected | check `allowlist`, B6 | covered |
 | R19 | 7, 13 | Mutation score, not coverage | check `mutation` at break 95, B2; coverage is not reported | covered |
-| R20 | 7, 13 | Attestations signed by the pipeline, never the agent; no evidence, no deploy | attest job; check `attestation` in the deploy job, B10 (fails closed while private, D06) | covered |
+| R20 | 7, 13 | Attestations signed by the pipeline, never the agent; no evidence, no deploy | attest job; check `attestation` in the deploy job, B10 | covered |
 | R21 | 7 | Provenance: commit, spec ID, agent, model version | custom predicate; agent commits record no model version (D05) | partial |
 | R22 | 7 | Intent verification: the customer confirms the spec | none | not covered |
 | R23 | 7 | Independent validator: spec to code, code to spec; can fail, never pass | check `trace` verifies both directions; the validator subagent is advisory and nothing runs it | partial |
@@ -33,7 +33,7 @@ Snapshot: `specs/source-of-record/slides.txt`, body SHA-256 `f78bb192ae51591962c
 | R25 | 8 | The agent proposes spec and pipeline changes but cannot apply them | `specs/` and every path in `specs/protected-paths.txt` change only through `proposals/` and an approver-signed commit; check `signatures`, B4, B18 | covered |
 | R26 | 8 | The agent cannot loosen its own guardrails | check `ratchet`, B7; check `signatures` on protected pipeline paths, B18 | covered |
 | R27 | 8 | No standing cloud API keys and no inherited laptop credentials | OIDC roles only; reads of `~/.aws`, `~/.ssh`, `~/.config/gh` denied | covered |
-| R28 | 8 | Irreversible actions require human approval; the pipeline enforces it | check `irreversible` requires an approver-signed commit, B14; required reviewers on `sandbox` and `probe` once the repo is public (`github.sh`) | covered |
+| R28 | 8 | Irreversible actions require human approval; the pipeline enforces it | check `irreversible` requires an approver-signed commit, B14; required reviewers on `sandbox` and `probe`, set by `github.sh` | covered |
 | R29 | 9 | Untrusted input never sits next to long-lived credentials | triage token `contents: read`, `issues: write`, no secrets; deploy credentials only through OIDC; B9 | covered |
 | R30 | 9, 10 | No cache shared with an untrusted job | check `workflows` `deploy-cache`, `cache-mode: none`; B8a | covered |
 | R31 | 10 | Pinned inputs | actions by full commit SHA, check `workflows`, B8b; lockfiles with integrity hashes, `npm ci`, pip `--require-hashes`; no container images are used | covered |

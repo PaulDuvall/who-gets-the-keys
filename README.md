@@ -1,5 +1,8 @@
 # who-gets-the-keys
 
+[![bad changes stopped](https://img.shields.io/github/actions/workflow/status/PaulDuvall/who-gets-the-keys/scenarios.yml?branch=main&label=bad%20changes%20stopped)](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/scenarios.yml)
+[![licence: MIT](https://img.shields.io/github/license/PaulDuvall/who-gets-the-keys)](LICENSE)
+
 Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code, the pipeline holds the keys, and 19 deliberately bad changes are stopped before they ship.
 
 | | |
@@ -8,7 +11,7 @@ Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code
 | Good scenario | `main`, always green |
 | Bad scenarios | 19 scenarios (B1 to B18, with B8 split into B8a and B8b), each failing at one named check with one expected line. 17 are patches against `main`; B9 replays an issue fixture and B11 is an AWS call |
 | Source of record | Talk deck "Who Gets the Keys? Trust and Authority in Software Factories" (AI Native DevCon 2026), pinned at `specs/source-of-record/slides.txt` |
-| Status | All 15 checks and 16 local scenarios pass on `main`. Deploys, attestations and the sandbox-account scenarios (B11, B14) start once the repo is public and the AWS bootstrap is applied |
+| Status | All 15 checks and 16 local scenarios pass on `main`. The repo is public, and the attest job has signed builds since 2026-11-02. No deploy has reached AWS yet: the first waits for the `sandbox` reviewer. The sandbox-account scenarios (B11, B14) have not been recorded |
 
 Coding agents now change code faster than anyone can read the diffs. The talk argues that human review after the code exists was never the control, so the deployment pipeline has to hold the keys. This repo runs that argument end to end. Claude Code wrote a small export service. A pipeline of 15 checks guards it, and 19 deliberately bad changes show each control holding, from a test that asserts nothing to a poisoned GitHub issue. It is for engineering, platform and security leads deciding how far to trust agent-written code, and for anyone who saw the talk and wants to see the practices run.
 
@@ -122,7 +125,7 @@ The deck's speaker notes name example tools for each practice. Where this repo u
 | Codified policy checks | Open Policy Agent with Conftest, or Cedar | `scripts/checks.ts`, one function per check | One language for repo code; each check prints one failure line |
 | Specs and acceptance criteria | Tessl, GitHub Spec Kit or Kiro; Cucumber | EARS-style tables in `specs/`; Vitest tests titled by requirement ID | The trace check verifies both directions without another toolchain |
 | Spec and pipeline approval | CODEOWNERS, rulesets, GitHub Environments required reviewers | Approver-signed commits, checked by the signatures check for `specs/`, `approvers.txt` and every path in `specs/protected-paths.txt` | Trunk-based with no pull requests, so approval is a signature the pipeline verifies |
-| Attestation verification | Kyverno or Sigstore policy-controller; cosign | GitHub artifact attestations, verified by `gh attestation verify` before any AWS call | The deploy target is a Lambda, not Kubernetes; fails closed while the repo is private (D06) |
+| Attestation verification | Kyverno or Sigstore policy-controller; cosign | GitHub artifact attestations, verified by `gh attestation verify` before any AWS call | The deploy target is a Lambda, not Kubernetes; deploy fails closed without a valid attestation (B10) |
 | Waivers with an expiry | Snyk ignore, Trivy `expired_at`, OPA exceptions | OSV-Scanner `ignoreUntil` entries in `specs/sca-exceptions.toml`, owner-signed | OSV-Scanner is the SCA tool |
 | Dependency intake | CodeArtifact, Artifactory or Socket; pip `--require-hashes`, `npm ci` | `allowed-deps.txt`, lockfile hashes, `npm ci`, pip `--require-hashes` | No private mirror in a demo repo |
 | Break-glass | TEAM for IAM Identity Center; CloudTrail plus an EventBridge alarm | A separate IAM role with MFA and an EventBridge alarm | One sandbox account, no Identity Center |
