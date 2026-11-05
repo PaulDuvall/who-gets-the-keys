@@ -355,7 +355,7 @@ Where every factory file is protected, the receipt check repeats part of `signat
 | Revoked skill for B21 | Which earlier `SKILL.md` digest to revoke | One of its 2 earlier versions, from commits `ebe586c` and `124eca2` |
 | Candidate branch names | `candidate/**`; or reuse each cloud session's `claude/**` branch | `candidate/**`: one pattern for agents and humans |
 | Ruleset bypass | No bypass actors, as today; or let the owner bypass | None. Approver commits take the same path, which is the talk's "the human's fix runs the same pipeline". AWS break-glass is unaffected |
-| Merge methods if GitHub refuses | Accept that pull requests stay mergeable in GitHub but must not be merged, and record a deviation; or find another control | None yet. Decide once M06 shows whether GitHub keeps squash or rebase merges on while linear history is required |
+| Merge methods if GitHub refuses | Accept that pull requests stay mergeable in GitHub but must not be merged, and record a deviation; or find another control | Not needed. On 2026-11-05 GitHub accepted squash and rebase merges off while linear history is required (`docs/verification.md`, "Phase 0: merge methods") |
 
 ## Options considered
 
@@ -413,7 +413,7 @@ The signature that approves every policy change can be produced without a human.
 | The exact error a refused push to `main` prints, and whether the ruleset's required checks also hold the repository admin's own pushes when there are no bypass actors | M06: push an unchecked commit as the owner |
 | Whether GitHub checks only the tip of a push of several commits to `main`, or every new commit. R41's wording holds either way. If GitHub checks every commit, each phase must land as one commit | M06: push two commits at once, the lower one never checked |
 | The GitHub Actions app ID to name as the expected source | M03 reads it from an existing `checks` check run instead of hard-coding it |
-| Whether GitHub accepts squash and rebase merges off while `protect main` requires linear history; its docs say it needs one allowed | M06: `github.sh` reports a refusal and reads the `allow_*` values back |
+| Whether GitHub accepts squash and rebase merges off while `protect main` requires linear history; its docs say it needs one allowed | Settled 2026-11-05: it accepted. `github.sh` read back merge commit true, squash false, rebase false |
 
 ## Sources
 
