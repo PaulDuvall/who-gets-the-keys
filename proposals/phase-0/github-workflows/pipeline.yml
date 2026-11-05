@@ -1,5 +1,4 @@
 # The only path to the sandbox (SPEC-001). checks → build → attest → deploy.
-# On candidate/** branches it stops before deploy, and the protect main ruleset requires its checks job (SPEC-001-R40, R41).
 # No caches in attest or deploy. The deploy role trusts only this file, in environment sandbox.
 name: pipeline
 
@@ -75,6 +74,7 @@ jobs:
   attest:
     name: attest
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:

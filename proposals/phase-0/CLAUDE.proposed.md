@@ -35,8 +35,11 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 
 ## Conventions
 
-- Trunk-based, one task per commit. Push to a candidate branch first: `git push origin HEAD:candidate/<topic>`. When the pipeline's `checks` job passes on that commit, push the same commit: `git push origin HEAD:main`. `main` refuses it before then (SPEC-001-R41).
-- Pull requests are optional. Changes to protected paths land by that fast-forward push, because GitHub's squash and rebase merges drop the approver's signature.
+- Trunk-based, one task per commit. Push to a candidate branch first: `git push origin HEAD:candidate/<topic>`. `main` refuses a commit until the pipeline's `checks` job has passed on it (SPEC-001-R41).
+- Never amend a commit already pushed to a candidate branch. If its checks fail, fix it in a new commit on top and push to the same branch, because force pushes are denied.
+- Push to `main` the exact commit the checks passed on, by its SHA, not a later `HEAD`: `git push origin <SHA>:refs/heads/main`.
+- After `main` accepts the commit, delete the candidate branch: `git push origin --delete candidate/<topic>`.
+- Pull requests are for review only and are never merged in GitHub. Every change lands by the fast-forward push above, because squash and rebase merges write commits the checks never ran on.
 - Agent commits are unsigned: `git -c commit.gpgsign=false commit`.
 - Every commit touching `src/` or `test/` carries `Spec: <requirement ID>`.
 - Agent commits carry `Agent: Claude Code`.

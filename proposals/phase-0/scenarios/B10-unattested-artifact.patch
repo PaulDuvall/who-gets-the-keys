@@ -1,14 +1,15 @@
 diff --git a/.github/workflows/pipeline.yml b/.github/workflows/pipeline.yml
-index 7536b1d..631d7d9 100644
+index 7e1994a..a395aa4 100644
 --- a/.github/workflows/pipeline.yml
 +++ b/.github/workflows/pipeline.yml
-@@ -72,45 +72,9 @@ jobs:
+@@ -71,46 +71,9 @@ jobs:
            path: dist/function.zip
            if-no-files-found: error
  
 -  attest:
 -    name: attest
 -    needs: build
+-    if: github.ref == 'refs/heads/main'
 -    runs-on: ubuntu-24.04
 -    timeout-minutes: 10
 -    concurrency:
