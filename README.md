@@ -161,7 +161,7 @@ The deck's speaker notes name example tools for each practice. Where this repo u
 | [docs/practices.md](docs/practices.md) | Practice table generated from `practices.yaml` by `npm run practices` |
 | [docs/lockdown-check.md](docs/lockdown-check.md) | Manual check that `.claude/settings.json` denies and hooks work in a local session |
 | [docs/decisions/0001-walkthrough-video.md](docs/decisions/0001-walkthrough-video.md) | Decisions behind the walkthrough video |
-| [docs/decisions/0002-agent-receipt.md](docs/decisions/0002-agent-receipt.md) | Proposed: a signed receipt for every deploy (SLSA, in-toto test results, CycloneDX, Sigstore) |
+| [docs/decisions/0002-agent-receipt.md](docs/decisions/0002-agent-receipt.md) | Proposed: a merge gate with no pull requests, and a signed receipt for every deploy (SLSA, in-toto test results, CycloneDX, Sigstore) |
 | [docs/decisions/0003-approver-key.md](docs/decisions/0003-approver-key.md) | Proposed: approver signatures need a security key, a touch and a PIN |
 
 ## Licence
