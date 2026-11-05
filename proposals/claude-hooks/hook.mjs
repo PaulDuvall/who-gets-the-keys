@@ -65,7 +65,8 @@ const hooks = {
   // Deny rules match only a command's start; this reads all of its text, less commit messages (-m arguments and a
   // `git commit -F -` heredoc), so a message that mentions signing is not mistaken for it. Neither is a boundary: a
   // script the agent writes and runs can still try to sign. The approver's private key on a security key, which needs
-  // a touch and a PIN for every signature, is the control (SPEC-001-R39 and R12, docs/decisions/0003-approver-key.md).
+  // a touch for every signature (touch only for now, per the owner decision of 2026-11-05), is the control
+  // (SPEC-001-R39 and R12, docs/decisions/0003-approver-key.md).
   "no-sign"() {
     const full = (tool.command ?? "").replace(/\\\n/g, " ");
     const bare = full

@@ -213,13 +213,21 @@ export function approversFor(parentCopy: string | undefined, ownCopy: string | u
 // authenticator asserted for that signature alone: 0x01 user presence (a touch) and 0x04 user verification (a PIN).
 // The flags are inside the signed data, so a verified signature's flags cannot be altered, but ssh-keygen -Y verify
 // does not require them and allowed-signers files have no option that does. The signatures check reads them itself.
-// This catches an approver's misconfigured key, such as one created without verify-required. It cannot prove that a
+// This catches an approver's misconfigured key, such as one created with no-touch-required. It cannot prove that a
 // key lives on hardware: whoever holds a key's private half chooses its flags. The control against the agent is the
 // approver's private key on a device the agent cannot use (docs/decisions/0003-approver-key.md).
 export const SECURITY_KEY_TYPES: readonly string[] = ["sk-ssh-ed25519@openssh.com", "sk-ecdsa-sha2-nistp256@openssh.com"];
 export const SOFTWARE_KEY_TYPES: readonly string[] = ["ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521"];
-export const TOUCH_AND_PIN = 0x05;
 const FLAGGED = /^(?:sk-|webauthn-sk-)/;
+const TOUCH_FLAG = 0x01, PIN_FLAG = 0x04;
+
+// The flags every approver signature from a security key must assert (SPEC-001-R12).
+// Owner decision, 2026-11-05, "Touch-only for now": the owner's security key refused to enroll any credential with
+// -O verify-required ("requested feature not supported"). The probable cause, inferred and not verified, is that it
+// lacks the CTAP 2.1 credProtect extension. Until the owner has a key that supports it, a touch (0x01) is enough.
+// Setting this to 0x05 restores touch and PIN. The signatures check reads it as of each commit's parent, so the
+// change binds only later commits. The touch flag is required whatever this holds.
+export const REQUIRED_SIGNATURE_FLAGS: number = 0x01;
 
 // Principal and key type of each approvers.txt line, read by position as sshsig.c does: principals, then an options
 // token unless the next two tokens are a key type and a base64 key, then the key type.
@@ -231,18 +239,23 @@ export function approverKeys(approvers: string): { principal: string; keyType: s
   });
 }
 
-// The armored signature in a commit object's gpgsig or gpgsig-sha256 header, with continuation lines unindented.
-export function commitSignature(raw: string): string | undefined {
+// The armored SSH signature in the one header git verify-commit checks: gpgsig in a SHA-1 repository, gpgsig-sha256 in
+// a SHA-256 one. git leaves every other header starting with gpgsig out of the signed payload, so one there could
+// carry another signature's flags. More than one such header, or a signature that is not an SSH signature, gives
+// undefined, and the signatures check fails closed (SPEC-001-R12). Continuation lines come back unindented.
+export function commitSignature(raw: string, objectFormat = "sha1"): string | undefined {
   const end = raw.indexOf("\n\n");
   const lines = (end < 0 ? raw : raw.slice(0, end)).split("\n");
-  const start = lines.findIndex((l) => /^gpgsig(?:-sha256)? /.test(l));
-  if (start < 0) return undefined;
-  const out = [(lines[start] ?? "").replace(/^gpgsig(?:-sha256)? /, "")];
+  const name = objectFormat === "sha256" ? "gpgsig-sha256 " : "gpgsig ";
+  const start = lines.findIndex((l) => l.startsWith(name));
+  if (start < 0 || lines.filter((l) => l.startsWith("gpgsig")).length !== 1) return undefined;
+  const out = [(lines[start] ?? "").slice(name.length)];
   for (const line of lines.slice(start + 1)) {
     if (!line.startsWith(" ")) break;
     out.push(line.slice(1));
   }
-  return out.join("\n");
+  const armored = out.join("\n");
+  return armored.startsWith("-----BEGIN SSH SIGNATURE-----") ? armored : undefined;
 }
 
 function sshReader(buf: Buffer) {
@@ -278,14 +291,26 @@ export function sshSignature(armored: string): SshSignature | undefined {
   }
 }
 
-// SPEC-001-R12: an approver signature from a security key must assert both a touch and a PIN. A plain software key
-// type carries no flags; whether it may approve is decided by the key types in approvers.txt. A signature that is
-// unreadable, or of any other type, fails closed.
-export const lacksTouchAndPin = (sig: SshSignature | undefined): boolean => {
+// SPEC-001-R12: an approver signature from a security key must assert every flag in `required`, and always a touch.
+// A plain software key type carries no flags; whether it may approve is decided by the key types in approvers.txt.
+// A signature that is unreadable, or of any other key type, fails closed.
+export const lacksRequiredFlags = (sig: SshSignature | undefined, required = REQUIRED_SIGNATURE_FLAGS): boolean => {
   if (sig === undefined) return true;
-  if (sig.flags !== undefined) return (sig.flags & TOUCH_AND_PIN) !== TOUCH_AND_PIN;
-  return FLAGGED.test(sig.keyType) || !SOFTWARE_KEY_TYPES.includes(sig.keyType);
+  if (!SECURITY_KEY_TYPES.includes(sig.keyType)) return sig.flags !== undefined || !SOFTWARE_KEY_TYPES.includes(sig.keyType);
+  const must = required | TOUCH_FLAG;
+  return sig.flags === undefined || (sig.flags & must) !== must;
 };
+
+// Required flags in words, for the signatures failure identifier and the rotation script: "touch" or "touch and PIN".
+export const flagWords = (required = REQUIRED_SIGNATURE_FLAGS): string =>
+  ([[TOUCH_FLAG, "touch"], [PIN_FLAG, "PIN"]] as const).filter(([bit]) => ((required | TOUCH_FLAG) & bit) !== 0).map(([, word]) => word).join(" and ");
+
+// REQUIRED_SIGNATURE_FLAGS in a copy of scripts/checks.ts, so each commit is judged by the rule as of its parent, as
+// approvers.txt is (SPEC-001-R12). No copy, or no readable constant, requires the touch flag alone.
+export function requiredFlagsIn(checksSource: string | undefined): number {
+  const value = /^export const REQUIRED_SIGNATURE_FLAGS\b[^=\n]*=\s*(0x[0-9a-f]+|\d+)\s*;/im.exec(checksSource ?? "")?.[1];
+  return (value === undefined ? 0 : Number(value)) | TOUCH_FLAG;
+}
 
 const MAIN = "refs/heads/main";
 const CANDIDATE = /^refs\/heads\/candidate\/.+$/;
@@ -470,6 +495,7 @@ const checks: Record<string, (args: string[]) => void | Promise<void>> = {
 
   signatures() {
     const log = git("log", "--reverse", "--topo-order", "--format=%H %P");
+    const format = git("rev-parse", "--show-object-format").trim();
     let seen = false;
     for (const line of log.split("\n").filter(Boolean)) {
       const [commit = "", parent] = line.split(" ");
@@ -479,8 +505,9 @@ const checks: Record<string, (args: string[]) => void | Promise<void>> = {
       if (files.some((f) => f.startsWith("specs/") || f === "approvers.txt" || guardedBy(f, paths) !== undefined)) {
         const approvers = approversFor(parentCopy, show(commit, "approvers.txt"), seen);
         if (approvers === "" || !verifySigned(commit, approvers)) throw new CheckFailure("signatures", signatureId(files, paths));
-        if (lacksTouchAndPin(sshSignature(commitSignature(git("cat-file", "commit", commit)) ?? ""))) {
-          throw new CheckFailure("signatures", `approver signature without touch and PIN: ${commit.slice(0, 12)}`);
+        const required = requiredFlagsIn(parent ? show(parent, "scripts/checks.ts") : undefined);
+        if (lacksRequiredFlags(sshSignature(commitSignature(git("cat-file", "commit", commit), format) ?? ""), required)) {
+          throw new CheckFailure("signatures", `approver signature without ${flagWords(required)}: ${commit.slice(0, 12)}`);
         }
       }
       if (parentCopy !== undefined || files.includes("approvers.txt")) seen = true;

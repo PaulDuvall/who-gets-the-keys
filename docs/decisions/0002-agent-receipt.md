@@ -400,7 +400,7 @@ The format is a useful reference, not a dependency. Its wording for the merge ch
 
 ## Related finding: the approver key
 
-The signature that approves every policy change can be produced without a human. `.claude/settings.json` denies `git commit *-S*`, but `git -c x=y commit -S` does not match that pattern. `approvers.txt` holds a plain `ssh-ed25519` key, which signs without a physical touch. On the approver's laptop with ssh-agent loaded, a Claude Code session could make an approver-signed commit. This is inference from the rules and the key type; it has not been tried. A hardware-backed `ed25519-sk` key with `verify-required` closes it, and is a precondition for decision 8 meaning what it says. `docs/decisions/0003-approver-key.md` proposes that fix.
+The signature that approves every policy change can be produced without a human. `.claude/settings.json` denies `git commit *-S*`, but `git -c x=y commit -S` does not match that pattern. `approvers.txt` holds a plain `ssh-ed25519` key, which signs without a physical touch. On the approver's laptop with ssh-agent loaded, a Claude Code session could make an approver-signed commit. This is inference from the rules and the key type; it has not been tried. A hardware-backed security key (`ed25519-sk`, or `ecdsa-sk`) closes it, and is a precondition for decision 8 meaning what it says. `docs/decisions/0003-approver-key.md` proposes that fix. It requires a touch on every signature, touch only for now per the owner decision of 2026-11-05: no `verify-required` and no PIN yet.
 
 ## Not yet verified
 

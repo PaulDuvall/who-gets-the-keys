@@ -232,7 +232,7 @@ Extends 0002's receipt (R55, R63). Example lines, with placeholders:
 
 ```text
 FACTORY v7 + tightening (stryker.config.json: 95 to 96)  sha256:<fingerprint>
-INTENT  SPEC-014-R2  specs/SPEC-014-export-latency.md sha256:<digest>  approved <commit>  touch PIN
+INTENT  SPEC-014-R2  specs/SPEC-014-export-latency.md sha256:<digest>  approved <commit>  touch
 TASK    TASK-001  tasks/TASK-001.task.md sha256:<digest>  base <commit>  producer run <run ID>
 AUTHOR  producer run <run ID> attempt 2
 DEPLOY  sandbox  receipt verified  reviewer: not required (policy v3)
@@ -241,7 +241,7 @@ DEPLOY  sandbox  receipt verified  reviewer: not required (policy v3)
 | Line | Holds | Source |
 |---|---|---|
 | FACTORY | Factory version, fingerprint, and each proven tightening since that version's entry. While the signer is `pipeline.yml` in this repository, the line ends `reported by a signer the agent can edit`. Tightenings are accepted only from Phase B, after 0002 Phase 3, so the example shows no label | R42, R45, R55, extended by R97, R98 and R102 |
-| INTENT | Requirement ID, spec file path and SHA-256, the approving commit R63 already records, and its signature flags (touch and PIN, decision 0003) | R63, extended by R69 |
+| INTENT | Requirement ID, spec file path and SHA-256, the approving commit R63 already records, and its signature flags: `touch`, or `touch PIN` when it asserts a PIN. Decision 0003 requires a touch only for now, per the owner decision of 2026-11-05 | R63, extended by R69 |
 | TASK | Task ID, task file path and SHA-256 at the base commit, base SHA, producer run ID or `cloud session` | R70 |
 | AUTHOR | The producer run and attempt for runner deliveries; `cloud session on <branch>, environment not recorded` for session deliveries; the committer, as reported, otherwise | R71 |
 | DEPLOY | Environment, receipt verified, and `reviewer: not required (policy v<n>)` or the reviewer's login | R79 |

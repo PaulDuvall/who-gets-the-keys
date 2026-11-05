@@ -3,15 +3,24 @@ set -euo pipefail
 
 usage() {
   echo "usage: scripts/bootstrap/rotate-approver-key.sh"
-  echo "  Creates the approver's FIDO2 security key (ed25519-sk, a touch and a PIN for every signature), proves"
-  echo "  that its signatures carry both, and writes it to approvers.txt. It never commits, pushes or uploads."
+  echo "  Creates the approver's FIDO2 security key, proves that its test signature carries the flags the signatures"
+  echo "  check requires, and writes it to approvers.txt. It never commits, pushes or uploads. Each signature needs a"
+  echo "  touch, and a PIN too while REQUIRED_SIGNATURE_FLAGS in scripts/checks.ts asks for one. The owner decision of"
+  echo "  2026-11-05 set it to a touch only."
   echo "  Run it from the repository root on the approver's machine, with the security key plugged in, after the"
   echo "  approver-key proposals are in the working tree (docs/decisions/0003-approver-key.md)."
   echo "  Close every Claude Code session first and keep them closed until the last step: until then the old key"
   echo "  can still approve, and an agent session on this machine could reach it."
-  echo "  Environment: KEY_FILE (default ~/.ssh/id_ed25519_sk_approver), SSH_KEYGEN, RESIDENT=1 to store the key on"
-  echo "  the security key as well, so a new machine can fetch it with ssh-keygen -K, and APPEND=1 to add a backup"
-  echo "  key as a second approvers.txt line instead of replacing the file."
+  echo "  Environment:"
+  echo "  KEY_TYPE           ed25519-sk (default), or ecdsa-sk if creating the key reports \"requested feature not supported\""
+  echo "  KEY_FILE           default ~/.ssh/id_ed25519_sk_approver, or ~/.ssh/id_ecdsa_sk_approver for ecdsa-sk"
+  echo "  VERIFY_REQUIRED=1  create the key with -O verify-required, so every signature also needs its PIN."
+  echo "                     The security key must support CTAP 2.1 credProtect. It defaults to 1, and 0 is refused,"
+  echo "                     while scripts/checks.ts requires a PIN"
+  echo "  RESIDENT=1         store the key on the security key as well, so a new machine can fetch it with"
+  echo "                     ssh-keygen -K. This also needs credProtect"
+  echo "  APPEND=1           add a backup key as a second approvers.txt line instead of replacing the file"
+  echo "  SSH_KEYGEN         the ssh-keygen to use"
 }
 
 confirm() { read -r -p "$1 [y/N] " answer; [ "$answer" = "y" ]; }
@@ -22,11 +31,38 @@ case "${1:-}" in
   *) usage; exit 1 ;;
 esac
 
+key_type="${KEY_TYPE:-ed25519-sk}"
+case "$key_type" in
+  ed25519-sk|ecdsa-sk) ;;
+  *) echo "KEY_TYPE must be ed25519-sk or ecdsa-sk, not ${key_type}."; exit 1 ;;
+esac
 [ -f approvers.txt ] && [ -f scripts/checks.ts ] || { echo "Run this from the repository root."; exit 1; }
-grep -q "export function sshSignature" scripts/checks.ts || {
+grep -q "export const REQUIRED_SIGNATURE_FLAGS" scripts/checks.ts || {
   echo "scripts/checks.ts cannot read security-key flags yet. Move the approver-key proposals into place first."
   exit 1
 }
+
+# VERIFY_REQUIRED follows the PIN bit (0x04) of REQUIRED_SIGNATURE_FLAGS, so raising that constant to 0x05 is the only
+# change a later tightening needs: the next key this script makes then asks for a PIN too.
+pin_required="$(node --input-type=module -e '
+  import { REQUIRED_SIGNATURE_FLAGS } from "./scripts/checks.ts";
+  console.log((REQUIRED_SIGNATURE_FLAGS & 0x04) === 0 ? 0 : 1);
+')"
+verify_required="${VERIFY_REQUIRED:-$pin_required}"
+case "$verify_required" in
+  0|1) ;;
+  *) echo "VERIFY_REQUIRED must be 1, 0 or unset, not ${verify_required}."; exit 1 ;;
+esac
+if [ "$pin_required" = "1" ] && [ "$verify_required" = "0" ]; then
+  echo "REQUIRED_SIGNATURE_FLAGS in scripts/checks.ts requires a PIN, so a key made with VERIFY_REQUIRED=0 could not"
+  echo "approve. Leave VERIFY_REQUIRED unset."
+  exit 1
+fi
+if [ "$verify_required" = "1" ]; then
+  asked="a touch and the key's PIN"
+else
+  asked="a touch only, with no PIN"
+fi
 
 keygen="${SSH_KEYGEN:-}"
 if [ -z "$keygen" ]; then
@@ -43,7 +79,7 @@ fi
 version="$("$(dirname "$keygen")/ssh" -V 2>&1 | sed -n 's/^OpenSSH_\([0-9]*\)\.\([0-9]*\).*/\1 \2/p')"
 read -r major minor <<< "${version:-0 0}"
 if [ "$major" -lt 8 ] || { [ "$major" -eq 8 ] && [ "$minor" -lt 4 ]; }; then
-  echo "${keygen} is OpenSSH ${major}.${minor}. A PIN for every signature (verify-required) needs 8.4 or later."
+  echo "${keygen} is OpenSSH ${major}.${minor}. This script needs OpenSSH 8.4 or later with security-key support."
   exit 1
 fi
 echo "Using ${keygen} (OpenSSH ${major}.${minor})."
@@ -53,15 +89,30 @@ principal="${old_line%% *}"
 [ -n "$principal" ] || { echo "approvers.txt has no approver line to take the principal from."; exit 1; }
 echo "Approver principal: ${principal}"
 
-key="${KEY_FILE:-$HOME/.ssh/id_ed25519_sk_approver}"
+key="${KEY_FILE:-$HOME/.ssh/id_${key_type//-/_}_approver}"
 if [ -f "$key" ]; then
-  echo "Using the existing key ${key}."
+  echo "Using the existing key ${key}. KEY_TYPE and VERIFY_REQUIRED do not change it; the test signature shows its flags."
+  sign_prompt="Touch the key when it blinks, and enter its PIN if asked."
 else
-  options=(-O verify-required -O application=ssh:who-gets-the-keys)
+  sign_prompt="It asks for ${asked}: touch the key when it blinks."
+  options=(-O application=ssh:who-gets-the-keys)
+  [ "$verify_required" = "1" ] && options+=(-O verify-required)
   [ "${RESIDENT:-}" = "1" ] && options+=(-O resident)
-  echo "Will create ${key}: ed25519-sk, ${options[*]}."
-  confirm "Create it? Touch the key and enter its PIN when asked." || { echo "Nothing changed."; exit 1; }
-  "$keygen" -t ed25519-sk "${options[@]}" -C "who-gets-the-keys approver" -f "$key"
+  echo "Will create ${key}: ${key_type}, ${options[*]}. Each signature will need ${asked}."
+  confirm "Create it? Touch the key when it blinks, and enter its PIN if ssh-keygen asks for it." || { echo "Nothing changed."; exit 1; }
+  if ! "$keygen" -t "$key_type" "${options[@]}" -C "who-gets-the-keys approver" -f "$key"; then
+    echo "Creating the key failed. If ssh-keygen printed \"requested feature not supported\", the cause may be:"
+    [ "$key_type" = "ed25519-sk" ] && echo "- no Ed25519 support on the security key: run this again with KEY_TYPE=ecdsa-sk."
+    if [ "$verify_required" = "1" ] && [ "$pin_required" = "1" ]; then
+      echo "- no credProtect, which verify-required needs. scripts/checks.ts requires a PIN, so use a security key that has it."
+    elif [ "$verify_required" = "1" ]; then
+      echo "- no credProtect, which verify-required needs: run this again without VERIFY_REQUIRED=1."
+    fi
+    [ "${RESIDENT:-}" = "1" ] && echo "- no credProtect, which a resident key needs: run this again without RESIDENT=1."
+    echo "- a libfido2 older than 1.5.0 on this machine, or a device that refuses this algorithm or option."
+    echo "To list the device's algorithms and extensions, run fido2-token -L, then fido2-token -I on the device it lists."
+    exit 1
+  fi
 fi
 
 work="$(mktemp -d)"
@@ -70,18 +121,20 @@ printf 'who-gets-the-keys approver key check\n' > "$work/message"
 new_line="${principal} namespaces=\"git\" $(cut -d' ' -f1,2 "${key}.pub")"
 printf '%s\n' "$new_line" > "$work/allowed_signers"
 echo
-echo "Signing a test message. Touch the key and enter its PIN when asked."
+echo "Signing a test message. ${sign_prompt}"
 "$keygen" -Y sign -n git -f "$key" "$work/message"
 "$keygen" -Y verify -f "$work/allowed_signers" -I "$principal" -n git -s "$work/message.sig" < "$work/message"
 if ! node --input-type=module -e '
   import { readFileSync } from "node:fs";
-  import { lacksTouchAndPin, sshSignature } from "./scripts/checks.ts";
+  import { REQUIRED_SIGNATURE_FLAGS, flagWords, lacksRequiredFlags, sshSignature } from "./scripts/checks.ts";
+  const required = REQUIRED_SIGNATURE_FLAGS | (process.argv[2] === "1" ? 0x04 : 0);
   const sig = sshSignature(readFileSync(process.argv[1], "utf8"));
-  console.log(`Signature: ${sig?.keyType ?? "unreadable"}, flags ${sig?.flags ?? "none"} (5 means a touch and a PIN).`);
-  process.exit(lacksTouchAndPin(sig) || sig?.flags === undefined ? 1 : 0);
-' "$work/message.sig"; then
-  echo "That signature lacks a touch or a PIN, so the signatures check would refuse it. Recreate the key with"
-  echo "-O verify-required on a security key that supports a PIN, and do not use -O no-touch-required."
+  console.log(`Signature: ${sig?.keyType ?? "unreadable"}, flags ${sig?.flags ?? "none"} (1 is a touch, 4 a PIN, 5 both).`);
+  console.log(`Required: ${flagWords(required)}.`);
+  process.exit(lacksRequiredFlags(sig, required) || sig?.flags === undefined ? 1 : 0);
+' "$work/message.sig" "$verify_required"; then
+  echo "That signature lacks a required flag, so it would not pass. Recreate the key with a new KEY_FILE, and do not"
+  echo "use -O no-touch-required. If a PIN is required, set VERIFY_REQUIRED=1, on a security key that supports it."
   exit 1
 fi
 
@@ -107,7 +160,7 @@ echo
 echo "1. Commit approvers.txt with the applied proposals, signed with the old key, and check it:"
 echo "git add approvers.txt"
 echo "git status --short"
-echo "git commit -S -m \"spec: approver keys live on a security key; touch and PIN on every signature\" --trailer \"Spec: SPEC-001-R12\" --trailer \"Spec: SPEC-001-R39\""
+echo "git commit -S -m \"spec: approver keys live on a security key; a touch on every signature\" --trailer \"Spec: SPEC-001-R12\" --trailer \"Spec: SPEC-001-R39\""
 echo "npm run checks"
 echo "git show HEAD:approvers.txt"
 echo "git push origin HEAD:main"

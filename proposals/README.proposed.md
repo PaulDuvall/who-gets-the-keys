@@ -68,7 +68,7 @@ A check is automated. A gate is a human approval: an approver-signed commit, or 
 | 8 | sast | Semgrep `p/default` | Any finding |
 | 9 | sca | OSV-Scanner | A known vulnerability in any npm or Python lockfile, unless `specs/sca-exceptions.toml` lists it and its `ignoreUntil` has not passed |
 | 10 | trace | git + script | No `Spec:` trailer, a requirement with no test, or an export with no `@requirement` |
-| 11 | signatures | `git verify-commit`, then the signature's flags | An unsigned change to `specs/`, `approvers.txt` or a protected path; an approver signature without a touch and a PIN; or a key in `approvers.txt` that is not a security key |
+| 11 | signatures | `git verify-commit`, then the signature's flags | An unsigned change to `specs/`, `approvers.txt` or a protected path. An approver signature without a touch: touch only for now, per the owner decision of 2026-11-05. A key in `approvers.txt` that is not a security key |
 | 12 | slides | script | `practices.yaml` disagrees with the pinned slide snapshot |
 | 13 | ratchet | script | Stryker `thresholds.break` is below the highest value it has had in any commit |
 | 14 | test | Vitest | Any test fails |
@@ -107,7 +107,7 @@ Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and
 | Principal | Can | Cannot |
 |---|---|---|
 | Agent (Claude Code) | Write code, tests and docs; propose spec, pipeline and dependency changes in `proposals/` | Sign commits, write `specs/` or any path in `specs/protected-paths.txt`, deploy, hold cloud credentials, loosen guardrails |
-| Human approver | Sign spec changes and irreversible changes, with a security key (a touch and a PIN each time); use break-glass | Deploy outside the pipeline without raising an alarm |
+| Human approver | Sign spec changes and irreversible changes, with a security key and a touch each time, touch only for now per the owner decision of 2026-11-05; use break-glass | Deploy outside the pipeline without raising an alarm |
 | `pipeline.yml` deploy role | Plan and apply `infra/sandbox` from environment `sandbox` | Be assumed from any other workflow, ref or environment |
 | Triage role | Invoke Bedrock models; the triage agent returns one label from a fixed schema | Write to the repo or post text; run a shell; reach the network beyond an allowlist |
 | Scenario probe role | Read state (`ReadOnlyAccess`) | Write: its one Lambda write grant exists so B11 can show the SCP deny it |
@@ -162,7 +162,7 @@ The deck's speaker notes name example tools for each practice. Where this repo u
 | [docs/lockdown-check.md](docs/lockdown-check.md) | Manual check that `.claude/settings.json` denies and hooks work in a local session |
 | [docs/decisions/0001-walkthrough-video.md](docs/decisions/0001-walkthrough-video.md) | Decisions behind the walkthrough video |
 | [docs/decisions/0002-agent-receipt.md](docs/decisions/0002-agent-receipt.md) | Proposed: required checks before `main`, with no pull requests needed, and a signed receipt for every deploy (SLSA, in-toto test results, CycloneDX, Sigstore) |
-| [docs/decisions/0003-approver-key.md](docs/decisions/0003-approver-key.md) | Proposed: approver signatures need a security key, a touch and a PIN |
+| [docs/decisions/0003-approver-key.md](docs/decisions/0003-approver-key.md) | Proposed: approver signatures need a security key and a touch, touch only for now per the owner decision of 2026-11-05 |
 | [docs/decisions/0004-factory-model.md](docs/decisions/0004-factory-model.md) | Proposed: the spec-to-receipt software factory. Signed spec in, signed receipt out. An approver signs the spec and the factory; checks of record and a signed receipt, not a reviewer, decide each change |
 
 ## Licence

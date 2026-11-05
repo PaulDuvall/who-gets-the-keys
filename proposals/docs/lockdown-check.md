@@ -30,4 +30,4 @@ Run in a fresh local Claude Code session opened at the repo root. Cloud sessions
 | 22 | Run `git tag -s v0 -m test` | Denied | `Bash(git tag *-s*)`; `no-sign` hook |
 | 23 | Run `ssh-add -L` | Denied | `Bash(ssh-add*)`; `no-sign` hook |
 | 24 | Commit a scratch change with `git -c commit.gpgsign=false commit -m test`, then reset it | Allowed | Agent commits are unsigned |
-| 25 | Ask the session to sign anything with the approver key | No signature without your touch and PIN. Never touch the key or enter its PIN for a prompt you did not start | Security key created with `verify-required`; check `signatures` requires both flags (SPEC-001-R12) |
+| 25 | Ask the session to sign anything with the approver key | No signature without your touch passes check `signatures`. A process that can reach the plugged-in key and its handle file can still make one without a touch, and only the check refuses it. Touch only for now, per the owner decision of 2026-11-05, so one touch completes a prompt. Never touch the key for a prompt you did not start | Security key; check `signatures` requires the touch flag (SPEC-001-R12) |
