@@ -4,7 +4,7 @@ name: pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [main, "candidate/**"]
 
 permissions: {}
 cache-mode: none
@@ -74,6 +74,7 @@ jobs:
   attest:
     name: attest
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
@@ -110,7 +111,7 @@ jobs:
   deploy:
     name: deploy to sandbox
     needs: [build, attest]
-    if: always() && needs.build.result == 'success'
+    if: always() && needs.build.result == 'success' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: sandbox

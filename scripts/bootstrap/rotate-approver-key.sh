@@ -25,6 +25,17 @@ usage() {
 
 confirm() { read -r -p "$1 [y/N] " answer; [ "$answer" = "y" ]; }
 
+# Prints one command that lands HEAD through a candidate branch: main moves only to a commit whose checks passed (SPEC-001-R41).
+# Every step is chained with &&, so a refused candidate push, no run after 5 minutes or a failed run stops it before main.
+print_landing() {
+  local branch="$1"
+  echo "commit=\"\$(git rev-parse HEAD)\" && git push origin \"\${commit}:refs/heads/${branch}\" && run=\"\" && for attempt in \$(seq 60); do run=\"\$(gh run list --workflow pipeline.yml --branch ${branch} --commit \"\$commit\" --limit 1 --json databaseId --jq '.[0].databaseId // empty')\"; [ -n \"\$run\" ] && break; sleep 5; done && { [ -n \"\$run\" ] || { echo \"No pipeline run for \${commit} on ${branch} after 5 minutes.\"; false; }; } && gh run watch \"\$run\" --exit-status && git push origin \"\${commit}:refs/heads/main\" && git push origin --delete ${branch}"
+  echo
+  echo "If the run fails, fix it in a new commit on top and run the command again. If you amend or rebase instead,"
+  echo "for example because main moved, delete the candidate branch first, or its push is refused:"
+  echo "git push origin --delete ${branch}"
+}
+
 case "${1:-}" in
   -h|--help) usage; exit 0 ;;
   "") ;;
@@ -147,7 +158,17 @@ echo "New approver key: $("$keygen" -lf "${key}.pub")"
 if [ "${APPEND:-}" = "1" ]; then
   confirm "Add the new line to approvers.txt?" || { echo "approvers.txt unchanged."; exit 1; }
   printf '%s\n' "$new_line" >> approvers.txt
-  echo "Added. Commit this with the rotation, or as its own commit signed by an approver key already listed."
+  echo "Added. If you also replaced the key in this working tree, do not commit yet: run the rotation's step 1 commands, which commit both lines."
+  echo "Otherwise commit it on its own, signed by an approver key already listed, and check it:"
+  echo "git add approvers.txt"
+  echo "git status --short"
+  echo "git commit -S -m \"approvers: add a backup security key\" --trailer \"Spec: SPEC-001-R12\""
+  echo "npm run checks"
+  echo "git show HEAD:approvers.txt"
+  echo "Before pushing, check that approvers.txt lists the approver key and the new backup key above."
+  echo "Then push it to a candidate branch, wait for that pipeline run, and move main to the exact commit it checked:"
+  echo
+  print_landing "candidate/approver-key-backup"
   exit 0
 fi
 confirm "Replace approvers.txt with the new line?" || { echo "approvers.txt unchanged."; exit 1; }
@@ -157,14 +178,16 @@ echo
 echo "Run these yourself, in order. The first commit must be signed with the OLD key, because approvers.txt as"
 echo "of a commit's parent decides who may sign it (SPEC-001-R12)."
 echo
-echo "1. Commit approvers.txt with the applied proposals, signed with the old key, and check it:"
+echo "1. Commit approvers.txt, signed with the old key, and check it:"
 echo "git add approvers.txt"
 echo "git status --short"
-echo "git commit -S -m \"spec: approver keys live on a security key; a touch on every signature\" --trailer \"Spec: SPEC-001-R12\" --trailer \"Spec: SPEC-001-R39\""
+echo "git commit -S -m \"approvers: rotate the approver key to a new security key\" --trailer \"Spec: SPEC-001-R12\""
 echo "npm run checks"
 echo "git show HEAD:approvers.txt"
-echo "git push origin HEAD:main"
 echo "Before pushing, check that approvers.txt names only your principal and the new key above."
+echo "Then push it to a candidate branch, wait for that pipeline run, and move main to the exact commit it checked."
+echo "main refuses that commit until its checks job has passed (SPEC-001-R41):"
+print_landing "candidate/approver-key-rotation"
 echo
 echo "2. From now on, sign with the security key in this repository:"
 echo "git config --local gpg.format ssh"

@@ -7,7 +7,12 @@ ruleset="protect main"
 usage() {
   echo "usage: scripts/bootstrap/github.sh [--vars]"
   echo "  default  read-only workflow token, SHA pinning required, environments sandbox and probe (main only),"
-  echo "           ruleset \"${ruleset}\" blocking force pushes, deletion and merge commits on the default branch."
+  echo "           merge commits as the only merge method (if GitHub accepts this with linear history required, no pull request"
+  echo "           merges in GitHub; a refusal is reported and the script exits 1),"
+  echo "           ruleset \"${ruleset}\" blocking force pushes, deletion and merge commits on the default branch, and"
+  echo "           requiring the pipeline's checks job, from GitHub Actions, on a commit before main moves to it (SPEC-001-R41)."
+  echo "           The ruleset names the GitHub Actions app ID read from main's checks run. If main has none yet, every"
+  echo "           other setting is applied, the ruleset is skipped and the script exits 1."
   echo "           Once the repository is public, also: you as required reviewer on sandbox and probe,"
   echo "           secret scanning, push protection and private vulnerability reporting."
   echo "  --vars   also set DEPLOY_ROLE_ARN, TRIAGE_ROLE_ARN, PROBE_ROLE_ARN from infra/sandbox outputs and TRIAGE_MODEL from \$TRIAGE_MODEL."
@@ -32,13 +37,15 @@ echo "Current settings:"
 gh api "repos/${repo}/actions/permissions/workflow" --jq '"  default workflow token: \(.default_workflow_permissions), can approve reviews: \(.can_approve_pull_request_reviews)"'
 gh api "repos/${repo}/actions/permissions" --jq '"  actions enabled: \(.enabled), allowed: \(.allowed_actions), SHA pinning required: \(.sha_pinning_required // false)"'
 gh api "repos/${repo}/environments" --jq '.environments[] | "  environment \(.name): required reviewers: \([.protection_rules[]? | select(.type == "required_reviewers") | .reviewers[]?.reviewer.login] | if length == 0 then "none" else join(", ") end)"'
+gh api "repos/${repo}" --jq '"  merge methods: merge commit \(.allow_merge_commit), squash \(.allow_squash_merge), rebase \(.allow_rebase_merge)"'
 gh api "repos/${repo}" --jq '"  secret scanning: \(.security_and_analysis.secret_scanning.status // "unavailable"), push protection: \(.security_and_analysis.secret_scanning_push_protection.status // "unavailable")"'
 reporting="$(gh api "repos/${repo}/private-vulnerability-reporting" --jq .enabled 2>/dev/null || echo unavailable)"
 echo "  private vulnerability reporting: ${reporting}"
 ruleset_id="$(gh api "repos/${repo}/rulesets?includes_parents=false" --paginate \
   --jq ".[] | select(.name == \"${ruleset}\") | .id")"
 if [ -n "$ruleset_id" ]; then
-  echo "  ruleset \"${ruleset}\": exists, id ${ruleset_id}"
+  gh api "repos/${repo}/rulesets/${ruleset_id}" \
+    --jq '"  ruleset \"\(.name)\": id \(.id), rules: \([.rules[].type] | join(", ")), bypass actors: \(.bypass_actors | length)"'
 else
   echo "  ruleset \"${ruleset}\": absent"
 fi
@@ -46,8 +53,12 @@ echo
 echo "Will set:"
 echo "  default workflow token: read, can approve reviews: false"
 echo "  actions enabled: true, allowed: all, SHA pinning required: true"
+echo "  merge methods: merge commit true, squash false, rebase false, read back after the change."
+echo "    If GitHub accepts this with linear history required, no pull request merges in GitHub"
 echo "  environments sandbox and probe, each deployable from branch main only"
-echo "  ruleset \"${ruleset}\": default branch, blocks force pushes, deletion and merge commits, no bypass actors, active (skipped if it exists)"
+echo "  ruleset \"${ruleset}\": default branch, blocks force pushes, deletion and merge commits, requires status check"
+echo "    checks from GitHub Actions on the commit itself, no bypass actors, active (created or updated)."
+echo "    The app ID is read from main's checks run just before the ruleset step. If main has none yet, the ruleset is skipped"
 if [ "$visibility" = "public" ]; then
   echo "  environments sandbox and probe: required reviewer ${me}, self-review allowed because your pushes deploy as you"
   echo "  secret scanning and push protection: enabled"
@@ -62,7 +73,6 @@ gh api -X PUT "repos/${repo}/actions/permissions/workflow" \
   -f default_workflow_permissions=read -F can_approve_pull_request_reviews=false
 gh api -X PUT "repos/${repo}/actions/permissions" \
   -F enabled=true -f allowed_actions=all -F sha_pinning_required=true
-
 reviewers=""
 if [ "$visibility" = "public" ]; then
   reviewers=", \"reviewers\": [{\"type\": \"User\", \"id\": ${me_id}}], \"prevent_self_review\": false"
@@ -89,20 +99,53 @@ JSON
   echo "secret scanning, push protection, private vulnerability reporting: enabled"
 fi
 
-if [ -n "$ruleset_id" ]; then
-  echo "ruleset \"${ruleset}\": exists, skipped"
+# GitHub's docs say linear history needs squash or rebase merging allowed, so a refusal here must not stop the ruleset.
+merge_refused=""
+if ! gh api -X PATCH "repos/${repo}" -F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=false >/dev/null; then
+  merge_refused="yes"
+fi
+merge_methods="$(gh api "repos/${repo}" --jq '"\(.allow_merge_commit) \(.allow_squash_merge) \(.allow_rebase_merge)"' || true)"
+[ "$merge_methods" = "true false false" ] || merge_refused="yes"
+if [ -n "$merge_refused" ]; then
+  echo "merge methods: not changed as asked. Read back merge commit, squash, rebase: ${merge_methods:-unreadable}"
 else
-  gh api -X POST "repos/${repo}/rulesets" --input - >/dev/null <<JSON
+  echo "merge methods: merge commits only; squash and rebase merges off"
+fi
+
+actions_app="$(gh api "repos/${repo}/commits/main/check-runs?check_name=checks" \
+  --jq '[.check_runs[] | select(.app.slug == "github-actions") | .app.id][0] // empty')"
+ruleset_skipped=""
+if [ -z "$actions_app" ]; then
+  ruleset_skipped="yes"
+  echo "ruleset \"${ruleset}\": skipped, because main has no checks run from GitHub Actions to read the app ID from"
+else
+  echo "GitHub Actions app ID, from main's checks run: ${actions_app}"
+  ruleset_body="$(cat <<JSON
 {
   "name": "${ruleset}",
   "target": "branch",
   "enforcement": "active",
   "bypass_actors": [],
   "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"], "exclude": []}},
-  "rules": [{"type": "deletion"}, {"type": "non_fast_forward"}, {"type": "required_linear_history"}]
+  "rules": [
+    {"type": "deletion"},
+    {"type": "non_fast_forward"},
+    {"type": "required_linear_history"},
+    {"type": "required_status_checks", "parameters": {
+      "strict_required_status_checks_policy": true,
+      "required_status_checks": [{"context": "checks", "integration_id": ${actions_app}}]
+    }}
+  ]
 }
 JSON
-  echo "ruleset \"${ruleset}\": created"
+)"
+  if [ -n "$ruleset_id" ]; then
+    gh api -X PUT "repos/${repo}/rulesets/${ruleset_id}" --input - >/dev/null <<<"$ruleset_body"
+    echo "ruleset \"${ruleset}\": updated"
+  else
+    gh api -X POST "repos/${repo}/rulesets" --input - >/dev/null <<<"$ruleset_body"
+    echo "ruleset \"${ruleset}\": created"
+  fi
 fi
 
 if [ "${1:-}" = "--vars" ]; then
@@ -134,9 +177,24 @@ fi
 echo
 echo "Done. Verify:"
 echo "gh api repos/${repo}/actions/permissions"
+echo "gh api repos/${repo} --jq '{allow_merge_commit, allow_squash_merge, allow_rebase_merge}'"
 echo "gh api repos/${repo}/environments --jq '.environments[] | {name, rules: [.protection_rules[].type]}'"
 echo "gh api repos/${repo}/rules/branches/main --jq '.[].type'"
+echo "gh api repos/${repo}/rules/branches/main --jq '.[] | select(.type == \"required_status_checks\") | .parameters'"
 if [ "$visibility" = "public" ]; then
   echo "gh api repos/${repo} --jq .security_and_analysis"
   echo "gh api repos/${repo}/private-vulnerability-reporting"
+fi
+if [ -n "$merge_refused" ]; then
+  echo
+  echo "GitHub refused squash and rebase merges off while linear history is required. Squash and rebase merges stay on,"
+  echo "so do not merge pull requests in GitHub. Record this in docs/verification.md."
+fi
+if [ -n "$ruleset_skipped" ]; then
+  echo
+  echo "Every other setting is applied. The ruleset \"${ruleset}\" is not: main has no checks run from GitHub Actions yet."
+  echo "Wait for main's pipeline run to start, or push to main if you have not yet, then run this script again to apply the ruleset."
+fi
+if [ -n "$merge_refused" ] || [ -n "$ruleset_skipped" ]; then
+  exit 1
 fi

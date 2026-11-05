@@ -18,6 +18,17 @@ body_of() { sed '1,/^---$/d' "$1"; }
 sha_of() { body_of "$1" | sha256 | cut -d' ' -f1; }
 header_sha() { sed -n 's/^body-sha256: //p' "$1"; }
 
+# Prints one command that lands HEAD through a candidate branch: main moves only to a commit whose checks passed (SPEC-001-R41).
+# Every step is chained with &&, so a refused candidate push, no run after 5 minutes or a failed run stops it before main.
+print_landing() {
+  local branch="$1"
+  echo "commit=\"\$(git rev-parse HEAD)\" && git push origin \"\${commit}:refs/heads/${branch}\" && run=\"\" && for attempt in \$(seq 60); do run=\"\$(gh run list --workflow pipeline.yml --branch ${branch} --commit \"\$commit\" --limit 1 --json databaseId --jq '.[0].databaseId // empty')\"; [ -n \"\$run\" ] && break; sleep 5; done && { [ -n \"\$run\" ] || { echo \"No pipeline run for \${commit} on ${branch} after 5 minutes.\"; false; }; } && gh run watch \"\$run\" --exit-status && git push origin \"\${commit}:refs/heads/main\" && git push origin --delete ${branch}"
+  echo
+  echo "If the run fails, fix it in a new commit on top and run the command again. If you amend or rebase instead,"
+  echo "for example because main moved, delete the candidate branch first, or its push is refused:"
+  echo "git push origin --delete ${branch}"
+}
+
 cd "$(git rev-parse --show-toplevel)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -78,10 +89,16 @@ fi
 git add "$target"
 
 echo
-echo "Written. Sign, verify and push with:"
+echo "Written and staged. Before you sign, reconcile practices.yaml in this same commit:"
+echo "set source.sha256 to ${new_sha}, set source.exported to the new export time, and fix any slide citations the changed lines move."
+echo "One signed commit holds the snapshot and its reconciliation, so main can accept it whether GitHub checks only the tip or every commit."
 echo
+echo "git add practices.yaml"
+echo "npm run check:slides"
 echo "git commit -S -m \"spec: refresh slide snapshot to body-sha256 ${new_sha:0:12}\""
 echo "git -c gpg.ssh.allowedSignersFile=approvers.txt verify-commit HEAD"
-echo "git push origin main"
 echo
-echo "The slides check fails until practices.yaml carries sha256 ${new_sha}. That is intended: it forces reconciliation."
+echo "Then push it to a candidate branch, wait for that pipeline run, and move main to the exact commit it checked."
+echo "main refuses that commit until its checks job has passed (SPEC-001-R41):"
+echo
+print_landing "candidate/slides-${new_sha:0:12}"

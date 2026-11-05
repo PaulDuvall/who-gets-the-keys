@@ -71,3 +71,20 @@ The approver's security key and SPEC-001-R12 are the control against an agent si
 | ID | Requirement |
 |---|---|
 | SPEC-001-R39 | WHEN a local Claude Code session runs a Bash command that could sign a commit or tag, or reach a signing key (a git signing option or signing configuration, `ssh-keygen -Y sign`, `ssh-add`, `SSH_AUTH_SOCK`, writing a commit object, or running `scripts/bootstrap/rewrite-history.ts`), THE `no-sign` PreToolUse hook SHALL exit with status 2 and append one `signing-attempt` line to `.claude/security-events.log`. Text in a commit message, meaning a `-m` argument or the heredoc of `git commit -F -`, SHALL NOT count. |
+
+## Checks before `main`
+
+`main` only moves to a commit on which the checks passed. Authors, agent or human, push a commit to a `candidate/` branch first, then push that same commit to `main`.
+
+Pull requests are for review only. Every change lands by that fast-forward push, because GitHub's squash and rebase merges write new commits that the checks never ran on.
+
+The pipeline runs once per push, on its tip. Commits below the tip are covered only by the checks that read history at the tip: trace, ratchet and signatures.
+
+The ruleset names the GitHub Actions app, not the workflow. So a job named `checks` in any workflow, or a token with `checks: write` or `statuses: write`, can report the check. SPEC-001-R41 forbids both, but the commit being checked defines its own workflows. That gap is accepted until the signer moves out of the agent's reach (decision 0002, Phase 3).
+
+The scenarios are not part of the checks before `main`. They run after landing, in `scenarios.yml` on `main`.
+
+| ID | Requirement |
+|---|---|
+| SPEC-001-R40 | WHEN a commit is pushed to a branch matching `candidate/**`, THE pipeline SHALL run only the checks and build jobs on that commit. THE attest and deploy jobs SHALL run only for `refs/heads/main`. |
+| SPEC-001-R41 | THE `protect main` ruleset that `scripts/bootstrap/github.sh` applies SHALL have no bypass actors and SHALL require the status check `checks` from the GitHub Actions app. Then `main` only moves to a commit on which `checks` passed. `scripts/bootstrap/github.sh` SHALL also allow merge commits and turn off squash and rebase merges, so that with linear history required no pull request merges in GitHub. No workflow other than `pipeline.yml` SHALL define a job named `checks`, and no workflow SHALL grant `checks: write` or `statuses: write`. |

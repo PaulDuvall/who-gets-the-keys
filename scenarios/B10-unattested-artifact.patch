@@ -1,14 +1,15 @@
 diff --git a/.github/workflows/pipeline.yml b/.github/workflows/pipeline.yml
-index 32da31c..567a667 100644
+index 7e1994a..a395aa4 100644
 --- a/.github/workflows/pipeline.yml
 +++ b/.github/workflows/pipeline.yml
-@@ -71,45 +71,9 @@ jobs:
+@@ -71,46 +71,9 @@ jobs:
            path: dist/function.zip
            if-no-files-found: error
  
 -  attest:
 -    name: attest
 -    needs: build
+-    if: github.ref == 'refs/heads/main'
 -    runs-on: ubuntu-24.04
 -    timeout-minutes: 10
 -    concurrency:
@@ -46,6 +47,6 @@ index 32da31c..567a667 100644
      name: deploy to sandbox
 -    needs: [build, attest]
 +    needs: [build]
-     if: always() && needs.build.result == 'success'
+     if: always() && needs.build.result == 'success' && github.ref == 'refs/heads/main'
      runs-on: ubuntu-24.04
      timeout-minutes: 20
