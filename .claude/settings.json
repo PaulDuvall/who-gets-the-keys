@@ -6,6 +6,10 @@
       "Bash(pnpm install *)", "Bash(pnpm i *)", "Bash(pnpm add *)",
       "Bash(yarn install *)", "Bash(yarn add *)",
       "Bash(git commit *-S*)", "Bash(git commit *--gpg-sign*)", "Bash(git *commit.gpgsign=true*)",
+      "Bash(git *--gpg-sign*)", "Bash(git *gpgsign=1*)", "Bash(git *gpgsign=yes*)", "Bash(git *gpgsign=on*)",
+      "Bash(git *gpgSign=true*)", "Bash(git *tag.gpgsign=true*)", "Bash(git *commit-tree*)",
+      "Bash(git tag *-s*)", "Bash(git tag *-u*)", "Bash(git tag *--sign*)", "Bash(git *signingkey*)", "Bash(git *signingKey*)",
+      "Bash(ssh-keygen *-Y*sign*)", "Bash(ssh-add*)", "Bash(node *rewrite-history*)",
       "Bash(git push *--force*)", "Bash(git push *-f *)", "Bash(git push *-f)",
       "Bash(terraform *apply*)", "Bash(terraform *destroy*)",
       "Bash(aws *)",
@@ -26,7 +30,8 @@
         "matcher": "Bash",
         "hooks": [
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/hook.mjs gitleaks-staged" },
-          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/hook.mjs security-event" }
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/hook.mjs security-event" },
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/hook.mjs no-sign" }
         ]
       }
     ],

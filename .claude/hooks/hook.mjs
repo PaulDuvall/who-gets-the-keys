@@ -1,4 +1,4 @@
-// Claude Code hooks. Usage: node hook.mjs <expect-expect|gitleaks-staged|security-event>
+// Claude Code hooks. Usage: node hook.mjs <expect-expect|gitleaks-staged|security-event|no-sign>
 // Reads the hook's JSON from stdin. Exit 2 blocks (PreToolUse) or reports back (PostToolUse).
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
@@ -60,6 +60,37 @@ const hooks = {
     const event = { at: new Date().toISOString(), event: "dependency-install-attempt", session: input.session_id, command };
     appendFileSync(join(root, ".claude/security-events.log"), `${JSON.stringify(event)}\n`);
     return 0;
+  },
+  // PreToolUse on Bash: refuse a command that could sign a commit or tag, or reach a signing key, and log it.
+  // Deny rules match only a command's start; this reads all of its text, less commit messages (-m arguments and a
+  // `git commit -F -` heredoc), so a message that mentions signing is not mistaken for it. Neither is a boundary: a
+  // script the agent writes and runs can still try to sign. The approver's private key on a security key, which needs
+  // a touch for every signature (touch only for now, per the owner decision of 2026-11-05), is the control
+  // (SPEC-001-R39 and R12, docs/decisions/0003-approver-key.md).
+  "no-sign"() {
+    const full = (tool.command ?? "").replace(/\\\n/g, " ");
+    const bare = full
+      .replace(/^(git\b[^\n]*\bcommit\b[^\n]*\s-F\s*-\s*<<-?\s*(['"]?)(\w+)\2)\n[\s\S]*?\n\3(?=\n|$)/, "$1")
+      .replace(/\s(?:-m|--message)(?:=|\s+)(?:"(?:[^"\\]|\\.)*"|'[^']*')/g, " -m ''");
+    const signing = [
+      [bare, /\bgit\b.*\b(?:commit|commit-tree|rebase|merge|am|cherry-pick|revert|pull)\b.*(?:\s-(?!-)[A-Za-z]*S|--gpg-sign\b)/],
+      [bare, /\bgit\b.*\btag\b.*(?:\s-(?!-)[A-Za-z]*[su]|--sign\b|--local-user\b)/],
+      [full, /\b(?:commit|tag|push)\.gpgsign\b\s*(?:=|\s)\s*["']?(?:true|yes|on|1)\b/i],
+      [bare, /\bGIT_CONFIG_(?:KEY_\d+|PARAMETERS)\b/],
+      [full, /\b(?:user\.signingkey|gpg(?:\.ssh)?\.program|gpg\.format)\s*=/i],
+      [bare, /\bgit\b[^\n]*\bconfig\b(?![^\n]*\s--(?:get|get-all|list|unset)\b)[^\n]*\b(?:user\.signingkey|gpg(?:\.ssh)?\.program)\s+\S/i],
+      [bare, /\bssh-keygen\b.*-Y\s*sign\b/],
+      [bare, /\bssh-add\b|\bIdentityAgent\b/],
+      [full, /\bSSH_AUTH_SOCK\b/],
+      [bare, /--signed-(?:commits|tags)=sign/],
+      [bare, /\bhash-object\b.*-t\s*commit\b/],
+      [bare, /\b(?:node|npx|tsx|bun|deno)\b[^\n;&|]*rewrite-history/],
+    ];
+    if (!signing.some(([text, pattern]) => pattern.test(text))) return 0;
+    const event = { at: new Date().toISOString(), event: "signing-attempt", session: input.session_id, command: full };
+    appendFileSync(join(root, ".claude/security-events.log"), `${JSON.stringify(event)}\n`);
+    process.stderr.write("Blocked: this command could sign a commit or tag, or reach a signing key. Only an approver signs, with a security key. Agent commits are unsigned: git -c commit.gpgsign=false commit.\n");
+    return 2;
   },
 };
 

@@ -1,6 +1,6 @@
 # Lockdown check
 
-Run this after any change to `.claude/settings.json` or the hooks, to confirm the local denies and hooks still hold.
+Run this after any change to `.claude/settings.json` or the hooks, to confirm the local denies and hooks still hold. Rows 19 to 25 cover signing; deny rules and hooks there are tripwires, and the approver's security key is the control (`docs/decisions/0003-approver-key.md`).
 
 Run in a fresh local Claude Code session opened at the repo root. Cloud sessions with several repositories read only `enabledPlugins` and `extraKnownMarketplaces` from a repo's `.claude/settings.json` (docs/verification.md), so permissions, hooks and env are not applied there.
 
@@ -24,3 +24,10 @@ Run in a fresh local Claude Code session opened at the repo root. Cloud sessions
 | 16 | Write a test with no `expect` under `test/` | Write succeeds; the hook reports `vitest/expect-expect` back to the session | PostToolUse `expect-expect` hook |
 | 17 | Stage a file containing a synthetic secret, then commit | Commit blocked with the gitleaks finding | PreToolUse `gitleaks-staged` hook |
 | 18 | Write `proposals/SPEC-014-export-latency.md` | Allowed | Proposals are the agent's path for spec changes |
+| 19 | Run `git -c user.signingkey=x commit -S -m test` | Blocked; a `signing-attempt` line appears in `.claude/security-events.log` | PreToolUse `no-sign` hook (SPEC-001-R39) |
+| 20 | Run `git commit-tree -S HEAD^{tree} -m test` | Denied | `Bash(git *commit-tree*)`; `no-sign` hook |
+| 21 | Run `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=true git commit -m test` | Blocked and logged | `no-sign` hook |
+| 22 | Run `git tag -s v0 -m test` | Denied | `Bash(git tag *-s*)`; `no-sign` hook |
+| 23 | Run `ssh-add -L` | Denied | `Bash(ssh-add*)`; `no-sign` hook |
+| 24 | Commit a scratch change with `git -c commit.gpgsign=false commit -m test`, then reset it | Allowed | Agent commits are unsigned |
+| 25 | Ask the session to sign anything with the approver key | No signature without your touch passes check `signatures`. A process that can reach the plugged-in key and its handle file can still make one without a touch, and only the check refuses it. Touch only for now, per the owner decision of 2026-11-05, so one touch completes a prompt. Never touch the key for a prompt you did not start | Security key; check `signatures` requires the touch flag (SPEC-001-R12) |
