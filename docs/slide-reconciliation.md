@@ -13,7 +13,7 @@ Snapshot: `specs/source-of-record/slides.txt`, body SHA-256 `f78bb192ae51591962c
 | R05 | 3 | Verify intent (was it captured correctly?) and verify behavior (does it match the intent?) separately | check `trace` (B3, B15, B16) ties code and tests to requirements; check `test` for behavior; no customer confirmation of intent | partial |
 | R06 | 4 | Backbone from local to telemetry: seconds before commit, minutes in the pipeline, hours in production | hooks (seconds); pipeline checks (minutes); a Lambda log group only (hours) | partial |
 | R07 | 4 | SAST | check `sast`, B12 | covered |
-| R08 | 4 | DAST | none; the export Lambda has no public URL to test | not covered |
+| R08 | 4 | DAST | none; the export Lambda has no public URL to test. Decision 0006 (G3, proposed) recommends recording DAST as not applicable, with no requirement, and dropping the video's DAST chip (VC14) | not covered |
 | R09 | 4 | SCA | check `sca` on every committed lockfile, B13 | covered |
 | R10 | 4 | Secrets scanning, seconds before commit and minutes in the pipeline | check `secrets`, B5; PreToolUse gitleaks hook | covered |
 | R11 | 4 | Feedback from telemetry is part of the design | none | not covered |
@@ -28,7 +28,7 @@ Snapshot: `specs/source-of-record/slides.txt`, body SHA-256 `f78bb192ae51591962c
 | R20 | 7, 13 | Attestations signed by the pipeline, never the agent; no evidence, no deploy | attest job; check `attestation` in the deploy job, B10 | covered |
 | R21 | 7 | Provenance: commit, spec ID, agent, model version | custom predicate; agent commits record no model version (D05) | partial |
 | R22 | 7 | Intent verification: the customer confirms the spec | none | not covered |
-| R23 | 7 | Independent validator: spec to code, code to spec; can fail, never pass | check `trace` verifies both directions; the validator subagent is advisory and nothing runs it | partial |
+| R23 | 7 | Independent validator: spec to code, code to spec; can fail, never pass | check `trace` verifies both directions; the validator subagent is advisory and nothing runs it. Proposed in decision 0006: a `validator` job whose fail sticks to the change and whose pass changes nothing. See SPEC-001-R144 to R153 and R191 to R194, B49 to B58 and B72 to B77 | partial |
 | R24 | 8, 10 | The agent can write anything and ship nothing; nothing else can change prod | deploy role trusted only by `pipeline.yml` environment `sandbox`; `infra/org` SCP; B11 | covered |
 | R25 | 8 | The agent proposes spec and pipeline changes but cannot apply them | `specs/` and every path in `specs/protected-paths.txt` change only through `proposals/` and an approver-signed commit; check `signatures`, B4, B18 | covered |
 | R26 | 8 | The agent cannot loosen its own guardrails | check `ratchet`, B7; check `signatures` on protected pipeline paths, B18 | covered |
@@ -39,11 +39,11 @@ Snapshot: `specs/source-of-record/slides.txt`, body SHA-256 `f78bb192ae51591962c
 | R31 | 10 | Pinned inputs | actions by full commit SHA, check `workflows`, B8b; lockfiles with integrity hashes, `npm ci`, pip `--require-hashes`; no container images are used | covered |
 | R32 | 10 | One deploy identity | deploy role trust policy, short-lived OIDC credentials | covered |
 | R33 | 10 | The pipeline is the most protected thing in the system | workflows, check script and CI tools are protected paths, check `signatures`, B18; zizmor in check `workflows`; ruleset blocks force pushes and deletion | covered |
-| R34 | 11 | Prod drift: a prod change with no attested pipeline run or spec trace is redeployed and someone notified | none; no drift monitor exists | not covered |
-| R35 | 11 | Pipeline drift freezes deploys | check `workflows` runs on every push; nothing freezes later deploys | partial |
-| R36 | 11 | Spec drift freezes deploys | check `signatures` fails every run after an unsigned spec change, B4; a signed fix-forward does not lift it, because the check reads all history | partial |
+| R34 | 11 | Prod drift: a prod change with no attested pipeline run or spec trace is redeployed and someone notified | none; no drift monitor exists. Proposed in decision 0006: a drift monitor in a security account records a code finding and notifies, for changed code or function configuration, SPEC-001-R156 and R196, B61 and B79. Deploys freeze until an approver clears the finding. Then the pipeline redeploys `main`'s tip, never the monitor, so nothing redeploys over break-glass (P34; R159; owner decisions 14 and 26) | not covered |
+| R35 | 11 | Pipeline drift freezes deploys | check `workflows` runs on every push; nothing freezes later deploys. Proposed in decision 0006: an unsigned pipeline change on `main` becomes a history finding that freezes deploys, SPEC-001-R157 to R159, B62 to B64. A failed read publishes no report, so the freeze fails closed, SPEC-001-R195, B78 | partial |
+| R36 | 11 | Spec drift freezes deploys | check `signatures` fails every run after an unsigned spec change, B4; a signed fix-forward does not lift it, because the check reads all history. Proposed in decision 0006: an unsigned spec change on `main` becomes a history finding, and the freeze check refuses deploys while it is open, SPEC-001-R157 to R159, B64 | partial |
 | R37 | 11 | Break-glass is a separate, alarmed path | break-glass role and EventBridge alarm in `infra/` | covered |
-| R38 | 11 | Detection runs in a security account the pipeline can't touch | none; the only detector is in the workload account, applied by the pipeline | not covered |
+| R38 | 11 | Detection runs in a security account the pipeline can't touch | none; the only detector is in the workload account, applied by a person with the break-glass role (`infra/sandbox/iam.tf`). Proposed in decision 0006: a security account that no workload principal can act on, SPEC-001-R154, B59, and that trusts no outside principal, SPEC-001-R197, B80. It reads the workload through a read-only drift-read role, SPEC-001-R155, B60 | not covered |
 | R39 | 12 | The human's fix runs the same pipeline as the agent's | `pipeline.yml` has one path for every commit | covered |
 | R40 | 12 | Telemetry closes the loop, in hours | none | not covered |
 | R41 | 12 | Risk tiers, set in the room, route every change | none | not covered |

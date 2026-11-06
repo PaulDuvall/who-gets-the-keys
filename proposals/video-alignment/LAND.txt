@@ -1,0 +1,171 @@
+# Review copy of decision 0006's spec text: docs/decisions/0006-video-alignment.md, "Staged spec text".
+# Both copies are built on proposals/phase-1/'s copies, which land first. They add the "Video alignment" section and amend
+# R45 and R55 in place for the validator record and the VALIDATOR line.
+# Decision 0006's Plan lands these rows stage by stage instead, each in proposals/video-alignment-<stage>/ beside its tests
+# and code. Land this batch only if the owner chooses to land all five stages' spec text in one commit.
+# The requires lines refuse it until Phase 1, the drafts it cites, the policy blocks, the harness modes and a test naming
+# each new requirement ID are all on main. Without those tests the trace check would fail (SPEC-001-R11 (b)).
+# By then specs/SPEC-001-delivery-pipeline.md and traceability.md will have changed. Rebuild both copies on main first,
+# in a commit of their own, keeping only this batch's rows and its R45 and R55 amendments.
+# land.sh then warns that the copies are older than their destinations. It may list R45 and R55 rows the copy lacks:
+# those are this batch's own amendments. If it lists any other line, answer no.
+# The copies keep SPEC-001-R190, the deploy-tip batch's row, which proposals/phase-1/'s copy also holds since 689bb30.
+# That batch is not this one: land it first, or drop R190 from both copies when rebuilding them.
+message: spec: video alignment, decision 0006
+spec: SPEC-001-R45
+spec: SPEC-001-R55
+spec: SPEC-001-R144
+spec: SPEC-001-R145
+spec: SPEC-001-R146
+spec: SPEC-001-R147
+spec: SPEC-001-R148
+spec: SPEC-001-R149
+spec: SPEC-001-R150
+spec: SPEC-001-R151
+spec: SPEC-001-R152
+spec: SPEC-001-R153
+spec: SPEC-001-R154
+spec: SPEC-001-R155
+spec: SPEC-001-R156
+spec: SPEC-001-R157
+spec: SPEC-001-R158
+spec: SPEC-001-R159
+spec: SPEC-001-R160
+spec: SPEC-001-R161
+spec: SPEC-001-R162
+spec: SPEC-001-R163
+spec: SPEC-001-R164
+spec: SPEC-001-R165
+spec: SPEC-001-R166
+spec: SPEC-001-R167
+spec: SPEC-001-R168
+spec: SPEC-001-R169
+spec: SPEC-001-R170
+spec: SPEC-001-R171
+spec: SPEC-001-R172
+spec: SPEC-001-R173
+spec: SPEC-001-R174
+spec: SPEC-001-R175
+spec: SPEC-001-R176
+spec: SPEC-001-R177
+spec: SPEC-001-R178
+spec: SPEC-001-R179
+spec: SPEC-001-R180
+spec: SPEC-001-R181
+spec: SPEC-001-R182
+spec: SPEC-001-R183
+spec: SPEC-001-R184
+spec: SPEC-001-R185
+spec: SPEC-001-R186
+spec: SPEC-001-R187
+spec: SPEC-001-R188
+spec: SPEC-001-R189
+spec: SPEC-001-R191
+spec: SPEC-001-R192
+spec: SPEC-001-R193
+spec: SPEC-001-R194
+spec: SPEC-001-R195
+spec: SPEC-001-R196
+spec: SPEC-001-R197
+spec: SPEC-001-R198
+spec: SPEC-001-R199
+spec: SPEC-001-R200
+spec: SPEC-001-R201
+spec: SPEC-001-R202
+spec: SPEC-001-R203
+spec: SPEC-001-R204
+spec: SPEC-001-R205
+spec: SPEC-001-R206
+# Phase 1 is in place (decision 0002, proposals/phase-1/).
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R45 |
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R55 |
+# The drafts these rows cite are signed: 0002's R57, 0004's R64, R68 and R107, and 0005's R115, R116, R119 to R122
+# and R140. The deploy-tip batch's R190 is in place.
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R57 |
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R64 |
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R68 |
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R107 |
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R115 |
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R116 |
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R119 |
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R120 |
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R121 |
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R122 |
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R140 |
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R190 |
+# The receipt policy holds the validator and drift blocks that R144 to R159 read.
+requires: specs/receipt-policy.json "validator"
+requires: specs/receipt-policy.json "drift"
+# The harness defines every mode the scenario rows name (R166).
+requires: scenarios/run.ts validator-verify
+requires: scenarios/run.ts drift-verify
+requires: scenarios/run.ts hook-verify
+requires: scenarios/run.ts single-check
+requires: scenarios/run.ts receipt-verify
+requires: scenarios/run.ts task-verify
+requires: scenarios/run.ts release-verify
+# A test names each new requirement ID, in the file proposals/video-alignment/traceability.md lists for it.
+requires: test/checks.test.ts SPEC-001-R144
+requires: test/validator.test.ts SPEC-001-R145
+requires: test/validator.test.ts SPEC-001-R146
+requires: test/validator.test.ts SPEC-001-R147
+requires: test/validator.test.ts SPEC-001-R148
+requires: test/checks.test.ts SPEC-001-R149
+requires: test/validator.test.ts SPEC-001-R150
+requires: test/checks-before-main.test.ts SPEC-001-R151
+requires: test/validator.test.ts SPEC-001-R152
+requires: test/receipt.test.ts SPEC-001-R153
+requires: test/drift.test.ts SPEC-001-R154
+requires: test/drift.test.ts SPEC-001-R155
+requires: test/drift.test.ts SPEC-001-R156
+requires: test/drift.test.ts SPEC-001-R157
+requires: test/checks.test.ts SPEC-001-R158
+requires: test/checks.test.ts SPEC-001-R159
+requires: test/checks.test.ts SPEC-001-R160
+requires: test/receipt.test.ts SPEC-001-R161
+requires: test/issue-fields.test.ts SPEC-001-R162
+requires: test/issue-fields.test.ts SPEC-001-R163
+requires: test/hook.test.ts SPEC-001-R164
+requires: test/release.test.ts SPEC-001-R165
+requires: test/scenarios.test.ts SPEC-001-R166
+requires: test/scenarios.test.ts SPEC-001-R167
+requires: test/scenarios.test.ts SPEC-001-R168
+requires: test/scenarios.test.ts SPEC-001-R169
+requires: test/scenarios.test.ts SPEC-001-R170
+requires: test/scenarios.test.ts SPEC-001-R171
+requires: test/scenarios.test.ts SPEC-001-R172
+requires: test/scenarios.test.ts SPEC-001-R173
+requires: test/scenarios.test.ts SPEC-001-R174
+requires: test/scenarios.test.ts SPEC-001-R175
+requires: test/scenarios.test.ts SPEC-001-R176
+requires: test/scenarios.test.ts SPEC-001-R177
+requires: test/scenarios.test.ts SPEC-001-R178
+requires: test/scenarios.test.ts SPEC-001-R179
+requires: test/scenarios.test.ts SPEC-001-R180
+requires: test/scenarios.test.ts SPEC-001-R181
+requires: test/scenarios.test.ts SPEC-001-R182
+requires: test/scenarios.test.ts SPEC-001-R183
+requires: test/scenarios.test.ts SPEC-001-R184
+requires: test/scenarios.test.ts SPEC-001-R185
+requires: test/scenarios.test.ts SPEC-001-R186
+requires: test/scenarios.test.ts SPEC-001-R187
+requires: test/scenarios.test.ts SPEC-001-R188
+requires: test/scenarios.test.ts SPEC-001-R189
+requires: test/validator.test.ts SPEC-001-R191
+requires: test/validator.test.ts SPEC-001-R192
+requires: test/validator.test.ts SPEC-001-R193
+requires: test/validator.test.ts SPEC-001-R194
+requires: test/drift.test.ts SPEC-001-R195
+requires: test/drift.test.ts SPEC-001-R196
+requires: test/drift.test.ts SPEC-001-R197
+requires: test/scenarios.test.ts SPEC-001-R198
+requires: test/scenarios.test.ts SPEC-001-R199
+requires: test/scenarios.test.ts SPEC-001-R200
+requires: test/scenarios.test.ts SPEC-001-R201
+requires: test/scenarios.test.ts SPEC-001-R202
+requires: test/scenarios.test.ts SPEC-001-R203
+requires: test/scenarios.test.ts SPEC-001-R204
+requires: test/scenarios.test.ts SPEC-001-R205
+requires: test/scenarios.test.ts SPEC-001-R206
+move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
+move: traceability.md traceability.md
