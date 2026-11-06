@@ -295,6 +295,15 @@ git diff --cached -- specs/SPEC-001-delivery-pipeline.md traceability.md
 6. Run `git push origin --delete candidate/receipt-tracer`. Then `npm run scenario -- B10` must print `CHECK attestation FAILED: dist/function.zip`.
 7. Have the agent record both run IDs and what steps 3 and 6 printed in `docs/verification.md`, replacing "pending owner verification (E2E-R1)" with the run date. That commit is round 2: land it through `candidate/` and `main` as in steps 2 and 4. Its receipt must show `AGENT Claude Code (as reported by the commit)` and `MODEL not recorded`. Record its run ID with the next change.
 
+Once `scripts/bootstrap/land.sh` is on `main` (README, "How changes land"), `scripts/bootstrap/land.sh proposals/phase-1 --stop-before-main` replaces the `waitrun` and staging block, step 1, the push and wait of step 2, and step 4:
+
+- It checks the Phase 0 precondition. In its full diff, check that the spec diff only amends R40 and adds the "Receipt" section.
+- It warns that some staged copies are older than their destinations. Under "Changed since by", expect only `7d629fd`, `d388f51` and the commit that landed `land.sh`. If any other commit appears, answer no.
+- Its candidate branch is `candidate/land-phase-1`, so step 2's summary shows `SIGNED pipeline.yml@refs/heads/candidate/land-phase-1 (editable by the agent)`.
+- When it stops, set `run` to the candidate run ID it printed and do step 3. `HEAD` is the signed commit.
+- Then run the `--to-main` command it printed. Do step 5 while it watches main's run, before you approve the deploy.
+- It deletes the candidate branch itself, so step 6 is only the B10 scenario. Then do step 7.
+
 ## Draft requirements
 
 | ID | Requirement |

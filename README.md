@@ -151,6 +151,36 @@ The deck's speaker notes name example tools for each practice. Where this repo u
 | `.claude/` | Settings (deny rules, env, hooks), hook script, subagents, the video skill |
 | `CLAUDE.md` | Conventions and authority boundaries for Claude Code sessions |
 
+## How changes land
+
+`main` only moves to a commit whose checks passed (SPEC-001-R41). Each change goes to `candidate/<topic>`, its checks pass there, and that same SHA goes to `main`. The deploy from `main` then waits for the `sandbox` reviewer's approval, a gate. The agent lands its own commits to unprotected paths this way, unsigned, as `CLAUDE.md` says. The owner lands each staged batch of protected files in `proposals/` as one signed commit, with `scripts/bootstrap/land.sh`.
+
+`scripts/bootstrap/land.sh proposals/<batch> [--stop-before-main]` moves the files that the batch's `LAND.txt` lists and shows the diff. It asks for your review, one security-key tap and then, in GitHub, your approval of the sandbox deploy. In between, it pushes the commit to `candidate/land-<batch>`, waits for that run, pushes the same SHA to `main` and deletes the candidate branch. If a run fails, fix it in a new commit on top; never amend. `--stop-before-main` stops after the candidate run and prints the `--to-main` command that finishes the landing.
+
+`proposals/land/` holds `land.sh` itself, so land it by hand once. Stop if the first block prints anything, and read all of `land.sh` in the second block's diff:
+
+```bash
+git pull -q --ff-only origin main && git status --short
+```
+
+```bash
+git mv -f proposals/land/scripts/bootstrap/land.sh scripts/bootstrap/land.sh
+git mv -f proposals/land/test/land.test.ts test/land.test.ts
+git mv -f proposals/land/traceability.md traceability.md
+git rm -q proposals/land/LAND.txt
+git diff --cached --no-renames --stat
+git diff --cached --no-renames -- scripts/bootstrap/land.sh test/land.test.ts traceability.md
+```
+
+If the stat lists only these files, sign with one tap and finish through the script:
+
+```bash
+git commit -S -m "spec: one-command landing for staged batches" --trailer "Spec: SPEC-001-R41"
+git -c gpg.ssh.allowedSignersFile=approvers.txt verify-commit HEAD && git push origin HEAD:refs/heads/candidate/land-script && scripts/bootstrap/land.sh --to-main "$(git rev-parse HEAD)" candidate/land-script
+```
+
+The queue, in order: `proposals/land/` by hand, as above. Then `proposals/phase-1/` with `--stop-before-main`, following "Phase 1 owner steps" in decision 0002, because its end-to-end test runs a deploy-mode receipt probe between the candidate run and `main`. Then later batches, one `land.sh` run each.
+
 ## Docs
 
 | Doc | Contents |
