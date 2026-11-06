@@ -5,7 +5,8 @@ region="us-east-1"
 
 usage() {
   echo "usage: EXPECTED_ACCOUNT_ID=<sandbox account> scripts/bootstrap/aws.sh [--bedrock-form <form.json>]"
-  echo "  creates the Terraform state bucket in the sandbox account's S3 account regional namespace"
+  echo "  creates the Terraform state bucket in the sandbox account's S3 account regional namespace and, if the"
+  echo "  account has none, the GitHub OIDC provider"
   echo "  (needs an AWS CLI with create-bucket --bucket-namespace), optionally submits the Anthropic"
   echo "  first-time-use form for Bedrock, then prints the apply commands for you to run"
 }
@@ -46,6 +47,34 @@ owned put-public-access-block --bucket "$bucket" --public-access-block-configura
 owned put-bucket-policy --bucket "$bucket" --policy "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"TlsOnly\",\"Effect\":\"Deny\",\"Principal\":\"*\",\"Action\":\"s3:*\",\"Resource\":[\"arn:aws:s3:::${bucket}\",\"arn:aws:s3:::${bucket}/*\"],\"Condition\":{\"Bool\":{\"aws:SecureTransport\":\"false\"}}}]}"
 echo "State bucket ready."
 
+provider_arn="arn:aws:iam::${expected}:oidc-provider/token.actions.githubusercontent.com"
+echo
+if clients=$(aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$provider_arn" \
+    --query ClientIDList --output text 2>/dev/null); then
+  echo "GitHub OIDC provider exists; infra/sandbox reads it and does not manage it."
+  case " ${clients} " in
+    *[[:space:]]sts.amazonaws.com[[:space:]]*) echo "It lists client ID sts.amazonaws.com, which the role trust policies require." ;;
+    *)
+      echo "It does not list client ID sts.amazonaws.com, which the role trust policies require. Client IDs: ${clients}"
+      if confirm "Add sts.amazonaws.com to it? Other repositories using the provider are not affected."; then
+        aws iam add-client-id-to-open-id-connect-provider --open-id-connect-provider-arn "$provider_arn" \
+          --client-id sts.amazonaws.com
+        echo "Client ID added."
+      else
+        echo "Not added. The pipeline cannot assume its roles until it is."
+      fi
+      ;;
+  esac
+else
+  echo "Account ${expected} has no GitHub OIDC provider. infra/sandbox reads it, so it must exist before the first apply."
+  if confirm "Create it, with client ID sts.amazonaws.com?"; then
+    aws iam create-open-id-connect-provider --url https://token.actions.githubusercontent.com --client-id-list sts.amazonaws.com >/dev/null
+    echo "GitHub OIDC provider created."
+  else
+    echo "Not created. The sandbox apply fails until it exists."
+  fi
+fi
+
 if [ -n "$form" ]; then
   echo
   echo "Will submit ${form} as the Anthropic first-time-use form for Bedrock in account ${actual}."
@@ -74,7 +103,7 @@ echo "3. Repository variables from the outputs:"
 echo "TRIAGE_MODEL=<bedrock model or inference profile ID> scripts/bootstrap/github.sh --vars"
 echo
 echo "4. After the SCP, the pipeline applies only the export Lambda, its table, its log group and its role's policies."
-echo "   Changes to the other roles, the OIDC provider, the Lambda role boundary, the KMS key or the break-glass alarm"
+echo "   Changes to the other roles, the Lambda role boundary, the KMS key or the break-glass alarm"
 echo "   fail in the deploy job. Apply them yourself as who-gets-the-keys-break-glass, with MFA; this fires the alarm:"
 echo "terraform -chdir=infra/sandbox plan -out=plan.out -var artifact_sha256=\$(openssl dgst -sha256 -binary dist/function.zip | base64)"
 echo "terraform -chdir=infra/sandbox apply plan.out"

@@ -1,6 +1,8 @@
-resource "aws_iam_openid_connect_provider" "github" {
-  url            = "https://token.actions.githubusercontent.com"
-  client_id_list = ["sts.amazonaws.com"]
+# The GitHub OIDC provider is account-wide and may already serve other repositories, so this stack reads it by ARN
+# instead of owning it; scripts/bootstrap/aws.sh creates it when an account has none. Reading by ARN needs only
+# iam:GetOpenIDConnectProvider on that ARN, which the deploy role's ReadIdentities statement grants.
+data "aws_iam_openid_connect_provider" "github" {
+  arn = "arn:aws:iam::${local.account_id}:oidc-provider/token.actions.githubusercontent.com"
 }
 
 locals {
@@ -24,7 +26,7 @@ data "aws_iam_policy_document" "github_trust" {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     principals {
       type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
     }
     condition {
       test     = "StringEquals"
@@ -91,7 +93,7 @@ data "aws_iam_policy_document" "deploy" {
     resources = [
       "arn:aws:iam::${local.account_id}:role${local.role_path}*",
       "arn:aws:iam::${local.account_id}:policy${local.role_path}*",
-      aws_iam_openid_connect_provider.github.arn,
+      data.aws_iam_openid_connect_provider.github.arn,
     ]
   }
   statement {
@@ -161,7 +163,7 @@ data "aws_iam_policy_document" "deploy" {
     actions = local.identity_writes
     resources = [
       aws_iam_role.deploy.arn, aws_iam_role.triage.arn, aws_iam_role.probe.arn, aws_iam_role.break_glass.arn,
-      aws_iam_openid_connect_provider.github.arn, aws_iam_policy.export_lambda_boundary.arn,
+      data.aws_iam_openid_connect_provider.github.arn, aws_iam_policy.export_lambda_boundary.arn,
     ]
   }
   statement {
@@ -266,7 +268,7 @@ resource "aws_iam_role_policy_attachment" "break_glass" {
 }
 
 # Identity changes after the SCP is attached go through this role, with MFA, which fires the break-glass alarm.
-# PowerUserAccess grants no IAM, so this adds IAM for this workload's roles, policies and OIDC provider only.
+# PowerUserAccess grants no IAM, so this adds IAM for this workload's roles and policies and the account's GitHub OIDC provider only.
 # Changing roles and their policies is this role's purpose, so Semgrep's privilege-escalation and resource-exposure
 # rules are suppressed for this one statement; no user, access-key or login-profile action is granted.
 resource "aws_iam_role_policy" "break_glass_identity" {
@@ -294,7 +296,7 @@ resource "aws_iam_role_policy" "break_glass_identity" {
       Resource = [
         "arn:aws:iam::${local.account_id}:role${local.role_path}*",
         "arn:aws:iam::${local.account_id}:policy${local.role_path}*",
-        aws_iam_openid_connect_provider.github.arn,
+        data.aws_iam_openid_connect_provider.github.arn,
       ]
     }]
   })

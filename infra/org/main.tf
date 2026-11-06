@@ -39,7 +39,9 @@ locals {
 }
 
 # Workload and the export Lambda's role: only the deploy and break-glass roles write them.
-# Every other identity of this workload, its policies and the OIDC provider: only the break-glass role.
+# Every other identity of this workload and its policies: only the break-glass role. The GitHub OIDC provider is
+# account-wide and may serve other repositories, so this SCP leaves it alone; each role's trust policy pins sub, aud
+# and job_workflow_ref.
 # SCPs do not apply to service-linked roles; the aws-service-role exclusion is explicit anyway.
 resource "aws_organizations_policy" "sandbox_writes" {
   name        = "who-gets-the-keys-sandbox-writes"
@@ -81,7 +83,6 @@ resource "aws_organizations_policy" "sandbox_writes" {
           "${local.role_arn}who-gets-the-keys-triage-bedrock",
           "${local.role_arn}who-gets-the-keys-scenario-probe",
           "arn:aws:iam::${local.account}:policy/who-gets-the-keys/*",
-          "arn:aws:iam::${local.account}:oidc-provider/token.actions.githubusercontent.com",
         ]
         Condition = { ArnNotLike = { "aws:PrincipalArn" = [local.break_glass, local.service_linked] } }
       },
