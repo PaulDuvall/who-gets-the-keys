@@ -1,0 +1,10 @@
+# Deviation D25: infra/sandbox reads the account's GitHub OIDC provider instead of owning it,
+# and scripts/bootstrap/aws.sh creates the provider only when the account has none.
+# After landing: run scripts/bootstrap/aws.sh, then the sandbox and org applies it prints,
+# then scripts/bootstrap/github.sh --vars.
+message: infra: read the shared GitHub OIDC provider instead of owning it (D25)
+spec: SPEC-001-R28
+spec: SPEC-001-R30
+move: infra/sandbox/iam.tf infra/sandbox/iam.tf
+move: infra/org/main.tf infra/org/main.tf
+move: scripts/bootstrap/aws.sh scripts/bootstrap/aws.sh
