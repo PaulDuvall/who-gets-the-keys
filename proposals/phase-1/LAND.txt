@@ -1,8 +1,8 @@
 # Receipt tracer bullet, slice 1: docs/decisions/0002-agent-receipt.md, "Phase 1 owner steps".
 # Land it with --stop-before-main. Step 3 runs a deploy-mode receipt probe between the candidate run and main.
 # land.sh warns that some staged copies are older than their destinations. Under "Changed since by", expect only
-# 7d629fd, d388f51 and the commit that landed land.sh. Slice 1 was drafted on top of those, so the lines it says the
-# copies lack are slice 1's own edits. If any other commit appears, answer no.
+# 7d629fd, d388f51, the commit that landed land.sh and the commit that landed deploy-tip. Slice 1 was drafted on top
+# of those, so the lines it says the copies lack are slice 1's own edits. If any other commit appears, answer no.
 message: spec: receipt tracer bullet, slice 1
 spec: SPEC-001-R40
 spec: SPEC-001-R45
@@ -14,6 +14,8 @@ spec: SPEC-001-R56
 requires: scripts/checks.ts export const REQUIRED_SIGNATURE_FLAGS
 requires: specs/SPEC-001-delivery-pipeline.md SPEC-001-R41
 requires: .github/workflows/pipeline.yml candidate/
+# proposals/deploy-tip has landed. Its own commit brings in SPEC-001-R190 under a Spec trailer, and this batch keeps it.
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R190 |
 move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
 move: github-workflows/pipeline.yml .github/workflows/pipeline.yml
 move: scripts/checks.ts scripts/checks.ts

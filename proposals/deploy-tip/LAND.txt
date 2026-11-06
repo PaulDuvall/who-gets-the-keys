@@ -1,0 +1,18 @@
+# Deploy only main's tip (SPEC-001-R190). An older run's deploy, approved after main has moved, stops before it reads
+# the artifact or calls AWS. Its artifact would still pass SPEC-001-R17, because it was attested when built.
+# Land it before Phase 1. proposals/phase-1 already carries this change, so landing Phase 1 afterwards keeps it.
+# Phase 1's manifest requires SPEC-001-R190 on main, so land.sh refuses Phase 1 until this batch has landed.
+# If Phase 1 has landed anyway, this change is already in place, so do not land this batch.
+# Only runs of this commit and later ones carry the step. Reject by hand any deploy still waiting in an earlier run.
+message: spec: deploy only main's tip (SPEC-001-R190)
+spec: SPEC-001-R190
+# Decision 0003 and Phase 0 are in place.
+requires: scripts/checks.ts export const REQUIRED_SIGNATURE_FLAGS
+requires: specs/SPEC-001-delivery-pipeline.md SPEC-001-R41
+requires: .github/workflows/pipeline.yml candidate/
+move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
+move: github-workflows/pipeline.yml .github/workflows/pipeline.yml
+move: scripts/checks.ts scripts/checks.ts
+move: test/checks.test.ts test/checks.test.ts
+move: test/checks-before-main.test.ts test/checks-before-main.test.ts
+move: traceability.md traceability.md

@@ -179,7 +179,7 @@ git commit -S -m "spec: one-command landing for staged batches" --trailer "Spec:
 git -c gpg.ssh.allowedSignersFile=approvers.txt verify-commit HEAD && git push origin HEAD:refs/heads/candidate/land-script && scripts/bootstrap/land.sh --to-main "$(git rev-parse HEAD)" candidate/land-script
 ```
 
-The queue, in order: `proposals/land/` by hand, as above. Then `proposals/phase-1/` with `--stop-before-main`, following "Phase 1 owner steps" in decision 0002, because its end-to-end test runs a deploy-mode receipt probe between the candidate run and `main`. Then later batches, one `land.sh` run each.
+The queue, in order: `proposals/land/` by hand, as above. Then `proposals/deploy-tip/`, one `land.sh` run, because Phase 1's manifest requires it. Then `proposals/phase-1/` with `--stop-before-main`, following "Phase 1 owner steps" in decision 0002, because its end-to-end test runs a deploy-mode receipt probe between the candidate run and `main`. Then later batches, one `land.sh` run each.
 
 ## Docs
 

@@ -8,7 +8,8 @@ import { parse } from "yaml";
 const read = (path: string) => readFileSync(path, "utf8");
 
 type Permissions = string | Record<string, string> | undefined;
-interface Job { name?: string; if?: string; needs?: string | string[]; environment?: string; permissions?: Permissions }
+interface Step { name?: string; uses?: string; run?: string }
+interface Job { name?: string; if?: string; needs?: string | string[]; environment?: string; permissions?: Permissions; steps?: Step[] }
 interface Workflow { on: { push?: { branches?: string[] } }; permissions?: Permissions; jobs: Record<string, Job> }
 interface Rule { type: string; parameters?: { strict_required_status_checks_policy: boolean; required_status_checks: { context: string; integration_id: number }[] } }
 interface Ruleset { name: string; bypass_actors: unknown[]; enforcement: string; conditions: { ref_name: { include: string[] } }; rules: Rule[] }
@@ -89,6 +90,22 @@ describe("SPEC-001 checks before main", () => {
     expect(pipeline.jobs["deploy"]?.environment).toBe("sandbox");
     const withEnvironment = Object.entries(pipeline.jobs).filter(([, job]) => job.environment !== undefined).map(([id]) => id);
     expect(withEnvironment).toEqual(["deploy"]);
+  });
+
+  it("SPEC-001-R190 the deploy job checks main's tip right after checkout, before it reads the artifact, verifies the attestation or calls AWS", () => {
+    const steps = pipeline.jobs["deploy"]?.steps ?? [];
+    const at = (match: (step: Step) => boolean) => steps.findIndex(match);
+    const tip = at((s) => s.run === "node scripts/checks.ts deploy-tip");
+    expect(tip).toBeGreaterThan(0);
+    expect(steps.slice(0, tip).map((s) => s.uses?.split("@")[0]).filter((uses) => uses !== "actions/setup-node")).toEqual(["actions/checkout"]);
+    const later = [
+      at((s) => s.uses?.startsWith("actions/download-artifact@") === true),
+      at((s) => s.run?.startsWith("node scripts/checks.ts attestation ") === true),
+      at((s) => s.uses?.startsWith("aws-actions/configure-aws-credentials@") === true),
+    ];
+    expect(later.map((i) => i > tip)).toEqual([true, true, true]);
+    const elsewhere = Object.entries(pipeline.jobs).filter(([id, job]) => id !== "deploy" && (job.steps ?? []).some((s) => s.run?.includes("deploy-tip") === true));
+    expect(elsewhere).toEqual([]);
   });
 
   it("SPEC-001-R41 only pipeline.yml defines a job named checks, no other job name is an expression, and no workflow grants checks: write or statuses: write", () => {
