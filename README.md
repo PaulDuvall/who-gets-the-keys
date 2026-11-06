@@ -194,6 +194,7 @@ The queue, in order: `proposals/land/` by hand, as above. Then `proposals/phase-
 | [docs/decisions/0002-agent-receipt.md](docs/decisions/0002-agent-receipt.md) | Proposed: required checks before `main`, with no pull requests needed, and a signed receipt for every deploy (SLSA, in-toto test results, CycloneDX, Sigstore) |
 | [docs/decisions/0003-approver-key.md](docs/decisions/0003-approver-key.md) | Proposed: approver signatures need a security key and a touch, touch only for now per the owner decision of 2026-11-05 |
 | [docs/decisions/0004-factory-model.md](docs/decisions/0004-factory-model.md) | Proposed: the spec-to-receipt software factory. Signed spec in, signed receipt out. An approver signs the spec and the factory; checks of record and a signed receipt, not a reviewer, decide each change |
+| [docs/notes/spec-to-production-factory.md](docs/notes/spec-to-production-factory.md) | Concept notes from the post-talk discussion, November 2026: where human signatures go, segregation of duties, regulated environments and untrusted input |
 
 ## Licence
 
