@@ -1,6 +1,7 @@
 # 0004. The spec-to-receipt software factory
 
 - Status: Proposed
+- Status: Superseded in part by [0005](0005-signatures-and-triggers.md), once approved. Approval by tier: "What a human does" row 2, the principle "Judgment once, upstream", decision 14 and the "Where tiers live" row (0005 R111 to R117). Release signatures by tier: row 3, R77, R79, the owner decision "Reviewer tiers by environment" and the owner question "Who reviews production" (R120 to R124). Alarm-started runs: the principle "Trusted signals start runs", R83, R92 and the owner question on trusted signals (R125 to R129). New ORIGIN and TRIGGER receipt lines: decision 11 and "Receipt" (R118, R119)
 - Date: 2026-11-05; owner decisions and additions recorded 2026-11-05
 - Requirements: proposed SPEC-001-R64 to SPEC-001-R110. None is in the signed spec yet. They follow SPEC-001-R63, the highest ID used in `specs/`, `proposals/` and `docs/` (decision 0002). R97 to R106 add factory versions and proven tightenings (owner additions); R107 to R110 close review findings
 - Builds on: decision 0002 (proposed), whose Phases 0, 1, 2 and 3 it needs, and decision 0003 (proposed), whose signature flags the receipt's INTENT line shows
