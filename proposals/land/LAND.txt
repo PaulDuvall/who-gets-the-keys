@@ -1,0 +1,7 @@
+# The landing script and its test. land.sh is not on main yet, so the owner lands this batch by hand once,
+# with the commands in README.md, "How changes land".
+message: spec: one-command landing for staged batches
+spec: SPEC-001-R41
+move: scripts/bootstrap/land.sh scripts/bootstrap/land.sh
+move: test/land.test.ts test/land.test.ts
+move: traceability.md traceability.md
