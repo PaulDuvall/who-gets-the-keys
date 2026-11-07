@@ -1,4 +1,4 @@
-// Check dispatcher (SPEC-001-R1 to R18). Usage: node scripts/checks.ts [check | practices-md]
+// Check dispatcher (SPEC-001-R1 to R18 and R190). Usage: node scripts/checks.ts [check | practices-md]
 // No check imports a package before the install check has run, so the first three need only Node.js built-ins.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -312,6 +312,19 @@ export function requiredFlagsIn(checksSource: string | undefined): number {
   return (value === undefined ? 0 : Number(value)) | TOUCH_FLAG;
 }
 
+const COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+/**
+ * The deploy-tip failure identifier, or undefined when `deployed` is main's tip. An older run approved after main moved
+ * would deploy an older commit whose artifact still verifies, since it was attested when built. `remote` is the output
+ * of `git ls-remote`, or undefined when main's tip could not be read. Only a line for exactly refs/heads/main counts.
+ * None, more than one, or a SHA that is not 40 or 64 lowercase hex characters fails closed. @requirement SPEC-001-R190
+ */
+export function deployTipId(deployed: string, remote: string | undefined): string | undefined {
+  const tips = (remote ?? "").split("\n").map((line) => line.split("\t")).filter(([, ref]) => ref === "refs/heads/main").map(([sha = ""]) => sha);
+  return tips.length === 1 && COMMIT_SHA.test(deployed) && tips[0] === deployed ? undefined : (deployed.slice(0, 12) || "HEAD");
+}
+
 // gh attestation verify, pinned to pipeline.yml on main, a GitHub-hosted runner and, in CI, this commit (SPEC-001-R17).
 export function attestationArgs(artifact: string, repo: string, sha: string | undefined): string[] {
   return [
@@ -497,6 +510,17 @@ const checks: Record<string, (args: string[]) => void | Promise<void>> = {
   mutation() {
     const r = tool(["node_modules/.bin/stryker", "run"]);
     mustPass("mutation", r, mutationId(r.stdout + r.stderr));
+  },
+
+  // Run first in the deploy job: main's tip is read from the remote, and an unreadable tip fails closed (SPEC-001-R190).
+  "deploy-tip"() {
+    const deployed = process.env.GITHUB_SHA || git("rev-parse", "--verify", "--quiet", "HEAD^{commit}").trim();
+    const r = spawnSync("git", ["ls-remote", "origin", "refs/heads/main"], { encoding: "utf8", timeout: 60_000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+    const id = deployTipId(deployed, r.status === 0 ? r.stdout : undefined);
+    if (id === undefined) return;
+    const said = r.status === 0 ? r.stdout.trim() || "no refs/heads/main" : String(r.error ?? r.stderr.trim());
+    process.stderr.write(`deploy-tip: only main's tip deploys. This run's commit is ${deployed || "unreadable"}. git ls-remote origin said: ${said.slice(-4000)}\n`);
+    throw new CheckFailure("deploy-tip", id);
   },
 
   attestation([artifact = "dist/function.zip"]) {

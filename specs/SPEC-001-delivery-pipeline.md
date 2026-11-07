@@ -33,6 +33,7 @@ Status: approved by signed commit.
 | SPEC-001-R15 | WHEN the test check runs, THE pipeline SHALL run every Vitest acceptance, property and unit test, including the video kit's tests that need no display or network. IF a test fails, THEN the identifier SHALL be the first failing test file path. |
 | SPEC-001-R16 | WHEN the mutation check runs, THE pipeline SHALL run Stryker incrementally with the Vitest runner and `thresholds.break` of **95**, leaving out only the wall-clock test file `test/export.performance.test.ts`, which the test check runs. IF the mutation score is below it, THEN the identifier SHALL be `below break threshold`. |
 | SPEC-001-R17 | WHEN the deploy job starts, THE pipeline SHALL run `gh attestation verify` on the artifact before any AWS call. IF verification fails, THEN the deploy job SHALL stop and print `CHECK attestation FAILED: <artifact path>`. |
+| SPEC-001-R190 | WHEN the deploy job starts, THE pipeline SHALL compare the commit with the current tip of `main` before any other step that reads the artifact or calls AWS. IF they differ or `main`'s tip cannot be read, THEN it SHALL stop and print `CHECK deploy-tip FAILED: <first 12 characters of the commit SHA>`. |
 | SPEC-001-R18 | WHEN the deploy job has written `plan.out`, THE pipeline SHALL fail if any change to an `aws_dynamodb_table`, `aws_s3_bucket`, `aws_db_instance` or `aws_kms_key` includes `delete`, unless the commit is signed by an approver, with identifier the resource address. THE deploy job SHALL apply that `plan.out` and no other plan. |
 
 ## Scenarios

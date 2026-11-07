@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +10,7 @@ import strykerVitest from "../vitest.stryker.config.ts";
 import {
   COMMANDS, CheckFailure, ORDER, allowedNames, approversFor, attestationArgs, changedFiles, dependencyNames, destructiveChanges, exportsOf, failedTestFiles,
   guardedBy, jobBlock, lockfilePaths, lowered, protectedPaths, pipelineCacheFinding, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
+  deployTipId,
 } from "../scripts/checks.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -212,6 +213,60 @@ describe("SPEC-001 checks", () => {
       "--deny-self-hosted-runners", "--source-digest", "abc123",
     ]);
     expect(attestationArgs("dist/function.zip", "o/r", undefined)).not.toContain("--source-digest");
+  });
+
+  describe("SPEC-001-R190 deploy-tip check", () => {
+    const A = "a".repeat(40), B = "b".repeat(40), LONG = "c".repeat(64);
+    const dir = mkdtempSync(join(tmpdir(), "deploy-tip-")), work = join(dir, "work");
+    afterAll(() => rmSync(dir, { recursive: true, force: true }));
+    const git = (...args: string[]) =>
+      execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: work, encoding: "utf8" }).trim();
+    const check = (sha?: string) => {
+      const env: NodeJS.ProcessEnv = { ...process.env };
+      delete env["GITHUB_SHA"];
+      if (sha !== undefined) env["GITHUB_SHA"] = sha;
+      const r = spawnSync(process.execPath, [join(process.cwd(), "scripts/checks.ts"), "deploy-tip"], { cwd: work, encoding: "utf8", env });
+      return [r.status, r.stdout];
+    };
+
+    it("SPEC-001-R190 accepts only the one line for exactly refs/heads/main naming the deployed commit, and fails closed otherwise", () => {
+      expect(deployTipId(A, `${A}\trefs/heads/main\n`)).toBeUndefined();
+      expect(deployTipId(LONG, `${LONG}\trefs/heads/main\n`)).toBeUndefined();
+      expect(deployTipId(A, `${B}\trefs/heads/main\n${A}\trefs/heads/candidate/refs/heads/main\n`)).toBe("aaaaaaaaaaaa");
+      for (const remote of [undefined, "", `${A}\trefs/heads/candidate/refs/heads/main\n`, `${A}\trefs/heads/mainline\n`, `${A}\trefs/heads/main\n${A}\trefs/heads/main\n`]) {
+        expect(deployTipId(A, remote)).toBe("aaaaaaaaaaaa");
+      }
+      for (const deployed of ["A".repeat(40), "a".repeat(12), "a".repeat(41)]) expect(deployTipId(deployed, `${deployed}\trefs/heads/main\n`)).toBe(deployed.slice(0, 12));
+      expect(deployTipId("", "\trefs/heads/main\n")).toBe("HEAD");
+    });
+
+    it("SPEC-001-R190 passes silently when the commit is main's tip on a local bare origin", () => {
+      execFileSync("git", ["init", "-q", "--bare", "-b", "main", join(dir, "origin.git")]);
+      execFileSync("git", ["init", "-q", "-b", "main", work]);
+      git("remote", "add", "origin", join(dir, "origin.git"));
+      git("commit", "-q", "--allow-empty", "-m", "old");
+      git("push", "-q", "origin", "HEAD:refs/heads/main");
+      expect([check(), check(git("rev-parse", "HEAD"))]).toEqual([[0, ""], [0, ""]]);
+    });
+
+    it("SPEC-001-R190 fails with the first 12 characters of the deployed commit once main has moved, reading GITHUB_SHA before HEAD", () => {
+      const old = git("rev-parse", "HEAD");
+      git("commit", "-q", "--allow-empty", "-m", "new");
+      git("push", "-q", "origin", "HEAD:refs/heads/main", `${old}:refs/heads/candidate/refs/heads/main`);
+      const failed = [1, `CHECK deploy-tip FAILED: ${old.slice(0, 12)}\n`];
+      expect([check(old), check()]).toEqual([failed, [0, ""]]);
+      git("checkout", "-q", "--detach", old);
+      expect(check()).toEqual(failed);
+      git("checkout", "-q", "main");
+    });
+
+    it("SPEC-001-R190 fails closed when main's tip cannot be read from origin", () => {
+      const failed = [1, `CHECK deploy-tip FAILED: ${git("rev-parse", "HEAD").slice(0, 12)}\n`];
+      git("remote", "set-url", "origin", join(dir, "missing.git"));
+      expect(check()).toEqual(failed);
+      git("remote", "remove", "origin");
+      expect(check()).toEqual(failed);
+    });
   });
 
   it("SPEC-001-R18 flags deletes of stateful resources only", () => {
