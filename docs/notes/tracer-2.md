@@ -1,6 +1,6 @@
 # Tracer 2: a locked-down runner first
 
-Status: planned, not started. Owner decisions recorded 2026-11-07. Nothing below has been built.
+Status: T1 done 2026-11-07: `f6044ef` landed, candidate run 42378752588, `main` run 42379109850 deployed, evidence in `docs/verification.md` (Receipt: E2E-R1). T2 staged in `proposals/producer/`, reviewed, not yet landed; design, review fixes and owner steps in `docs/notes/tracer-2-t2-producer.md`. T3 and T4 not started. Owner decisions recorded 2026-11-07.
 
 ## Why
 
