@@ -106,7 +106,7 @@ jobs:
       contents: read # check out the tree the agent changes
       id-token: write # assume the invoke-only producer role (SPEC-001-R86)
     env:
-      EGRESS_ALLOWLIST: .github/egress/allowlist.json
+      EGRESS_ALLOWLIST: .github/egress/producer-allowlist.json
     outputs:
       patch_sha256: ${{ steps.patch.outputs.patch_sha256 }}
     steps:
@@ -223,7 +223,10 @@ jobs:
           git add -A
           git diff --cached --binary --no-renames "$GITHUB_SHA" > "$RUNNER_TEMP/changes.diff"
           [ -s "$RUNNER_TEMP/changes.diff" ] || { echo "CHECK producer FAILED: empty patch"; exit 1; }
+          token="$(openssl rand -hex 16)"
+          echo "::stop-commands::${token}"
           git diff --cached --stat --no-renames "$GITHUB_SHA"
+          echo "::${token}::"
           echo "patch_sha256=$(openssl dgst -sha256 "$RUNNER_TEMP/changes.diff" | sed 's/^.*= //')" >> "$GITHUB_OUTPUT"
       - if: ${{ !inputs.egress_probe }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -282,7 +285,8 @@ jobs:
           patch="$RUNNER_TEMP/patch/changes.diff"
           echo "${PATCH_SHA256}  ${patch}" | sha256sum -c --status - || { echo "CHECK producer FAILED: patch digest"; exit 1; }
           git apply --index "$patch" || { echo "CHECK producer FAILED: patch does not apply"; exit 1; }
-          node ../trusted/scripts/ci/producer.ts scope "$patch"
+          scope="$(node ../trusted/scripts/ci/producer.ts scope "$patch")" || { echo "$scope"; exit 1; }
+          [ "$scope" = "scope ok" ] || { echo "CHECK producer FAILED: scope not confirmed"; exit 1; }
           node ../trusted/scripts/ci/producer.ts message "$RUNNER_TEMP/message.txt"
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
             -c commit.gpgsign=false commit -q -F "$RUNNER_TEMP/message.txt"

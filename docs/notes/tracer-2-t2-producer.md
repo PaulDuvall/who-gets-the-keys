@@ -1,13 +1,14 @@
 # Tracer 2, slice T2: the runner producer batch
 
-Status: staged in `proposals/producer/`, not landed. Lands after `proposals/phase-1/` (T1). Plan: `docs/notes/tracer-2.md`. Drafted 2026-11-07.
+Status: staged in `proposals/producer/`, not landed. Staged on `f6044ef`, the phase 1 landing. Plan: `docs/notes/tracer-2.md`. Drafted 2026-11-07; revised the same day after an independent review (two blockers and five smaller issues, listed under "Review fixes").
 
 ## What the batch changes
 
 | Destination | Change |
 |---|---|
 | `.github/workflows/producer.yml` | New. Four jobs, below |
-| `.github/workflows/pipeline.yml` | Phase 1's copy plus `workflow_dispatch` with no inputs. The checks job runs a dispatched run only on `refs/heads/candidate/**`; every other job needs it (SPEC-001-R209) |
+| `.github/workflows/pipeline.yml` | Main's copy plus `workflow_dispatch` with no inputs. The checks job stays unconditional; its first step fails a dispatched run on any ref but `refs/heads/candidate/**` (SPEC-001-R209) |
+| `.github/egress/producer-allowlist.json` | New. The producer's sandbox allowlist, with no host |
 | `scripts/ci/producer.ts` | New. Settings, prompt, patch scope and commit message, Node.js built-ins only, reusing `guardedBy` from `scripts/checks.ts` |
 | `infra/sandbox/iam.tf`, `main.tf`, `variables.tf` | Role `who-gets-the-keys-producer-bedrock`, its trust, its one-profile policy, outputs `producer_role_arn` and `producer_inference_profile`, and variable `producer_inference_profile` (default `us.anthropic.claude-sonnet-5-5`) |
 | `infra/org/main.tf` | The SCP's identity-write deny lists the producer role |
@@ -25,7 +26,7 @@ Status: staged in `proposals/producer/`, not landed. Lands after `proposals/phas
 |---|---|---|
 | install | `contents: read` | Checks the inputs in its first step. `npm ci --ignore-scripts`. Fetches `@anthropic-ai/claude-code-linux-x64@2.1.304` from the npm registry and checks a pinned SHA-256. Hands both over as one artifact, with the `node_modules` archive's SHA-256 as an output |
 | agent | `contents: read`, `id-token: write`, environment `producer` | Checks both digests. Writes the settings and the prompt with `producer.ts` before any credential. Assumes the producer role. Starts Claude Code with `env -i` and an explicit list of variables, so no `GITHUB_`, `ACTIONS_` or token variable reaches it. After the agent, only `git`, `jq` and `openssl` run: the patch is `git diff --cached --binary --no-renames <github.sha>` |
-| publish | `contents: write` | Checks out `github.sha` twice: `trusted` runs `producer.ts`, `work` takes the patch. Checks the digest, applies the patch to the index, refuses protected paths as listed at `github.sha`, then commits unsigned and pushes `candidate/<task>` without force |
+| publish | `contents: write` | Checks out `github.sha` twice: `trusted` runs `producer.ts`, `work` takes the patch. Checks the digest and applies the patch to the index. Scope is an allowlist: only `src/`, `test/`, `docs/` and `traceability.md`, no dot-file segment, and no path listed at `github.sha` as protected. It commits only after `scope` prints `scope ok`, unsigned, and pushes `candidate/<task>` without force |
 | dispatch | `actions: write` | Starts `pipeline.yml` on that branch |
 
 Every job runs only for `refs/heads/main`, `github.actor_id == '1619259'` and `github.triggering_actor == github.actor`. With `egress_probe` true the agent gets one fixed prompt, publish and dispatch are skipped, and the job prints `BOUNDARY HELD: egress to example.com` only if the curl output holds the proxy's 403.
@@ -38,7 +39,9 @@ Every job runs only for `refs/heads/main`, `github.actor_id == '1619259'` and `g
 | `env -i` launch | Removes `ACTIONS_ID_TOKEN_REQUEST_*`, `ACTIONS_RUNTIME_TOKEN` and every `GITHUB_` variable from the agent's process, not only from its subprocesses. `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` then removes the AWS credentials from its Bash commands | Overwrite them through `GITHUB_ENV` |
 | Permission rules in the settings file, built by `producer.ts` | One unit-tested function. `--settings` with `allowUnsandboxedCommands: false` makes the sandbox admin-required, so the repository's settings cannot loosen it | `--allowedTools` on the command line, as 0004's R88 drafts |
 | `--tools Bash,Read,Edit,Write,Glob,Grep`, `blockReadsOutsideWorkingDirectories`, `Read(//proc/**)` denied | Removes WebFetch, WebSearch and subagents outright, and keeps file tools and sandboxed commands out of the runner's home and process environments | Deny rules only |
-| `strictAllowlist: true` | Refuses hosts off the list in every mode, from `--settings` | Rely on dontAsk |
+| `strictAllowlist: true` and an empty producer allowlist | Refuses every host in every mode, from `--settings`. Sandboxed commands need no network; Claude Code's own Bedrock calls are not sandboxed | The shared `allowlist.json`, which allows `api.github.com` |
+| `autoAllowBashIfSandboxed: false` | It defaults to `true`, which approves every sandboxed command, so dontAsk and the exact Bash rules would not limit commands | Leave the default |
+| A guard step, not a job condition, on `pipeline.yml`'s checks job | A skipped job reports success, and does not block even when it is a required check | A job-level `if:`, as first staged |
 | A dispatch job | A push made with `GITHUB_TOKEN` starts no workflow run, so the candidate's checks would never run | See owner decision 1 |
 | Deploy role's `NoIdentityWrites` not extended | That policy is on the deploy role, which the SCP lets only break-glass change, so `aws-setup.sh` as the sandbox admin would fail at apply. The deploy role has no allow on roles anyway; the deny is a second layer | Extend it and apply `infra/sandbox` as break-glass |
 | The model pinned in `variables.tf` | One signed source for the policy and the `PRODUCER_MODEL` variable. A drifted variable can only fail the call, never widen it | A repository variable alone |
@@ -51,7 +54,7 @@ Every job runs only for `refs/heads/main`, `github.actor_id == '1619259'` and `g
 | 1 | How the candidate's checks start: (a) the dispatch job and `workflow_dispatch` on `pipeline.yml`, as staged; (b) you push `candidate/<task>` yourself from the patch artifact; (c) a GitHub App or fine-grained token as a secret, which adds a key holder | (a). It widens `pipeline.yml` only to checks on candidate refs |
 | 2 | The pinned profile: `us.anthropic.claude-sonnet-5-5`, or Opus 5.5 at a higher price | Sonnet 5.5 for the tracer. Edit the default in `proposals/producer/infra/sandbox/variables.tf` before landing if not |
 | 3 | Limits: 40 turns, USD 5, 40 minutes for the agent step, 50 for its job | Keep for T2 |
-| 4 | The sandbox allowlist: the shared file (`api.github.com`, `bedrock-runtime.us-east-1.amazonaws.com`), or an empty list just for the producer. Sandboxed commands need no network; Claude Code's own Bedrock calls are not sandboxed | Shared file, as the plan says; empty is tighter |
+| 4 | The sandbox allowlist. Resolved as a recommendation you can reverse: the batch now uses `.github/egress/producer-allowlist.json`, with no host, instead of the shared file (`api.github.com`, `bedrock-runtime.us-east-1.amazonaws.com`). To reverse it, point `EGRESS_ALLOWLIST` in `producer.yml` back at `allowlist.json` | Keep the empty list |
 | 5 | No reviewer on `producer` (0004) | Keep: only you can dispatch |
 | 6 | Defer the deploy role's `NoIdentityWrites` entry to a break-glass change | Defer, and do it with phase 4 |
 
@@ -63,6 +66,8 @@ Every job runs only for `refs/heads/main`, `github.actor_id == '1619259'` and `g
 | `sub` for a job with an environment is `repo:<repo>:environment:<name>` | https://docs.github.com/en/actions/reference/security/oidc |
 | `allowUnsandboxedCommands: false` through `--settings` makes the sandbox admin-required; `strictAllowlist` is honored from `--settings`; dontAsk refuses hosts off the list; the proxy answers a refused host with 403 | https://code.claude.com/docs/en/sandboxing |
 | `blockReadsOutsideWorkingDirectories` and what it blocks for sandboxed commands | https://code.claude.com/docs/en/settings-reference |
+| "`autoAllowBashIfSandboxed` still defaults to `true`, so sandboxed commands keep running without prompts" | https://code.claude.com/docs/en/sandboxing |
+| "A job that is skipped will report its status as "Success". It will not prevent a pull request from merging, even if it is a required check." | https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-jobs-with-conditions |
 | `--settings '{"disableAllHooks": true}'` takes precedence over project settings | https://code.claude.com/docs/en/hooks |
 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` removes AWS credentials from subprocesses and leaves GitHub tokens | https://code.claude.com/docs/en/env-vars |
 | `--tools`, `--setting-sources`, `--strict-mcp-config`, `--max-budget-usd`, `--no-session-persistence` | https://code.claude.com/docs/en/cli-reference |
@@ -82,25 +87,50 @@ Every job runs only for `refs/heads/main`, `github.actor_id == '1619259'` and `g
 6. `gh workflow run` succeeds with only `actions: write`.
 7. A dispatched run's `checks` check run satisfies the `protect main` ruleset for that SHA, as a push's does.
 8. `npm run check:test` passes inside the agent's sandbox without the check tools. If not, the agent sees failures its change did not cause.
+9. With `autoAllowBashIfSandboxed: false` and dontAsk, a Bash command that no allow rule names is denied rather than run, and an empty `allowedDomains` with `strictAllowlist` refuses every host. Both follow from the docs; neither has been observed on a runner.
+
+## Review fixes, 2026-11-07
+
+The first staging commit had these faults. The second commit fixes them; this section records them rather than erasing them.
+
+| # | Fault in the first commit | Fix |
+|---|---|---|
+| 1 | Blocker. A job-level `if:` on `pipeline.yml`'s checks job let a dispatch on a non-candidate ref produce a skipped `checks` check run, which counts as passed, on an unchecked commit | No job-level condition; a first step fails such a run. R209 reworded |
+| 2 | Blocker. Scope refused only protected paths, so a patch adding `.npmrc` with `node-options=--import=...` would run code in the candidate's `npm run checks` | Scope is an allowlist: `src/`, `test/`, `docs/`, `traceability.md`, no dot-file segment. R208 updated |
+| 3 | `autoAllowBashIfSandboxed` defaults to `true`, so the exact Bash rules did not limit sandboxed commands | Set to `false`. R87 updated |
+| 4 | The agent's sandbox allowed `api.github.com` through the shared allowlist | Producer-only allowlist with no host. R87 updated |
+| 5 | The entry-point guard could skip `scope` silently, exit 0, on a symlinked or percent-encoded path | Real paths compared; publish commits only after `scope ok` |
+| 6 | `git diff --stat` printed agent-chosen file names with workflow commands on | Wrapped in `::stop-commands::` |
+| 7 | `LAND.txt` expected a "Changed since by" warning that, after the rebase onto `f6044ef`, cannot appear; R83, R85 and R86 put conditions after SHALL | Comment corrected; EARS order fixed |
+
+Found while fixing: a path with a newline could have put a workflow command on a line of its own in the refusal line. Scope now refuses any path with a control character without echoing it.
 
 ## How it was tested
 
-In a scratch clone with phase 1's moves and then this batch's moves applied, with pinned tools from `scripts/ci/install-tools.sh` and Node.js 24.22.2:
+In a scratch clone matching `f6044ef` with this batch's moves applied, with pinned tools from `scripts/ci/install-tools.sh` and Node.js 24.22.2:
 
 | Command | Result |
 |---|---|
-| `node scripts/checks.ts workflows` | exit 0. zizmor offline on `producer.yml`: no findings, also with `--persona auditor` |
+| `node scripts/checks.ts workflows` | exit 0. zizmor offline: no findings. `--persona auditor` shows only three `undocumented-permissions` notes, on `pipeline.yml` jobs already on main |
 | `node scripts/checks.ts iac` | exit 0: fmt, validate and tflint in `infra/sandbox` and `infra/org` |
 | `node scripts/checks.ts secrets` | exit 0 |
 | `semgrep scan --config p/default --error` on the new and changed files | no findings |
 | `git apply --check` of B04, B08a, B08b, B10, B14, B17, B18 | all apply |
-| `producer.test.ts`, `checks-before-main.test.ts`, `aws-setup.test.ts` | 17, 11 and 37 passed, under a stand-in for `vitest` and `yaml` written for this check. Three deliberate mutations each made one test fail |
+| `producer.test.ts`, `checks-before-main.test.ts`, `aws-setup.test.ts` | 19, 11 and 37 passed, under a stand-in for `vitest` and `yaml` written for this check. Seven deliberate mutations, three in the first round and four in the second, each made the tests fail |
 
-Not run: the real `lint`, `typecheck`, `trace` and `test` checks, because this session may not install dependencies. The staging commit's own pipeline lints the staged TypeScript but does not typecheck or test it, so the first real run of those is the landing's candidate run. The PostToolUse ESLint hook reported a false failure on `proposals/producer/test/producer.test.ts`: ESLint is not installed (`ENOENT`).
+Not run: the real `lint`, `typecheck`, `trace` and `test` checks, because this session may not install dependencies. The staging commit's own pipeline lints the staged TypeScript but does not typecheck or test it. Run the preflight below before you sign. The PostToolUse ESLint hook reported false failures on the staged test files: ESLint is not installed (`ENOENT`).
+
+## Owner preflight, before you sign
+
+Run it once the staging commits are on `main`. It checks the batch with the real tools in a throwaway worktree, commits nothing, and removes the worktree. It must end with `preflight exit 0`.
+
+```bash
+git fetch -q origin main && wt="$(mktemp -d)/t2-preflight" && git worktree add -q --detach "$wt" origin/main && (cd "$wt" && grep '^move: ' proposals/producer/LAND.txt | while read -r _ src dest; do mkdir -p "$(dirname "$dest")" && git mv -f "proposals/producer/$src" "$dest" || exit 1; done && npm ci --ignore-scripts --no-audit --no-fund && npx tsc --noEmit -p . && npx eslint scripts/ci/producer.ts test/producer.test.ts test/checks-before-main.test.ts test/aws-setup.test.ts && npx vitest run test/producer.test.ts test/checks-before-main.test.ts test/aws-setup.test.ts test/receipt.test.ts test/checks.test.ts); status=$?; git worktree remove --force "$wt"; echo "preflight exit ${status}"
+```
 
 ## Owner steps
 
-1. Land T1 first. Then run `scripts/bootstrap/land.sh proposals/producer`. Under "Changed since by", expect only the phase 1 landing commit.
+1. Run the preflight. Then run `scripts/bootstrap/land.sh proposals/producer`. It should print no "Changed since by" warning; if it does, answer no.
 2. When it asks you to approve the sandbox deploy, leave it waiting. In a second terminal run `aws-setup.sh` as the README's "AWS setup" shows. Review the infra/sandbox plan: one role, one role policy, two outputs. Review the infra/org plan: the SCP gains one ARN. Then approve the deploy; it plans no changes.
 3. Bad path first, because it pushes nothing:
 

@@ -5,9 +5,10 @@
 //        node scripts/ci/producer.ts prompt <out.txt>     reads TASK, SPEC, PROMPT, EGRESS_PROBE
 //        node scripts/ci/producer.ts scope <patch file>   in the patched checkout, the patch applied to its index; reads SPEC
 //        node scripts/ci/producer.ts message <out.txt>    reads TASK, SPEC, SUBJECT, RUN_URL
-// A refusal prints one line, CHECK producer FAILED: <identifier>, and exits 1.
+// A refusal prints one line, CHECK producer FAILED: <identifier>, and exits 1. A passing scope prints "scope ok".
 import { spawnSync } from "node:child_process";
-import { readFileSync, statSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { guardedBy, PROTECTED, protectedPaths } from "../checks.ts";
 
 export const TASK_ID = /^TASK-[A-Z0-9-]{1,32}$/;
@@ -16,8 +17,12 @@ export const SUBJECT = /^[A-Za-z0-9][A-Za-z0-9 ,.:;'()/_-]{0,71}$/;
 export const MAX_PATCH_BYTES = 1024 * 1024;
 export const PROBE_URL = "https://example.com/";
 
-// The agent's only pre-approved actions (SPEC-001-R88). dontAsk denies everything else.
+// The agent's only pre-approved actions (SPEC-001-R88). dontAsk denies everything else, sandboxed Bash commands
+// included, because the settings turn off autoAllowBashIfSandboxed, which otherwise approves every sandboxed command.
 export const EDIT_RULES = ["Edit(src/**)", "Edit(test/**)", "Edit(docs/**)", "Edit(traceability.md)"] as const;
+// The paths a patch may touch (SPEC-001-R208): the same places EDIT_RULES lets the agent edit.
+export const SCOPE_DIRS = ["src/", "test/", "docs/"] as const;
+export const SCOPE_FILES = ["traceability.md"] as const;
 export const BASH_RULES = [
   "Bash(npm run check:lint)", "Bash(npm run check:typecheck)", "Bash(npm run check:trace)", "Bash(npm run check:test)",
   "Bash(git status)", "Bash(git diff)", "Bash(git diff *)",
@@ -35,9 +40,10 @@ export class ProducerRefusal extends Error {
 
 // Claude Code settings for the agent job, passed with --settings (SPEC-001-R87). Through --settings,
 // allowUnsandboxedCommands false makes the sandbox admin-required, so the repository's settings cannot loosen it.
+// The producer's allowlist is empty: its sandboxed commands need no network, and strictAllowlist refuses every host.
 export function agentSettings(allowlist: unknown, egressProbe: boolean): Record<string, unknown> {
   const domains = (allowlist as { allowedDomains?: unknown } | null)?.allowedDomains;
-  if (!Array.isArray(domains) || domains.length === 0 || !domains.every((d) => typeof d === "string" && /^[a-z0-9.-]+$/.test(d))) {
+  if (!Array.isArray(domains) || !domains.every((d) => typeof d === "string" && /^[a-z0-9.-]+$/.test(d))) {
     throw new ProducerRefusal("egress allowlist");
   }
   return {
@@ -52,6 +58,7 @@ export function agentSettings(allowlist: unknown, egressProbe: boolean): Record<
     sandbox: {
       enabled: true,
       failIfUnavailable: true,
+      autoAllowBashIfSandboxed: false,
       allowUnsandboxedCommands: false,
       network: { allowedDomains: [...domains], strictAllowlist: true },
     },
@@ -100,12 +107,23 @@ export function stagedEntries(raw: string): StagedEntry[] {
   return entries;
 }
 
-// The first reason the publish job must not push this patch (SPEC-001-R208), or undefined.
+// True only for a path under SCOPE_DIRS or in SCOPE_FILES, with no empty, ".", ".." or dot-file segment.
+export function inScope(path: string): boolean {
+  const segments = path.split("/");
+  if (segments.some((s) => s === "" || s.startsWith("."))) return false;
+  return SCOPE_DIRS.some((dir) => path.startsWith(dir)) || (SCOPE_FILES as readonly string[]).includes(path);
+}
+
+// The first reason the publish job must not push this patch (SPEC-001-R208), or undefined. Scope is an allowlist:
+// a file the checks or the build read, such as .npmrc or package.json, is refused because it is outside it.
 export function scopeRefusal(entries: readonly StagedEntry[], protectedList: readonly string[], bytes: number, spec: string): string | undefined {
   if (bytes > MAX_PATCH_BYTES) return "patch over 1 MiB";
   if (entries.length === 0) return "empty patch";
   for (const { status, mode, path } of entries) {
+    // A control character could start a workflow command on a line of its own, so the path is not echoed.
+    if ([...path].some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f)) return "path with a control character";
     if (path.startsWith("specs/") || path === "approvers.txt" || guardedBy(path, protectedList) !== undefined) return `protected path ${path}`;
+    if (!inScope(path)) return `outside scope ${path}`;
     if (!status.startsWith("D") && mode !== "100644" && mode !== "100755") return `file mode ${mode} ${path}`;
   }
   if (spec === "" && entries.some(({ path }) => path.startsWith("src/") || path.startsWith("test/"))) return "missing spec";
@@ -157,6 +175,7 @@ function main(argv: string[]): number {
         const entries = stagedEntries(git("diff", "--cached", "--raw", "--no-renames", "-z", "HEAD"));
         const refusal = scopeRefusal(entries, list, statSync(patch).size, env("SPEC"));
         if (refusal !== undefined) throw new ProducerRefusal(refusal);
+        process.stdout.write("scope ok\n");
         return 0;
       }
       case "message": {
@@ -177,4 +196,14 @@ function main(argv: string[]): number {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) process.exitCode = main(process.argv.slice(2));
+// Compared as real paths, so a symlinked or percent-encoded path still runs main; publish also needs "scope ok".
+export function isEntryPoint(moduleUrl: string, argv1: string | undefined): boolean {
+  if (argv1 === undefined) return false;
+  try {
+    return realpathSync(argv1) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint(import.meta.url, process.argv[1])) process.exitCode = main(process.argv.slice(2));

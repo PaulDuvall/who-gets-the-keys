@@ -1,13 +1,14 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import {
-  agentPrompt, agentSettings, BASH_RULES, commitMessage, DENY_RULES, EDIT_RULES, MAX_PATCH_BYTES, PROBE_RULE, ProducerRefusal,
-  scopeRefusal, SPEC_ID, stagedEntries, SUBJECT, TASK_ID,
+  agentPrompt, agentSettings, BASH_RULES, commitMessage, DENY_RULES, EDIT_RULES, inScope, isEntryPoint, MAX_PATCH_BYTES, PROBE_RULE,
+  ProducerRefusal, SCOPE_DIRS, SCOPE_FILES, scopeRefusal, SPEC_ID, stagedEntries, SUBJECT, TASK_ID,
 } from "../scripts/ci/producer.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -35,7 +36,7 @@ const step = (id: string, match: (s: Step) => boolean): Step => {
 const runStep = (id: string) => step(id, (s) => s.id === "run");
 const named = (text: string) => (s: Step) => s.name?.includes(text) === true;
 const guard = "github.ref == 'refs/heads/main' && github.actor_id == '1619259' && github.triggering_actor == github.actor";
-const allowlist = JSON.parse(read(".github/egress/allowlist.json")) as { allowedDomains: string[] };
+const allowlist = JSON.parse(read(".github/egress/producer-allowlist.json")) as { allowedDomains: string[] };
 
 // Runs one step's script as GitHub runs a bash step, its env from the step with each ${{ }} value replaced from `values`.
 function bash(s: Step, values: Record<string, string>, cwd: string, extra: Record<string, string> = {}) {
@@ -170,7 +171,9 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     expect(agent?.with?.["role-to-assume"]).toBe("${{ vars.PRODUCER_ROLE_ARN }}");
   });
 
-  it("SPEC-001-R87 writes the agent's settings from the egress allowlist: no hooks, dontAsk, the sandbox strict and admin-required", () => {
+  it("SPEC-001-R87 writes the agent's settings from the producer's empty allowlist: no hooks, dontAsk, the sandbox strict, admin-required and not auto-allowing", () => {
+    expect(allowlist.allowedDomains).toEqual([]);
+    expect(job("agent").env?.["EGRESS_ALLOWLIST"]).toBe(".github/egress/producer-allowlist.json");
     expect(agentSettings(allowlist, false)).toEqual({
       disableAllHooks: true,
       enableAllProjectMcpServers: false,
@@ -179,17 +182,19 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
         allow: [...EDIT_RULES, ...BASH_RULES], deny: ["WebFetch", "WebSearch", "Read(//proc/**)"],
       },
       sandbox: {
-        enabled: true, failIfUnavailable: true, allowUnsandboxedCommands: false,
-        network: { allowedDomains: allowlist.allowedDomains, strictAllowlist: true },
+        enabled: true, failIfUnavailable: true, autoAllowBashIfSandboxed: false, allowUnsandboxedCommands: false,
+        network: { allowedDomains: [], strictAllowlist: true },
       },
     });
     const probe = agentSettings(allowlist, true) as { permissions: { allow: string[] } };
     expect(probe.permissions.allow).toEqual([...BASH_RULES, PROBE_RULE]);
-    for (const bad of [{}, { allowedDomains: [] }, { allowedDomains: ["*"] }, { allowedDomains: ["a.com", 1] }, null]) {
+    const listed = agentSettings({ allowedDomains: ["a.example.com"] }, false) as { sandbox: { network: { allowedDomains: string[] } } };
+    expect(listed.sandbox.network.allowedDomains).toEqual(["a.example.com"]);
+    for (const bad of [{}, { allowedDomains: "a.com" }, { allowedDomains: ["*"] }, { allowedDomains: ["a.com", 1] }, null]) {
       expect(() => agentSettings(bad, false)).toThrow(new ProducerRefusal("egress allowlist"));
     }
     expect(DENY_RULES).toEqual(["WebFetch", "WebSearch", "Read(//proc/**)"]);
-    expect(job("agent").env?.["EGRESS_ALLOWLIST"]).toBe(".github/egress/allowlist.json");
+    expect(`${producerText}\n${read("scripts/ci/producer.ts")}`).not.toMatch(/bypassPermissions|dangerously-skip-permissions/);
   });
 
   it("SPEC-001-R87 writes settings and prompt before any AWS credential, and runs no repository code once the agent has run", () => {
@@ -252,6 +257,10 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
       "Bash(npm run check:lint)", "Bash(npm run check:typecheck)", "Bash(npm run check:trace)", "Bash(npm run check:test)",
       "Bash(git status)", "Bash(git diff)", "Bash(git diff *)",
     ]);
+    // With autoAllowBashIfSandboxed off, a command the prompt asks for runs only if an allow rule names it.
+    const asked = [...agentPrompt("TASK-1", "", "x", false).matchAll(/npm run check:\w+/g)].map((m) => `Bash(${m[0]})`);
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked.filter((rule) => !(BASH_RULES as readonly string[]).includes(rule))).toEqual([]);
     expect(agentPrompt("TASK-P", "", "ignored", true)).toContain("curl -sS --max-time 15 https://example.com/");
     expect(agentPrompt("TASK-P", "", "ignored", true)).not.toContain("ignored");
     expect(agentPrompt("TASK-1", "SPEC-014-R7", "Add R7.", false)).toMatch(/task TASK-1 in this repository\. The change implements SPEC-014-R7\.[^]*\nTask:\nAdd R7\.\n$/);
@@ -272,6 +281,12 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
       writeFileSync(join(dir, "node_modules/x.js"), "x\n");
       const ok = bash(patchStep, {}, dir, extra);
       expect(ok.status).toBe(0);
+      // The stat lists file names the agent chose, so workflow commands are off while it prints.
+      const out = ok.stdout.split("\n");
+      const token = /^::stop-commands::([0-9a-f]{32})$/.exec(out[0] ?? "")?.[1];
+      expect(token).toMatch(/^[0-9a-f]{32}$/);
+      expect(out.indexOf(`::${token ?? ""}::`)).toBeGreaterThan(out.findIndex((l) => l.includes("src/b.ts")));
+      expect(out.findIndex((l) => l.includes("src/b.ts"))).toBeGreaterThan(0);
       const diff = read(join(temp, "changes.diff"));
       expect(diff).toContain("diff --git a/src/b.ts b/src/b.ts\nnew file mode 100644");
       expect(diff).not.toContain("node_modules");
@@ -331,13 +346,34 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     const at = (start: string) => lines.findIndex((l) => l.startsWith(start));
     const order = [
       at('echo "${PATCH_SHA256}  ${patch}" | sha256sum -c --status - || { echo "CHECK producer FAILED: patch digest"; exit 1; }'),
-      at('git apply --index "$patch" ||'), at('node ../trusted/scripts/ci/producer.ts scope "$patch"'),
+      at('git apply --index "$patch" ||'),
+      at('scope="$(node ../trusted/scripts/ci/producer.ts scope "$patch")" || { echo "$scope"; exit 1; }'),
+      at('[ "$scope" = "scope ok" ] || { echo "CHECK producer FAILED: scope not confirmed"; exit 1; }'),
       at('node ../trusted/scripts/ci/producer.ts message "$RUNNER_TEMP/message.txt"'), at("git -c user.name="),
       at('git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" push origin "HEAD:refs/heads/candidate/${TASK}"'),
     ];
     expect(order.every((i, n) => i >= 0 && (n === 0 || i > (order[n - 1] ?? -1)))).toBe(true);
     expect(push.run).not.toMatch(/--force|\s-f\s|\+HEAD/);
     expect(push.run).not.toMatch(/node (?!\.\.\/trusted\/)/);
+  });
+
+  it("SPEC-001-R208 allows only src/, test/, docs/ and traceability.md, the same places the Edit rules name, and refuses every other path", () => {
+    expect([...SCOPE_DIRS.map((d) => `Edit(${d}**)`), ...SCOPE_FILES.map((f) => `Edit(${f})`)]).toEqual([...EDIT_RULES]);
+    expect(agentPrompt("TASK-1", "", "x", false)).toContain("Change only files under src/, test/ or docs/, or traceability.md.");
+    const protectedList = [".github/", "scripts/ci/", "package.json", "CLAUDE.md"];
+    const refusal = (path: string, spec = "SPEC-014-R7") => scopeRefusal([{ status: "A", mode: "100644", path }], protectedList, 10, spec);
+    for (const allowed of ["src/export.ts", "test/export.acceptance.test.ts", "docs/notes/x.md", "traceability.md"]) {
+      expect([allowed, refusal(allowed)]).toEqual([allowed, undefined]);
+    }
+    const refused: [string, string][] = [
+      [".npmrc", "outside scope .npmrc"], ["package.json", "protected path package.json"], ["README.md", "outside scope README.md"],
+      [".github/x", "protected path .github/x"], ["src/../x", "outside scope src/../x"], ["src/./x.ts", "outside scope src/./x.ts"],
+      ["src//x.ts", "outside scope src//x.ts"], ["docs/.npmrc", "outside scope docs/.npmrc"], ["test/.hidden/x.ts", "outside scope test/.hidden/x.ts"],
+      ["srcx/a.ts", "outside scope srcx/a.ts"], ["traceability.md.bak", "outside scope traceability.md.bak"], ["infra/sandbox/x.tf", "outside scope infra/sandbox/x.tf"],
+      ["docs/a\n::warning::x", "path with a control character"],
+    ];
+    for (const [path, id] of refused) expect([path, refusal(path)]).toEqual([path, id]);
+    expect([inScope("src/export.ts"), inScope("src"), inScope("src/"), inScope(".gitattributes")]).toEqual([true, false, false, false]);
   });
 
   it("SPEC-001-R208 refuses a patch that is too big, empty, protected, not a plain file, or touches src/ or test/ with no spec", () => {
@@ -373,9 +409,12 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
         return spawnSync(process.execPath, [script, "scope", join(temp, "changes.diff")], { cwd: dir, encoding: "utf8", env: { ...process.env, SPEC: spec } });
       };
       const add = (path: string, text: string) => `diff --git a/${path} b/${path}\nnew file mode 100644\n--- /dev/null\n+++ b/${path}\n@@ -0,0 +1 @@\n+${text}\n`;
-      expect(scope(add("docs/b.md", "b")).status).toBe(0);
+      const ok = scope(add("docs/b.md", "b"));
+      expect([ok.status, ok.stdout]).toEqual([0, "scope ok\n"]);
       const workflow = scope(add(".github/workflows/x.yml", "on: push"));
       expect([workflow.status, workflow.stdout]).toEqual([1, "CHECK producer FAILED: protected path .github/workflows/x.yml\n"]);
+      const npmrc = scope(add(".npmrc", "node-options=--import=./docs/notes/x.mjs"));
+      expect([npmrc.status, npmrc.stdout]).toEqual([1, "CHECK producer FAILED: outside scope .npmrc\n"]);
       const loosened = "diff --git a/specs/protected-paths.txt b/specs/protected-paths.txt\n--- a/specs/protected-paths.txt\n+++ b/specs/protected-paths.txt\n@@ -1,3 +1 @@\n # list\n-.github/\n-scripts/ci/\n";
       const both = scope(`${loosened}${add("scripts/ci/x.sh", "x")}`);
       expect(both.stdout).toBe("CHECK producer FAILED: protected path scripts/ci/x.sh\n");
@@ -384,6 +423,30 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
       rmSync(temp, { recursive: true, force: true });
+    }
+  });
+
+  it("SPEC-001-R208 runs scope when started through a symlink or a path that needs percent-encoding, never exiting 0 silently", () => {
+    const temp = tempDir("producer entry ");
+    const { dir } = repoWith({ "specs/protected-paths.txt": ".github/\n", "docs/a.md": "a\n" });
+    try {
+      const script = join(process.cwd(), "scripts/ci/producer.ts");
+      const spaced = join(temp, "with space.ts");
+      writeFileSync(spaced, "");
+      expect(isEntryPoint(pathToFileURL(spaced).href, spaced)).toBe(true);
+      expect(isEntryPoint(pathToFileURL(spaced).href, script)).toBe(false);
+      expect(isEntryPoint(pathToFileURL(spaced).href, undefined)).toBe(false);
+      mkdirSync(join(temp, "ci"));
+      symlinkSync(script, join(temp, "ci", "linked.ts"));
+      expect(isEntryPoint(pathToFileURL(script).href, join(temp, "ci", "linked.ts"))).toBe(true);
+      writeFileSync(join(dir, "docs/a.md"), "b\n");
+      gitIn(dir, "add", "docs/a.md");
+      writeFileSync(join(temp, "changes.diff"), "x\n");
+      const r = spawnSync(process.execPath, [join(temp, "ci", "linked.ts"), "scope", join(temp, "changes.diff")], { cwd: dir, encoding: "utf8" });
+      expect([r.status, r.stdout]).toEqual([0, "scope ok\n"]);
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 

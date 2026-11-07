@@ -1,0 +1,4 @@
+{
+  "description": "Network destinations for the runner producer's sandboxed commands (producer.yml, SPEC-001-R87): none. Claude Code's own Bedrock calls run outside the sandbox.",
+  "allowedDomains": []
+}

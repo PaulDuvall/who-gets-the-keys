@@ -1,9 +1,9 @@
 # Runner producer, Tracer 2 slice T2: docs/notes/tracer-2.md, and the batch notes in docs/notes/tracer-2-t2-producer.md.
-# Land it after proposals/phase-1 (T1), with: scripts/bootstrap/land.sh proposals/producer
-# land.sh warns that the staged spec, pipeline.yml, checks-before-main test and traceability copies are older than their
-# destinations. Under "Changed since by", expect only the commit that landed proposals/phase-1. These copies were drafted
-# on phase-1's staged copies, so the lines land.sh says they lack are this batch's own edits. If any other commit
-# appears, answer no and ask the agent to restage the batch on the new main.
+# Land it with: scripts/bootstrap/land.sh proposals/producer
+# The batch was staged on top of f6044ef, the commit that landed proposals/phase-1, so land.sh should print no
+# "Changed since by" warning: it lists only commits after the one that added each staged copy. If it prints one for any
+# destination, a later commit changed that file and the staged copy would undo it. Answer no and ask the agent to
+# restage the batch on the new main.
 # When land.sh asks you to approve the sandbox deploy in main's run, leave it waiting and run aws-setup.sh in a second
 # terminal first (README, "AWS setup"): it creates the producer role, lists it in the SCP, creates environment producer
 # and sets PRODUCER_ROLE_ARN and PRODUCER_MODEL. The deploy role cannot create roles, so approving first fails the deploy.
@@ -24,6 +24,7 @@ requires: scripts/checks.ts export const guardedBy
 move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
 move: github-workflows/producer.yml .github/workflows/producer.yml
 move: github-workflows/pipeline.yml .github/workflows/pipeline.yml
+move: github-egress/producer-allowlist.json .github/egress/producer-allowlist.json
 move: scripts/ci/producer.ts scripts/ci/producer.ts
 move: infra/sandbox/iam.tf infra/sandbox/iam.tf
 move: infra/sandbox/main.tf infra/sandbox/main.tf
