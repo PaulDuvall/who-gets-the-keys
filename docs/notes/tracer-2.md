@@ -1,6 +1,6 @@
 # Tracer 2: a locked-down runner first
 
-Status: T1 done 2026-11-07: `f6044ef` landed, candidate run 42378752588, `main` run 42379109850 deployed, evidence in `docs/verification.md` (Receipt: E2E-R1). T2 landed as `4812f27` (`main` run 42388493889 deployed); the producer role, environment and variables exist. The first egress probe, producer run 42389828816, answered neither question 1 nor 2: Bedrock refused the model before the agent ran a tool. Fixes are staged in `proposals/producer-fixes/` (Sonnet 4.6, dontAsk enforced, `is_error` checked). Design, review fixes, probe findings and owner steps are in `docs/notes/tracer-2-t2-producer.md`. T3 and T4 not started. Owner decisions recorded 2026-11-07.
+Status: T1 done 2026-11-07: `f6044ef` landed, candidate run 42378752588, `main` run 42379109850 deployed, evidence in `docs/verification.md` (Receipt: E2E-R1). T2 landed as `4812f27` (`main` run 42388493889 deployed); the producer role, environment and variables exist. The first egress probe, producer run 42389828816, answered neither question 1 nor 2: Bedrock refused the model before the agent ran a tool. The fixes landed as `0fd9906` (Sonnet 4.6, by lifting the SCP for one `aws-setup.sh` run, because break-glass could not be assumed). The second probe, producer run 42400602621, answered questions 1 and 2 and failed only at the new permission-mode check. Option A is staged in `proposals/producer-option-a/`. Design, review fixes, probe findings and owner steps are in `docs/notes/tracer-2-t2-producer.md`. T3 and T4 not started. Owner decisions recorded 2026-11-07.
 
 ## Why
 
@@ -30,8 +30,8 @@ Deferred to thin slices after T4, about 3 to 4 more days: phase 4 (signer out of
 
 ## What the tracer must answer
 
-1. Does Claude Code's sandbox hold egress for an agent with Bash enabled? It is a process sandbox, not a firewall for the whole runner. Not yet answered: in run 42389828816 no tool ran, and the probe check correctly printed `BOUNDARY CHECK INVALID: egress probe did not run`.
-2. Does an invoke-only Bedrock role pinned to one inference profile work? Decision 0004 lists this as not yet verified. Not yet answered: run 42389828816 assumed the role, but Bedrock refused Sonnet 5.5 for the whole account (`is not available for this account`), an admin role included, so IAM was never the deciding layer. The account's quota for Sonnet 5.5 is 0 tokens per minute (`docs/verification.md`, "Bedrock quota").
+1. Does Claude Code's sandbox hold egress for an agent with Bash enabled? It is a process sandbox, not a firewall for the whole runner. Answered yes on 2026-11-07, producer run 42400602621: the agent first asked to widen egress with the Bash tool's `allowed_domains` and was refused (`allowed_domains cannot widen network access in this session` under `strictAllowlist`), then its plain `curl` to `example.com` got `CONNECT tunnel failed, response 403` and `deny network-outbound example.com:443 (host is not on the allow list)`. Run 42389828816 had answered nothing: no tool ran.
+2. Does an invoke-only Bedrock role pinned to one inference profile work? Answered yes on 2026-11-07, producer run 42400602621: `who-gets-the-keys-producer-bedrock`, allowed only `us.anthropic.claude-sonnet-4-6` and its foundation model through it, ran 3 turns for an estimated USD 0.12. Before that, run 42389828816 failed because the account's quota for Sonnet 5.5 is 0 tokens per minute (`docs/verification.md`, "Bedrock quota"), not because of IAM.
 3. Does a patch-only agent with a separate publish job satisfy the trace check and the `Spec:` and `Agent:` trailers?
 4. Do the attestation store's lookup limits bite? Phase 1 slice 1 tests this.
 5. Do the task, run ID and model survive the handoff from the runner to the pipeline and reach the receipt?
