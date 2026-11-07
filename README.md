@@ -181,6 +181,22 @@ git -c gpg.ssh.allowedSignersFile=approvers.txt verify-commit HEAD && git push o
 
 The queue, in order: `proposals/land/` by hand, as above. Then `proposals/deploy-tip/`, one `land.sh` run, because Phase 1's manifest requires it. Then `proposals/phase-1/` with `--stop-before-main`, following "Phase 1 owner steps" in decision 0002, because its end-to-end test runs a deploy-mode receipt probe between the candidate run and `main`. Then later batches, one `land.sh` run each.
 
+## AWS setup
+
+The sandbox must be a member account of your AWS Organization, not its management account. SCPs do not affect the management account, so B11's SCP denial would not hold there. AWS also advises against running workloads in it.
+
+`scripts/bootstrap/aws-setup.sh` does the whole AWS setup as one command. It is staged in `proposals/aws-setup/` until you land it with `scripts/bootstrap/land.sh proposals/aws-setup`, which is independent of the queue above. It needs admin CLI profiles for the sandbox account and the management account. It also needs AWS CLI v2 with `create-bucket --bucket-namespace`, Terraform 1.11 or later, Node.js 24.11 or later, zip, openssl, jq and a signed-in gh.
+
+When `land.sh` says to approve the sandbox deploy in `main`'s run, leave it waiting. In a second terminal at the same checkout, run `aws-setup.sh` as below: `HEAD` and `origin/main` are already the landed commit. Then approve the deploy of `main`'s tip. That ends `land.sh`'s watch, and it deletes its candidate branch.
+
+```bash
+SANDBOX_ACCOUNT_ID=111122223333 SANDBOX_PROFILE=sandbox MANAGEMENT_PROFILE=management ALERT_EMAIL=you@example.com scripts/bootstrap/aws-setup.sh
+```
+
+It first checks the tools, the working tree, both accounts, the organization and Bedrock. If a check fails, it says what to fix and changes nothing. Then it asks once. After that it pauses only to show each Terraform plan before applying that saved plan, and to remind you to confirm the alert email.
+
+It runs `aws.sh`, the two Terraform applies, the alert subscription and `github.sh --vars`. Set `TRIAGE_MODEL` to skip picking a Bedrock model from a list, and `BEDROCK_FORM` to submit the Anthropic first-time-use form. A rerun skips what exists. Each backend is set up with `-reconfigure`, so no state moves over from an account used before, and resources there stay as they are. When it finishes, approve the sandbox deploy in `main`'s tip run in GitHub, never an older run's. If that deploy already ran and failed, rerun the run's failed jobs with `gh run rerun <run ID> --failed`, then approve.
+
 ## Docs
 
 | Doc | Contents |

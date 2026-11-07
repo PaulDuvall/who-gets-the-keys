@@ -1,0 +1,23 @@
+# One-command AWS setup. scripts/bootstrap/aws-setup.sh replaces about 15 commands: aws.sh, the six printed build and
+# apply commands, the SNS subscribe, the management state bucket, the infra/org init and apply, picking a Bedrock
+# model and github.sh --vars. It pauses only for one confirm, each Terraform plan and the alert email.
+# It refuses a sandbox that is the management account: SCPs do not affect it, so B11 needs a member account.
+# aws.sh still works on its own. It gains --yes, which aws-setup.sh passes after its own confirm, and --org-state,
+# which creates infra/org's state bucket with the same settings. Its printed zip line now fixes file times as
+# pipeline.yml's build job does, so a rebuild gives the same artifact and a rerun plans no change.
+# Order: independent of proposals/deploy-tip and proposals/phase-1, which touch none of these files.
+# When land.sh says to approve the sandbox deploy in main's run, leave it waiting. In a second terminal at the same
+# checkout, run scripts/bootstrap/aws-setup.sh: HEAD and origin/main are already the landed commit. Then approve the
+# deploy of main's tip. That ends land.sh's watch, and land.sh deletes the candidate branch.
+# If that deploy already ran and failed, rerun the run's failed jobs, then approve. Never approve an older run's deploy.
+# traceability.md is not changed: deploy-tip, phase-1 and video-alignment each stage a whole-file copy of it, and
+# a change here would make those copies stale. The tests name SPEC-001-R28 and SPEC-001-R30, already traced.
+message: spec: one-command AWS setup
+spec: SPEC-001-R28
+spec: SPEC-001-R30
+# The D25 aws.sh is on main: it reads the shared GitHub OIDC provider and creates one only when the account has none.
+requires: scripts/bootstrap/aws.sh infra/sandbox reads it and does not manage it.
+requires: infra/sandbox/iam.tf data "aws_iam_openid_connect_provider" "github"
+move: scripts/bootstrap/aws-setup.sh scripts/bootstrap/aws-setup.sh
+move: scripts/bootstrap/aws.sh scripts/bootstrap/aws.sh
+move: test/aws-setup.test.ts test/aws-setup.test.ts
