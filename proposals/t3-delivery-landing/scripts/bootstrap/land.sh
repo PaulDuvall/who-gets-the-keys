@@ -129,6 +129,11 @@ finish_main() {
   local sha="$1" branch="$2" other="${3:-}" short run="" status=0
   short="$(git rev-parse --short "$sha")"
   if ! git push origin "${sha}:refs/heads/main"; then
+    if [ -n "$other" ]; then
+      fail "main refused ${short}, so nothing changed on main, in this clone or on ${branch} and ${other}." \
+        "If main has moved since the producer made ${short}, delete both branches, then dispatch the task again:" \
+        "git push origin --delete ${branch} ${other}"
+    fi
     fail "main refused ${short}, so nothing changed on main and ${branch} is still there." \
       "If main has moved since this commit was made, land the batch again from the new main. First drop this attempt:" \
       "$(drop_commands "$branch")"
@@ -159,10 +164,29 @@ finish_main() {
 }
 
 # watch_candidate <branch> <sha>: waits for the candidate run and watches it; on failure says how to go on and exits.
+# In delivery mode (delivery_branch set) the way on is the same --delivery command, or a new dispatch, never a commit
+# on top: the delivery is the producer's patch.
 watch_candidate() {
   local branch="$1" sha="$2" short run
   short="$(git rev-parse --short "$sha")"
   say "Waiting for the pipeline run on ${branch} for ${short}."
+  if [ -n "$delivery_branch" ]; then
+    if ! run="$(find_run "$branch" "$sha")"; then
+      fail "No pipeline run on ${branch} for ${short} after 5 minutes. main has not moved." \
+        "To wait for it again, run the same command:" "scripts/bootstrap/land.sh --delivery ${delivery_branch}"
+    fi
+    say "Pipeline run ${run} on ${branch}. If you stop watching, finish later with the same command:" \
+      "scripts/bootstrap/land.sh --delivery ${delivery_branch}"
+    if ! gh run watch "$run" --exit-status; then
+      fail "" "The pipeline run ${run} on ${branch} failed, so main has not moved." \
+        "The delivery is the producer's patch, so do not fix it with a commit on top. To see why it failed:" \
+        "gh run view ${run} --log-failed" \
+        "Then delete both branches and dispatch the task again with a corrected prompt:" \
+        "git push origin --delete ${branch} ${delivery_branch}"
+    fi
+    candidate_run="$run"
+    return 0
+  fi
   if ! run="$(find_run "$branch" "$sha")"; then
     fail "No pipeline run on ${branch} for ${short} after 5 minutes. main has not moved." \
       "When the run has passed, finish with:" "scripts/bootstrap/land.sh --to-main ${sha} ${branch}"
@@ -225,6 +249,7 @@ esac
 
 need_tools
 candidate_run=""
+delivery_branch=""
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/land.XXXXXX")"
 moved=0
@@ -310,6 +335,7 @@ if [ "$mode" = delivery ]; then
   if [ -z "$held" ] && ! git push -q origin "${sha}:refs/heads/${owner_branch}"; then
     fail "The push to ${owner_branch} failed, so nothing changed. Run the same command again."
   fi
+  delivery_branch="$branch"
   watch_candidate "$owner_branch" "$sha"
   finish_main "$sha" "$owner_branch" "$branch"
   exit 0
