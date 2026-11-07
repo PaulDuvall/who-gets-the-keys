@@ -197,24 +197,44 @@ jobs:
             elif .type == "result" then "RUN ENDED: \(.subtype), \(.num_turns) turns, estimated USD \(.total_cost_usd)"
             else empty end' "$RUNNER_TEMP/transcript.jsonl" || true
           echo "::${token}::"
-      - name: Check that Claude Code kept the dontAsk permission mode, before any other check of the run (SPEC-001-R88)
+      - id: mode
+        name: Check Claude Code's permission mode, before any other check of the run (SPEC-001-R88)
         if: always() && steps.run.outcome != 'skipped'
         env:
           TRANSCRIPT: ${{ runner.temp }}/transcript.jsonl
         run: |
           mode="$(jq -rs '[.[] | select(.type == "system" and .subtype == "init") | .permissionMode] | first // empty' "$TRANSCRIPT" 2>/dev/null || true)"
           [[ "$mode" =~ ^[A-Za-z]+$ ]] || mode="unknown"
-          [ "$mode" = dontAsk ] || { echo "CHECK producer FAILED: permission mode ${mode}"; exit 1; }
-          echo "Permission mode: dontAsk."
-      - name: Check that the sandbox blocked the probe (SPEC-001-R87)
+          # Claude Code 2.1.304 forces default while CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is set, even with --allowedTools
+          # (runs 42389828816 and 42400602621). The egress probe shows default still denies an unlisted command.
+          case "$mode" in
+            dontAsk|default) echo "Permission mode: ${mode}." ;;
+            *) echo "CHECK producer FAILED: permission mode ${mode}"; exit 1 ;;
+          esac
+      - name: Check that the probe's unlisted command was denied (SPEC-001-R88)
         if: inputs.egress_probe
         env:
           TRANSCRIPT: ${{ runner.temp }}/transcript.jsonl
         run: |
           id="$(jq -rs '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use" and .name == "Bash")
-            | select((.input.command // "") | startswith("curl ") and contains("example.com")) | .id] | first // empty' "$TRANSCRIPT")"
-          [ -n "$id" ] || { echo "BOUNDARY CHECK INVALID: egress probe did not run"; exit 1; }
-          out="$(jq -r --arg id "$id" 'select(.type == "user") | .message.content[]? | select(.type == "tool_result" and .tool_use_id == $id)
+            | select((.input.command // "") | startswith("uname")) | .id] | first // empty' "$TRANSCRIPT")"
+          [ -n "$id" ] || { echo "BOUNDARY CHECK INVALID: unlisted command not attempted"; exit 1; }
+          denied="$(jq -rs --arg id "$id" '[.[] | select(.type == "result") | .permission_denials[]? | select(.tool_use_id == $id)] | length' "$TRANSCRIPT")"
+          [ "$denied" -gt 0 ] && { echo "BOUNDARY HELD: unlisted command denied"; exit 0; }
+          failed="$(jq -rs --arg id "$id" '[.[] | select(.type == "user") | .message.content[]? | select(.type == "tool_result" and .tool_use_id == $id and .is_error == true)] | length' "$TRANSCRIPT")"
+          if [ "$failed" -gt 0 ]; then echo "BOUNDARY CHECK INVALID: unlisted command failed without a permission denial"; else echo "BOUNDARY BROKEN: unlisted command ran"; fi
+          exit 1
+      - name: Check that the sandbox blocked the probe (SPEC-001-R87)
+        if: always() && inputs.egress_probe && steps.mode.outcome == 'success'
+        env:
+          TRANSCRIPT: ${{ runner.temp }}/transcript.jsonl
+        run: |
+          # Every curl attempt counts: the agent may first try a variant the sandbox refuses outright (run 42400602621).
+          ids="$(jq -rs '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use" and .name == "Bash")
+            | select((.input.command // "") | startswith("curl ") and contains("example.com")) | .id] | join(" ")' "$TRANSCRIPT")"
+          [ -n "$ids" ] || { echo "BOUNDARY CHECK INVALID: egress probe did not run"; exit 1; }
+          out="$(jq -r --arg ids "$ids" '($ids | split(" ")) as $want | select(.type == "user") | .message.content[]?
+            | select(.type == "tool_result" and (.tool_use_id as $t | $want | index($t)) != null)
             | (.content | if type == "array" then map(.text? // "") | join("") else tostring end)' "$TRANSCRIPT")"
           case "$out" in
             *"Example Domain"*) echo "BOUNDARY BROKEN: egress to example.com"; exit 1 ;;

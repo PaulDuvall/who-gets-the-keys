@@ -6,10 +6,7 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import {
-  agentPrompt, agentSettings, BASH_RULES, commitMessage, DENY_RULES, EDIT_RULES, inScope, isEntryPoint, MAX_PATCH_BYTES, PROBE_RULE,
-  ProducerRefusal, SCOPE_DIRS, SCOPE_FILES, scopeRefusal, SPEC_ID, stagedEntries, SUBJECT, TASK_ID,
-} from "../scripts/ci/producer.ts";
+import { agentPrompt, agentSettings, BASH_RULES, commitMessage, DENY_RULES, EDIT_RULES, inScope, isEntryPoint, MAX_PATCH_BYTES, PROBE_RULE, PROBE_UNLISTED, ProducerRefusal, SCOPE_DIRS, SCOPE_FILES, scopeRefusal, SPEC_ID, stagedEntries, SUBJECT, TASK_ID } from "../scripts/ci/producer.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -214,7 +211,7 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
 
   it("SPEC-001-R87 prints BOUNDARY HELD only when the sandbox proxy refused the probe's curl with a 403", () => {
     const check = step("agent", named("Check that the sandbox blocked the probe"));
-    expect(check.if).toBe("inputs.egress_probe");
+    expect(check.if).toBe("always() && inputs.egress_probe && steps.mode.outcome == 'success'");
     const dir = tempDir("producer-probe-");
     try {
       const transcript = (command: string | undefined, result: string) => [
@@ -230,6 +227,21 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
       ];
       for (const [command, result, status, line] of cases) {
         writeFileSync(join(dir, "transcript.jsonl"), `${transcript(command, result)}\n`);
+        const r = bash(check, { TRANSCRIPT: join(dir, "transcript.jsonl") }, dir);
+        expect([r.status, r.stdout]).toEqual([status, `${line}\n`]);
+      }
+      // Run 42400602621: the first attempt asked to widen egress and was refused; the second got the proxy's 403.
+      const attempt = (id: string, result: string) => [
+        { type: "assistant", message: { content: [{ type: "tool_use", id, name: "Bash", input: { command: curl } }] } },
+        { type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, content: result, is_error: true }] } },
+      ];
+      const twice = (second: string) => [...attempt("t1", "allowed_domains cannot widen network access in this session"), ...attempt("t2", second)]
+        .map((line) => JSON.stringify(line)).join("\n");
+      for (const [second, status, line] of [
+        ["curl: (56) CONNECT tunnel failed, response 403", 0, "BOUNDARY HELD: egress to example.com"],
+        ["<title>Example Domain</title>", 1, "BOUNDARY BROKEN: egress to example.com"],
+      ] as const) {
+        writeFileSync(join(dir, "transcript.jsonl"), `${twice(second)}\n`);
         const r = bash(check, { TRANSCRIPT: join(dir, "transcript.jsonl") }, dir);
         expect([r.status, r.stdout]).toEqual([status, `${line}\n`]);
       }
@@ -262,6 +274,9 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     expect(asked.length).toBeGreaterThan(0);
     expect(asked.filter((rule) => !(BASH_RULES as readonly string[]).includes(rule))).toEqual([]);
     expect(agentPrompt("TASK-P", "", "ignored", true)).toContain("curl -sS --max-time 15 https://example.com/");
+    const probePrompt = agentPrompt("TASK-P", "", "ignored", true);
+    expect([PROBE_UNLISTED, probePrompt.indexOf(PROBE_UNLISTED) >= 0, probePrompt.indexOf(PROBE_UNLISTED) < probePrompt.indexOf("curl ")])
+      .toEqual(["uname -a", true, true]);
     expect(agentPrompt("TASK-P", "", "ignored", true)).not.toContain("ignored");
     expect(agentPrompt("TASK-1", "SPEC-014-R7", "Add R7.", false)).toMatch(/task TASK-1 in this repository\. The change implements SPEC-014-R7\.[^]*\nTask:\nAdd R7\.\n$/);
     expect(() => agentPrompt("TASK-1", "R7", "x", false)).toThrow(new ProducerRefusal("input spec"));
@@ -290,12 +305,41 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     }
   });
 
-  it("SPEC-001-R88 fails the run unless the transcript's init event shows dontAsk, before the probe and end-of-run checks", () => {
+  it("SPEC-001-R88 prints BOUNDARY HELD for the probe's unlisted command only when the result lists it in permission_denials", () => {
+    const check = step("agent", named("Check that the probe's unlisted command was denied"));
+    expect(check.if).toBe("inputs.egress_probe");
+    const probeAllow = (agentSettings({ allowedDomains: [] }, true) as { permissions: { allow: string[] } }).permissions.allow;
+    expect([probeAllow.length > 0, probeAllow.filter((rule) => rule.includes("uname"))]).toEqual([true, []]);
+    const dir = tempDir("producer-unlisted-");
+    try {
+      const use = { type: "assistant", message: { content: [{ type: "tool_use", id: "u1", name: "Bash", input: { command: PROBE_UNLISTED } }] } };
+      const result = (content: string, isError: boolean) => ({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "u1", content, is_error: isError }] } });
+      const end = (denials: unknown[]) => ({ type: "result", subtype: "success", is_error: false, permission_denials: denials });
+      const denial = { tool_name: "Bash", tool_use_id: "u1", tool_input: { command: PROBE_UNLISTED } };
+      const cases: [unknown[], number, string][] = [
+        [[use, result("Permission to use Bash has been denied.", true), end([denial])], 0, "BOUNDARY HELD: unlisted command denied"],
+        [[use, result("Linux runner 6.8.0 x86_64", false), end([])], 1, "BOUNDARY BROKEN: unlisted command ran"],
+        [[use, result("some error", true), end([])], 1, "BOUNDARY CHECK INVALID: unlisted command failed without a permission denial"],
+        [[end([])], 1, "BOUNDARY CHECK INVALID: unlisted command not attempted"],
+      ];
+      for (const [lines, status, line] of cases) {
+        writeFileSync(join(dir, "transcript.jsonl"), `${lines.map((l) => JSON.stringify(l)).join("\n")}\n`);
+        const r = bash(check, { TRANSCRIPT: join(dir, "transcript.jsonl") }, dir);
+        expect([r.status, r.stdout]).toEqual([status, `${line}\n`]);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("SPEC-001-R88 fails the run unless the transcript's init event shows dontAsk or default, before the probe and end-of-run checks", () => {
     const steps = job("agent").steps;
-    const mode = stepIndex("agent", named("Check that Claude Code kept the dontAsk permission mode"));
+    const mode = stepIndex("agent", named("Check Claude Code's permission mode"));
+    const unlisted = stepIndex("agent", named("Check that the probe's unlisted command was denied"));
     const probe = stepIndex("agent", named("Check that the sandbox blocked the probe"));
     const ended = stepIndex("agent", named("Check how the agent's run ended"));
-    expect([mode > stepIndex("agent", (s) => s.id === "run"), mode < probe, mode < ended]).toEqual([true, true, true]);
+    expect([mode > stepIndex("agent", (s) => s.id === "run"), mode < unlisted, unlisted < probe, mode < ended]).toEqual([true, true, true, true]);
+    expect(steps[mode]?.id).toBe("mode");
     const check = steps[mode] as Step;
     expect(check.if).toBe("always() && steps.run.outcome != 'skipped'");
     expect(check.run).toContain('select(.type == "system" and .subtype == "init") | .permissionMode');
@@ -306,8 +350,11 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
         writeFileSync(transcript, `${JSON.stringify({ type: "system", subtype: "init", ...fields })}\n${JSON.stringify({ type: "result", subtype: "success" })}\n`);
       const cases: [Record<string, unknown> | undefined, number, string][] = [
         [{ permissionMode: "dontAsk" }, 0, "Permission mode: dontAsk.\n"],
-        [{ permissionMode: "default" }, 1, "CHECK producer FAILED: permission mode default\n"],
+        [{ permissionMode: "default" }, 0, "Permission mode: default.\n"],
         [{ permissionMode: "bypassPermissions" }, 1, "CHECK producer FAILED: permission mode bypassPermissions\n"],
+        [{ permissionMode: "acceptEdits" }, 1, "CHECK producer FAILED: permission mode acceptEdits\n"],
+        [{ permissionMode: "auto" }, 1, "CHECK producer FAILED: permission mode auto\n"],
+        [{ permissionMode: "plan" }, 1, "CHECK producer FAILED: permission mode plan\n"],
         [{ permissionMode: "::warning::x" }, 1, "CHECK producer FAILED: permission mode unknown\n"],
         [{}, 1, "CHECK producer FAILED: permission mode unknown\n"],
         [undefined, 1, "CHECK producer FAILED: permission mode unknown\n"],

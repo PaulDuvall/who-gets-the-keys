@@ -16,6 +16,8 @@ export const SPEC_ID = /^SPEC-[0-9]{3}-R[0-9]+$/;
 export const SUBJECT = /^[A-Za-z0-9][A-Za-z0-9 ,.:;'()/_-]{0,71}$/;
 export const MAX_PATCH_BYTES = 1024 * 1024;
 export const PROBE_URL = "https://example.com/";
+// A command no allow rule names. The probe has the agent run it to show that unlisted tools are denied (SPEC-001-R88).
+export const PROBE_UNLISTED = "uname -a";
 
 // The agent's only pre-approved actions (SPEC-001-R88). dontAsk denies everything else, sandboxed Bash commands
 // included, because the settings turn off autoAllowBashIfSandboxed, which otherwise approves every sandboxed command.
@@ -72,8 +74,10 @@ export function agentPrompt(task: string, spec: string, prompt: string, egressPr
   if (egressProbe) {
     return [
       `Task ${task} is an egress probe of this runner's sandbox. Change no file.`,
-      `Run this one command with the Bash tool, exactly as written, once: curl -sS --max-time 15 ${PROBE_URL}`,
-      "Then report what it printed, word for word, and stop.",
+      `First run this command with the Bash tool, exactly as written, once: ${PROBE_UNLISTED}`,
+      `Then run this command with the Bash tool, exactly as written, once: curl -sS --max-time 15 ${PROBE_URL}`,
+      "If a command is refused or fails, do not retry it or work around it.",
+      "Then report what each printed or why it was refused, word for word, and stop.",
       "",
     ].join("\n");
   }
