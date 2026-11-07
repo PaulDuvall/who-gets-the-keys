@@ -1,0 +1,38 @@
+# Runner producer, Tracer 2 slice T2: docs/notes/tracer-2.md, and the batch notes in docs/notes/tracer-2-t2-producer.md.
+# Land it after proposals/phase-1 (T1), with: scripts/bootstrap/land.sh proposals/producer
+# land.sh warns that the staged spec, pipeline.yml, checks-before-main test and traceability copies are older than their
+# destinations. Under "Changed since by", expect only the commit that landed proposals/phase-1. These copies were drafted
+# on phase-1's staged copies, so the lines land.sh says they lack are this batch's own edits. If any other commit
+# appears, answer no and ask the agent to restage the batch on the new main.
+# When land.sh asks you to approve the sandbox deploy in main's run, leave it waiting and run aws-setup.sh in a second
+# terminal first (README, "AWS setup"): it creates the producer role, lists it in the SCP, creates environment producer
+# and sets PRODUCER_ROLE_ARN and PRODUCER_MODEL. The deploy role cannot create roles, so approving first fails the deploy.
+message: spec: runner producer, Tracer 2 slice T2
+spec: SPEC-001-R83
+spec: SPEC-001-R85
+spec: SPEC-001-R86
+spec: SPEC-001-R87
+spec: SPEC-001-R88
+spec: SPEC-001-R89
+spec: SPEC-001-R207
+spec: SPEC-001-R208
+spec: SPEC-001-R209
+# proposals/phase-1 has landed: its spec rows and its build step are on main.
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R55 |
+requires: .github/workflows/pipeline.yml node scripts/receipt.ts predicate
+requires: scripts/checks.ts export const guardedBy
+move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
+move: github-workflows/producer.yml .github/workflows/producer.yml
+move: github-workflows/pipeline.yml .github/workflows/pipeline.yml
+move: scripts/ci/producer.ts scripts/ci/producer.ts
+move: infra/sandbox/iam.tf infra/sandbox/iam.tf
+move: infra/sandbox/main.tf infra/sandbox/main.tf
+move: infra/sandbox/variables.tf infra/sandbox/variables.tf
+move: infra/org/main.tf infra/org/main.tf
+move: scripts/bootstrap/github.sh scripts/bootstrap/github.sh
+move: scripts/bootstrap/aws-setup.sh scripts/bootstrap/aws-setup.sh
+move: test/producer.test.ts test/producer.test.ts
+move: test/checks-before-main.test.ts test/checks-before-main.test.ts
+move: test/aws-setup.test.ts test/aws-setup.test.ts
+move: traceability.md traceability.md
+move: CLAUDE.proposed.md CLAUDE.md
