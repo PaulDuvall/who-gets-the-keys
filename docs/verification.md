@@ -86,6 +86,7 @@ A Date of "pending owner run (aws-setup)" means the same for a syntax that `scri
 | Item | Finding | Source | Date |
 |---|---|---|---|
 | Node.js LTS | Latest LTS v24.22.0 (Krypton, 2026-10-14). v24 enters Maintenance 2026-10-20; v26 becomes Active LTS 2026-10-28 | https://nodejs.org/dist/index.json, https://raw.githubusercontent.com/nodejs/Release/main/schedule.json | 2026-10-20 |
+| Node.js for cloud sessions | `node-v24.22.2-linux-x64.tar.xz`, SHA-256 `48cc0e21e048790e54c0cf5749c2725005313d652651c40b7a21feb9697aaf75`, equal to the line in that release's SHASUMS256.txt and to the downloaded file's hash. The same version `setup-node` resolved from `package.json` in the receipt jobs of 2026-11-07 (README, "Cloud session environment") | https://nodejs.org/dist/v24.22.2/SHASUMS256.txt | 2026-11-07 |
 | Lambda runtime | `nodejs24.x` GA; `nodejs26.x` public preview, not covered by SLA | https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html | 2026-10-20 |
 | typescript | latest 7.0.2; pinned 6.0.3 (typescript-eslint peer `>=4.8.4 <6.1.0`) | https://registry.npmjs.org/typescript | 2026-10-20 |
 | vitest | latest 5.0.5 (2026-09-03 for 5.0.0); pinned 4.1.12 (2026-10-15) for Stryker compatibility, see D10 | https://registry.npmjs.org/vitest | 2026-10-20 |

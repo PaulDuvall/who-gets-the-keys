@@ -197,6 +197,39 @@ It first checks the tools, the working tree, both accounts, the organization and
 
 It runs `aws.sh`, the two Terraform applies, the alert subscription and `github.sh --vars`. Set `TRIAGE_MODEL` to skip picking a Bedrock model from a list, and `BEDROCK_FORM` to submit the Anthropic first-time-use form. A rerun skips what exists. Each backend is set up with `-reconfigure`, so no state moves over from an account used before, and resources there stay as they are. When it finishes, approve the sandbox deploy in `main`'s tip run in GitHub, never an older run's. If that deploy already ran and failed, rerun the run's failed jobs with `gh run rerun <run ID> --failed`, then approve.
 
+## Cloud session environment
+
+Claude Code cloud sessions for this repository run in a claude.ai cloud environment. Its settings live in claude.ai, not here, and nothing versions them (`docs/notes/tracer-2.md`, "Why"). This section is the record of what it holds, so it can be rebuilt from the repo. Edit it in the cloud environment menu in a session's title bar, then Edit. A new setup script runs when a fresh container is built, not when a session resumes.
+
+| Setting | Value |
+|---|---|
+| Name | Full Environment (personal) |
+| Repositories | None preselected |
+| Network access | Full. The script fetches from nodejs.org, github.com release downloads, releases.hashicorp.com, PyPI and the npm registry; a limited network has not been tried |
+| Network secrets | None |
+| Environment variables | None |
+| Setup script | Below. It runs as root, from the directory that holds the checkout |
+
+```bash
+set -euo pipefail
+if [ -d who-gets-the-keys ]; then
+  v=v24.22.2
+  sha=48cc0e21e048790e54c0cf5749c2725005313d652651c40b7a21feb9697aaf75
+  tmp="$(mktemp -d)"
+  curl -sSfL --retry 3 -o "$tmp/node.tar.xz" "https://nodejs.org/dist/$v/node-$v-linux-x64.tar.xz"
+  echo "$sha  $tmp/node.tar.xz" | sha256sum -c --quiet -
+  rm -rf /opt/node24 && mkdir -p /opt/node24
+  tar -xJf "$tmp/node.tar.xz" -C /opt/node24 --strip-components=1
+  rm -rf "$tmp"
+  mkdir -p /root/.local/bin
+  ln -sf /opt/node24/bin/node /opt/node24/bin/npm /opt/node24/bin/npx /root/.local/bin/
+  (cd who-gets-the-keys && PATH="/root/.local/bin:$PATH" UV_VENV_CLEAR=1 scripts/ci/install-tools.sh /root/.local/bin)
+  (cd who-gets-the-keys && PATH="/root/.local/bin:$PATH" npm ci --ignore-scripts --no-audit --no-fund)
+fi
+```
+
+It gives a session the Node.js version `package.json` pins (the image ships Node 22), the pinned check CLIs from `scripts/ci/install-tools.sh`, and `node_modules` from the lockfile with install scripts off. `/root/.local/bin` comes before `/opt/node22/bin` on the image's `PATH`. With it, a session can run `tsc`, ESLint, vitest and the other local checks, and the commit hook finds gitleaks. The agent installs nothing: `.claude/settings.json` still denies it `npm ci`, and the owner adds the `npm ci` line, which is why the agent never ran that line itself. The other lines were run twice in a session container on 2026-11-07: Node v24.22.2, npm 11.19.1, gitleaks 8.30.1, osv-scanner 2.7.0, Terraform 1.16.6, TFLint 0.64.0, Semgrep 1.181.0, zizmor 1.31.1. When `package.json`'s Node range or a pinned tool changes, update this script and the environment together.
+
 ## Docs
 
 | Doc | Contents |
