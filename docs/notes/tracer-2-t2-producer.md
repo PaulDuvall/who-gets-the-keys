@@ -125,7 +125,7 @@ Not run: the real `lint`, `typecheck`, `trace` and `test` checks, because this s
 Run it once the staging commits are on `main`. It checks the batch with the real tools in a throwaway worktree, commits nothing, and removes the worktree. It must end with `preflight exit 0`.
 
 ```bash
-git fetch -q origin main && wt="$(mktemp -d)/t2-preflight" && git worktree add -q --detach "$wt" origin/main && (cd "$wt" && grep '^move: ' proposals/producer/LAND.txt | while read -r _ src dest; do mkdir -p "$(dirname "$dest")" && git mv -f "proposals/producer/$src" "$dest" || exit 1; done && npm ci --ignore-scripts --no-audit --no-fund && npx tsc --noEmit -p . && npx eslint scripts/ci/producer.ts test/producer.test.ts test/checks-before-main.test.ts test/aws-setup.test.ts && npx vitest run test/producer.test.ts test/checks-before-main.test.ts test/aws-setup.test.ts test/receipt.test.ts test/checks.test.ts); status=$?; git worktree remove --force "$wt"; echo "preflight exit ${status}"
+git fetch -q origin main && wt="$(mktemp -d)/t2-preflight" && git worktree add -q --detach "$wt" origin/main && (cd "$wt" && grep '^move: ' proposals/producer/LAND.txt | while read -r _ src dest; do mkdir -p "$(dirname "$dest")" && git mv -f "proposals/producer/$src" "$dest" || exit 1; done && npm ci --ignore-scripts --no-audit --no-fund && npx tsc --noEmit -p . && npx eslint scripts/ci/producer.ts test/producer.test.ts test/checks-before-main.test.ts test/aws-setup.test.ts && npx vitest run test/producer.test.ts test/checks-before-main.test.ts test/aws-setup.test.ts test/receipt.test.ts test/checks.test.ts); rc=$?; git worktree remove --force "$wt"; echo "preflight exit ${rc}"
 ```
 
 ## Owner steps
