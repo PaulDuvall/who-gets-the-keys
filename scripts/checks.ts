@@ -325,13 +325,78 @@ export function deployTipId(deployed: string, remote: string | undefined): strin
   return tips.length === 1 && COMMIT_SHA.test(deployed) && tips[0] === deployed ? undefined : (deployed.slice(0, 12) || "HEAD");
 }
 
-// gh attestation verify, pinned to pipeline.yml on main, a GitHub-hosted runner and, in CI, this commit (SPEC-001-R17).
-export function attestationArgs(artifact: string, repo: string, sha: string | undefined): string[] {
+const MAIN = "refs/heads/main";
+const CANDIDATE = /^refs\/heads\/candidate\/.+$/;
+// A receipt field: one printable line with no control, format, line or paragraph separator, so it cannot end the summary fence or start a workflow command.
+const ONE_LINE = /^[^\p{Cc}\p{Cf}\p{Zl}\p{Zp}]{1,200}$/u, SPEC_ID = /^SPEC-\d{3}-R\d+$/;
+
+/** Predicate types every receipt needs; gh verifies one per call. A later slice reads them from the policy. @requirement SPEC-001-R50 */
+export const RECEIPT_TYPES = ["https://slsa.dev/provenance/v1", "https://github.com/PaulDuvall/who-gets-the-keys/provenance/v2"] as const;
+
+/**
+ * gh attestation verify for one type, pinned exactly: pipeline.yml at `ref` as signer and source ref, a hosted runner, and
+ * `sha` as source and signer digest. The store lists newest first; 1000 is gh's largest window. @requirement SPEC-001-R17 @requirement SPEC-001-R50
+ */
+export function pinArgs(artifact: string, repo: string, ref: string, sha: string | undefined, type: string = RECEIPT_TYPES[0]): string[] {
   return [
     "gh", "attestation", "verify", artifact, "--repo", repo,
-    "--signer-workflow", `${repo}/.github/workflows/pipeline.yml`, "--source-ref", "refs/heads/main",
-    "--deny-self-hosted-runners", ...(sha ? ["--source-digest", sha] : []),
+    "--cert-identity", `https://github.com/${repo}/.github/workflows/pipeline.yml@${ref}`, "--source-ref", ref,
+    "--deny-self-hosted-runners", "--predicate-type", type, "--limit", "1000",
+    ...(sha ? ["--source-digest", sha, "--signer-digest", sha] : []),
   ];
+}
+
+/** SLSA provenance from pipeline.yml on main, before any AWS call. @requirement SPEC-001-R17 */
+export const attestationArgs = (artifact: string, repo: string, sha: string | undefined): string[] => pinArgs(artifact, repo, MAIN, sha);
+
+/** A run pins its own ref (main or a candidate branch), deploy always main; anything else fails before gh runs. @requirement SPEC-001-R50 @requirement SPEC-001-R56 */
+export function receiptPin(mode: "run" | "deploy", ref: string | undefined, sha: string | undefined): { ref: string; sha: string } {
+  const pinned = mode === "deploy" ? MAIN : ref ?? "";
+  if (pinned !== MAIN && !CANDIDATE.test(pinned)) throw new CheckFailure("receipt", `unpinned ref ${pinned || "unset"}`);
+  if (sha === undefined || !/^[0-9a-f]{40}$/.test(sha)) throw new CheckFailure("receipt", "unpinned commit");
+  return { ref: pinned, sha };
+}
+
+/** SHA-256 of a file's raw bytes; `sha256` hashes UTF-8 text, which would alter a zip. @requirement SPEC-001-R50 */
+export const fileSha256 = (path: string): string => createHash("sha256").update(readFileSync(path)).digest("hex");
+
+const parsed = (json: string): unknown => { try { return JSON.parse(json); } catch { return undefined; } };
+const lower = (v: unknown): string => (typeof v === "string" ? v.toLowerCase() : "");
+interface Verification { statement?: { predicateType?: unknown; subject?: unknown; predicate?: unknown }; signature?: { certificate?: Record<string, unknown> } }
+
+/**
+ * The first verified entry in `gh attestation verify --format json` output with predicate type `type`, 64-hex subject `digest`, and
+ * certificate source `commit` at `ref`. gh trusts the store's type filter, so this matches them all itself. @requirement SPEC-001-R50
+ */
+export function verifiedStatement(output: string, type: string, digest: string, commit: string, ref: string) {
+  const entries = /^[0-9a-f]{64}$/i.test(digest) ? parsed(output) : undefined;
+  for (const { statement, signature } of (Array.isArray(entries) ? entries : []).map((e: { verificationResult?: Verification } | null): Verification => e?.verificationResult ?? {})) {
+    const subjects = (Array.isArray(statement?.subject) ? statement.subject : []) as ({ digest?: { sha256?: unknown } } | null)[];
+    const certificate = signature?.certificate;
+    if (statement?.predicateType === type && certificate?.["sourceRepositoryRef"] === ref && lower(certificate["sourceRepositoryDigest"]) === commit.toLowerCase()
+      && subjects.some((s) => lower(s?.digest?.sha256) === digest.toLowerCase())) return { predicate: statement.predicate, certificate };
+  }
+  return undefined;
+}
+
+interface ReceiptRecord { commit: string; spec_ids: string[]; agent: string; model: string }
+
+/** The record for `commit` in a verified provenance/v2 predicate, if its fields are safe lines and its model is `not recorded` (owner decision D3). @requirement SPEC-001-R45 @requirement SPEC-001-R55 */
+export function receiptRecord(predicate: unknown, commit: string): ReceiptRecord | undefined {
+  const commits = (predicate as { commits?: unknown } | null)?.commits;
+  return (Array.isArray(commits) ? (commits as Partial<Record<keyof ReceiptRecord, unknown>>[]) : []).find((r): r is ReceiptRecord => r?.commit === commit
+    && typeof r.agent === "string" && ONE_LINE.test(r.agent) && r.model === "not recorded" && Array.isArray(r.spec_ids) && r.spec_ids.every((id) => typeof id === "string" && SPEC_ID.test(id)));
+}
+
+/** The seven lines the reviewer reads, from verified statements only. The agent can edit the signer, so SIGNED says so. @requirement SPEC-001-R55 */
+export function receiptLines(artifact: string, digest: string, record: ReceiptRecord, san: string, verified: number): string[] {
+  const none = "none reported";
+  return [
+    ["COMMIT", record.commit.slice(0, 12)], ["FILES", `${artifact} sha256:${digest.slice(0, 12)}`],
+    ["AGENT", record.agent === none ? none : `${record.agent} (as reported by the commit)`], ["MODEL", record.model],
+    ["SPEC", record.spec_ids.join(", ") || none], ["SIGNED", `${san.replace(/^.*\/\.github\/workflows\//, "")} (editable by the agent)`],
+    ["VERIFIED", `${verified}/${RECEIPT_TYPES.length} predicate types`],
+  ].map(([label = "", value = ""]) => `${label.padEnd(8)} ${value}`);
 }
 
 const show = (rev: string, path: string): string | undefined => {
@@ -526,6 +591,26 @@ const checks: Record<string, (args: string[]) => void | Promise<void>> = {
   attestation([artifact = "dist/function.zip"]) {
     const repo = process.env.GITHUB_REPOSITORY ?? "PaulDuvall/who-gets-the-keys";
     mustPass("attestation", tool(attestationArgs(artifact, repo, process.env.GITHUB_SHA)), artifact);
+  },
+
+  receipt([artifact = "dist/function.zip", mode = "run"]) {
+    if (mode !== "run" && mode !== "deploy") throw new Error(`unknown receipt mode: ${mode}`);
+    const repo = process.env.GITHUB_REPOSITORY ?? "PaulDuvall/who-gets-the-keys";
+    const pin = receiptPin(mode, process.env.GITHUB_REF, process.env.GITHUB_SHA);
+    const digest = existsSync(artifact) ? fileSha256(artifact) : "";
+    const verified = RECEIPT_TYPES.map((type) => {
+      const r = tool([...pinArgs(artifact, repo, pin.ref, pin.sha, type), "--format", "json"]);
+      mustPass("receipt", r, `missing ${type}`);
+      const statement = verifiedStatement(r.stdout, type, digest, pin.sha, pin.ref);
+      process.stderr.write(statement ? `receipt: verified ${type}: ${JSON.stringify(statement.certificate)}\n` : `${r.stdout.slice(0, 4000)}\n`);
+      if (!statement) throw new CheckFailure("receipt", `missing ${type}`);
+      return statement;
+    });
+    const record = receiptRecord(verified[1]?.predicate, pin.sha), san = verified[1]?.certificate["subjectAlternativeName"];
+    if (!record) throw new CheckFailure("receipt", `missing ${RECEIPT_TYPES[1]}`);
+    const lines = receiptLines(artifact, digest, record, typeof san === "string" ? san : "", verified.length);
+    process.stdout.write(`${lines.join("\n")}\n`);
+    if (process.env.GITHUB_STEP_SUMMARY) writeFileSync(process.env.GITHUB_STEP_SUMMARY, ["## Receipt", "", "```text", ...lines, "```", ""].join("\n"), { flag: "a" });
   },
 
   irreversible([planJson = "plan.json"]) {

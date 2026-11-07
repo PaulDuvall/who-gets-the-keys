@@ -87,5 +87,17 @@ The scenarios are not part of the checks before `main`. They run after landing, 
 
 | ID | Requirement |
 |---|---|
-| SPEC-001-R40 | WHEN a commit is pushed to a branch matching `candidate/**`, THE pipeline SHALL run only the checks and build jobs on that commit. THE attest and deploy jobs SHALL run only for `refs/heads/main`. |
+| SPEC-001-R40 | WHEN a commit is pushed to a branch matching `candidate/**`, THE pipeline SHALL run the checks, build, attest and receipt jobs on that commit. THE deploy job SHALL run only for `refs/heads/main`, and only after the receipt job has passed. |
 | SPEC-001-R41 | THE `protect main` ruleset that `scripts/bootstrap/github.sh` applies SHALL have no bypass actors and SHALL require the status check `checks` from the GitHub Actions app. Then `main` only moves to a commit on which `checks` passed. `scripts/bootstrap/github.sh` SHALL also allow merge commits and turn off squash and rebase merges, so that with linear history required no pull request merges in GitHub. No workflow other than `pipeline.yml` SHALL define a job named `checks`, and no workflow SHALL grant `checks: write` or `statuses: write`. |
+
+## Receipt
+
+The receipt grows in tracer slices (decision 0002), and later signed amendments widen each requirement below. SPEC-001-R42 to R44, R46, R47, R49, R51 to R53, R57 to R61 and R63 are drafts in decision 0002 until their slices land. R54 and R62 are withdrawn, and their IDs stay reserved.
+
+| ID | Requirement |
+|---|---|
+| SPEC-001-R45 | WHEN the build job runs, THE pipeline SHALL write the predicate `https://github.com/PaulDuvall/who-gets-the-keys/provenance/v2` with one record for the pushed commit. The record SHALL hold its SHA, the requirement IDs of its `Spec:` trailers, and its `Agent:` trailer as reported, or `none reported`. Its model SHALL be `not recorded`, whatever trailer the commit carries. |
+| SPEC-001-R48 | WHEN the attest job runs, THE pipeline SHALL sign SLSA build provenance and the SPEC-001-R45 predicate over `dist/function.zip` with SHA-pinned actions only. It SHALL check out nothing and run no repository code. |
+| SPEC-001-R50 | WHEN the receipt check runs, THE pipeline SHALL verify SLSA build provenance and the SPEC-001-R45 predicate, each once, with `gh attestation verify --limit 1000`. The pins SHALL be `pipeline.yml` at the run's own ref as exact signer identity and source ref, the commit as source and signer digest, and a GitHub-hosted runner. It SHALL then match the predicate type, the zip's SHA-256, the commit and the ref in the verified output itself. IF the check fails, THEN it SHALL stop and print one failure line, `CHECK receipt FAILED: <identifier>`. IF the ref is neither `refs/heads/main` nor `refs/heads/candidate/<topic>` for a non-empty `<topic>`, THEN the identifier SHALL be `unpinned ref <ref>`, or `unpinned ref unset`. IF no commit SHA is set, THEN it SHALL be `unpinned commit`. IF a type does not verify or match, THEN it SHALL be `missing <predicate type>`. |
+| SPEC-001-R55 | WHEN the receipt check passes, THE pipeline SHALL print seven lines and append them to the run summary: COMMIT, FILES, AGENT, MODEL, SPEC, SIGNED and VERIFIED. Each SHALL come from verified statements only, and SIGNED SHALL say `editable by the agent`. A record whose agent is not one printable line, whose model is not `not recorded`, or whose spec IDs are not requirement IDs SHALL fail as `missing <predicate type>`. |
+| SPEC-001-R56 | WHEN the deploy job runs, THE pipeline SHALL run the receipt check again pinned to `refs/heads/main`, after the SPEC-001-R17 check and before any AWS call. |

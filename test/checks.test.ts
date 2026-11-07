@@ -10,6 +10,7 @@ import strykerVitest from "../vitest.stryker.config.ts";
 import {
   COMMANDS, CheckFailure, ORDER, allowedNames, approversFor, attestationArgs, changedFiles, dependencyNames, destructiveChanges, exportsOf, failedTestFiles,
   guardedBy, jobBlock, lockfilePaths, lowered, protectedPaths, pipelineCacheFinding, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
+  RECEIPT_TYPES, pinArgs, receiptLines, receiptPin, receiptRecord, verifiedStatement,
   deployTipId,
 } from "../scripts/checks.ts";
 
@@ -206,13 +207,66 @@ describe("SPEC-001 checks", () => {
     expect(new CheckFailure("attestation", "dist/function.zip").message).toContain("CHECK attestation FAILED");
   });
 
-  it("SPEC-001-R17 pins the attestation to pipeline.yml on main, GitHub-hosted runners and the commit", () => {
+  it("SPEC-001-R17 pins the attestation exactly to pipeline.yml on main, GitHub-hosted runners, the commit and a 1000-result window", () => {
     expect(attestationArgs("dist/function.zip", "o/r", "abc123")).toEqual([
       "gh", "attestation", "verify", "dist/function.zip", "--repo", "o/r",
-      "--signer-workflow", "o/r/.github/workflows/pipeline.yml", "--source-ref", "refs/heads/main",
-      "--deny-self-hosted-runners", "--source-digest", "abc123",
+      "--cert-identity", "https://github.com/o/r/.github/workflows/pipeline.yml@refs/heads/main", "--source-ref", "refs/heads/main",
+      "--deny-self-hosted-runners", "--predicate-type", "https://slsa.dev/provenance/v1", "--limit", "1000",
+      "--source-digest", "abc123", "--signer-digest", "abc123",
     ]);
     expect(attestationArgs("dist/function.zip", "o/r", undefined)).not.toContain("--source-digest");
+  });
+
+  describe("SPEC-001-R50 receipt check", () => {
+    // `gh attestation verify --format json` as derived from gh v2.103.2 source, not captured output:
+    // [{attestation, verificationResult}] (verification/sigstore.go), protojson statement with predicate, sigstore-go v1.3.0 certificate fields.
+    const SHA = "9113f5b4818b90a7a32f79ef9e0e13aef8908aeb", ZIP = "f54e781891f54871b23e9d4e82efd0f072e3104ed4ecfbc5c07080976bbdff35";
+    const REF = "refs/heads/candidate/receipt-tracer", MAIN = "refs/heads/main", [SLSA, V2] = RECEIPT_TYPES;
+    const record = { commit: SHA, spec_ids: ["SPEC-001-R45", "SPEC-001-R50"], agent: "Claude Code", model: "not recorded" };
+    const verified = (type: string, predicate: unknown = {}, digest = ZIP, commit = SHA, ref = REF) => ({ attestation: { bundle: {}, bundle_url: "https://example.invalid/b" },
+      verificationResult: {
+        statement: { _type: "https://in-toto.io/Statement/v1", subject: [{ name: "function.zip", digest: { sha256: digest } }], predicateType: type, predicate },
+        signature: { certificate: { subjectAlternativeName: `https://github.com/o/r/.github/workflows/pipeline.yml@${ref}`, buildSignerDigest: commit,
+          sourceRepositoryDigest: commit, sourceRepositoryRef: ref, runnerEnvironment: "github-hosted" } },
+        verifiedTimestamps: [{ type: "Tlog", uri: "https://rekor.sigstore.dev", timestamp: "2026-11-05T12:00:00Z" }],
+      } });
+    const dir = mkdtempSync(join(tmpdir(), "receipt-check-")), zip = join(dir, "function.zip");
+    afterAll(() => rmSync(dir, { recursive: true, force: true }));
+    writeFileSync(zip, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0xff, 0xfe, 0x00, 0x80]));
+
+    it("SPEC-001-R50 pins a run to its own ref and commit, SPEC-001-R56 pins deploy to main, and any other ref or no commit fails before gh", () => {
+      expect([REF, MAIN, "refs/heads/candidate/fix+1"].map((ref) => receiptPin("run", ref, SHA))).toEqual([REF, MAIN, "refs/heads/candidate/fix+1"].map((ref) => ({ ref, sha: SHA })));
+      for (const ref of ["refs/heads/wip/x", "refs/pull/1/merge", "refs/heads/candidatex", "refs/heads/candidate/", "refs/heads/candidate/a\nb", "refs/tags/candidate/x", undefined]) {
+        expect(() => receiptPin("run", ref, SHA)).toThrow(new CheckFailure("receipt", `unpinned ref ${ref ?? "unset"}`));
+      }
+      for (const [mode, sha] of [["run", undefined], ["run", "HEAD"], ["deploy", undefined]] as const) expect(() => receiptPin(mode, REF, sha)).toThrow(new CheckFailure("receipt", "unpinned commit"));
+      expect(pinArgs("z", "o/r", REF, SHA, V2).slice(6)).toEqual([
+        "--cert-identity", `https://github.com/o/r/.github/workflows/pipeline.yml@${REF}`, "--source-ref", REF,
+        "--deny-self-hosted-runners", "--predicate-type", V2, "--limit", "1000", "--source-digest", SHA, "--signer-digest", SHA,
+      ]);
+      for (const ref of [REF, "refs/heads/wip/x", undefined]) expect(receiptPin("deploy", ref, SHA)).toEqual({ ref: MAIN, sha: SHA });
+    });
+
+    it("SPEC-001-R50 matches the predicate type, a 64-hex zip digest, the commit and the ref itself and ignores decoys, and SPEC-001-R45 and R55 accept only safe one-line fields and the model `not recorded`", () => {
+      const decoys = [verified(SLSA), verified(V2, {}, "0".repeat(64)), verified(V2, {}, ZIP, "f".repeat(40)), verified(V2, {}, ZIP, SHA, MAIN), null, 1, {}];
+      expect(verifiedStatement(JSON.stringify([...decoys, verified(V2, { commits: [record] })]), V2, ZIP, SHA, REF)?.predicate).toEqual({ commits: [record] });
+      for (const out of [JSON.stringify(decoys), "", "not json", "{}"]) expect(verifiedStatement(out, V2, ZIP, SHA, REF)).toBeUndefined();
+      expect(verifiedStatement(JSON.stringify([verified(V2, { commits: [record] }, "")]), V2, "", SHA, REF)).toBeUndefined();
+      expect(receiptRecord({ commits: [{ ...record, commit: "f".repeat(40) }, record] }, SHA)).toEqual(record);
+      const unsafe = [{ spec_ids: "SPEC-001-R45" }, { spec_ids: ["SPEC-001-R45\n x"] }, { agent: "Claude Code\n ```\n **x**\n <!--" }, { agent: "a\rb" }, { agent: "a\u202eb" }, { agent: "" }, { model: "claude-opus-5-5" }];
+      for (const fields of unsafe) expect(receiptRecord({ commits: [{ ...record, ...fields }] }, SHA)).toBeUndefined();
+    });
+
+    it("SPEC-001-R55 the receipt check prints seven verified lines to stdout and appends them to the run summary, labels the signer editable by the agent, and fails closed when gh exits 0 but nothing matches; SPEC-001-R56 deploy refuses a candidate", () => {
+      writeFileSync(join(dir, "gh"), '#!/bin/sh\nprintf "%s" "$GH_STUB"\n', { mode: 0o755 });
+      const check = (entries: unknown[], mode = "run") => spawnSync(process.execPath, [join(process.cwd(), "scripts/checks.ts"), "receipt", "function.zip", mode], { cwd: dir, encoding: "utf8",
+        env: { ...process.env, PATH: `${dir}:${process.env["PATH"] ?? ""}`, GH_STUB: JSON.stringify(entries), GITHUB_REF: REF, GITHUB_SHA: SHA, GITHUB_STEP_SUMMARY: join(dir, "summary") } }).stdout;
+      const good = [verified(SLSA), verified(V2, { commits: [record] })], lines = ["COMMIT   9113f5b4818b", "FILES    function.zip sha256:f54e781891f5",
+        "AGENT    Claude Code (as reported by the commit)", "MODEL    not recorded", "SPEC     SPEC-001-R45, SPEC-001-R50", `SIGNED   pipeline.yml@${REF} (editable by the agent)`, "VERIFIED 2/2 predicate types"];
+      expect([check(good), check(good), read(join(dir, "summary"))]).toEqual([...Array(2).fill(`${lines.join("\n")}\n`), ["## Receipt", "", "```text", ...lines, "```", ""].join("\n").repeat(2)]);
+      expect([check([verified(SLSA, {}, "0".repeat(64)), ...good.slice(1)]), check(good, "deploy")]).toEqual(Array(2).fill(`CHECK receipt FAILED: missing ${SLSA}\n`));
+      expect(receiptLines("z", ZIP, { ...record, agent: "none reported", spec_ids: [] }, "s", 2).slice(2, 5)).toEqual(["AGENT    none reported", "MODEL    not recorded", "SPEC     none reported"]);
+    });
   });
 
   describe("SPEC-001-R190 deploy-tip check", () => {

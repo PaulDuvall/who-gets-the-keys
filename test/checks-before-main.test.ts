@@ -9,7 +9,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 type Permissions = string | Record<string, string> | undefined;
 interface Step { name?: string; uses?: string; run?: string }
-interface Job { name?: string; if?: string; environment?: string; permissions?: Permissions; steps?: Step[] }
+interface Job { name?: string; if?: string; needs?: string | string[]; environment?: string; permissions?: Permissions; steps?: Step[] }
 interface Workflow { on: { push?: { branches?: string[] } }; permissions?: Permissions; jobs: Record<string, Job> }
 interface Rule { type: string; parameters?: { strict_required_status_checks_policy: boolean; required_status_checks: { context: string; integration_id: number }[] } }
 interface Ruleset { name: string; bypass_actors: unknown[]; enforcement: string; conditions: { ref_name: { include: string[] } }; rules: Rule[] }
@@ -80,10 +80,11 @@ const settingWrites = [...tokenAndEnvironmentWrites, mergeWrite];
 const mergeRefused = "GitHub refused squash and rebase merges off while linear history is required.";
 
 describe("SPEC-001 checks before main", () => {
-  it("SPEC-001-R40 runs only checks and build on candidate branches, and attests and deploys only from main", () => {
+  it("SPEC-001-R40 runs checks, build, attest and receipt on candidate branches, and deploys only from main after the receipt", () => {
     expect(pipeline.on.push?.branches).toEqual(["main", "candidate/**"]);
-    expect(pipeline.jobs["attest"]?.if).toBe("github.ref == 'refs/heads/main'");
-    expect(pipeline.jobs["deploy"]?.if).toBe("always() && needs.build.result == 'success' && github.ref == 'refs/heads/main'");
+    const mainOrCandidate = "github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/candidate/')";
+    expect(["attest", "receipt", "deploy"].map((id) => pipeline.jobs[id]?.if)).toEqual([mainOrCandidate, mainOrCandidate, "github.ref == 'refs/heads/main'"]);
+    expect([pipeline.jobs["deploy"]?.needs, pipeline.jobs["receipt"]?.permissions]).toEqual([["build", "attest", "receipt"], { contents: "read", attestations: "read" }]);
     const unconditional = Object.entries(pipeline.jobs).filter(([, job]) => job.if === undefined).map(([id]) => id);
     expect(unconditional).toEqual(["checks", "build"]);
     expect(pipeline.jobs["deploy"]?.environment).toBe("sandbox");
