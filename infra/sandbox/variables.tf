@@ -29,9 +29,11 @@ variable "artifact_sha256" {
 }
 
 variable "producer_inference_profile" {
+  # Sonnet 4.6, not 5.5: on 2026-11-07 account 462701644281 had a cross-region quota of 0 tokens per minute for every
+  # Claude 4.7 and 5.x model, Sonnet 5.5 included, and 6,000,000 for Sonnet 4.6 (docs/verification.md, "Bedrock quota").
   description = "The one us. inference profile the runner producer's role may invoke (SPEC-001-R86), set as PRODUCER_MODEL"
   type        = string
-  default     = "us.anthropic.claude-sonnet-5-5"
+  default     = "us.anthropic.claude-sonnet-4-6"
 
   validation {
     condition     = can(regex("^us\\.anthropic\\.[a-z0-9.:-]+$", var.producer_inference_profile))

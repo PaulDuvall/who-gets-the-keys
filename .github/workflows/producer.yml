@@ -163,6 +163,10 @@ jobs:
           MODEL_PATTERN: "^us\\.anthropic\\.[a-z0-9.:-]+$"
         run: |
           [[ "$MODEL" =~ $MODEL_PATTERN ]] || { echo "CHECK producer FAILED: PRODUCER_MODEL"; exit 1; }
+          # The settings' allow rules, also on the command line: without --allowedTools, Claude Code 2.1.304 forces the
+          # permission mode to default when CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is set (run 42389828816).
+          allowed=(); while IFS= read -r rule; do allowed+=("$rule"); done < <(jq -r '.permissions.allow[]' "$RUNNER_TEMP/claude-settings.json")
+          [ "${#allowed[@]}" -gt 0 ] || { echo "CHECK producer FAILED: allow rules"; exit 1; }
           mkdir -p "$RUNNER_TEMP/agent-home" "$RUNNER_TEMP/agent-tmp"
           node_dir="$(dirname "$(command -v node)")"
           status=0
@@ -175,7 +179,7 @@ jobs:
             CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 npm_config_update_notifier=false \
             "$RUNNER_TEMP/claude-code/bin/claude" -p "$(cat "$RUNNER_TEMP/prompt.txt")" \
               --setting-sources project --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
-              --settings "$RUNNER_TEMP/claude-settings.json" --permission-mode dontAsk \
+              --settings "$RUNNER_TEMP/claude-settings.json" --permission-mode dontAsk --allowedTools "${allowed[@]}" \
               --tools Bash,Read,Edit,Write,Glob,Grep --disallowedTools WebFetch WebSearch \
               --max-turns 40 --max-budget-usd 5 --no-session-persistence \
               --output-format stream-json --verbose \
@@ -193,6 +197,15 @@ jobs:
             elif .type == "result" then "RUN ENDED: \(.subtype), \(.num_turns) turns, estimated USD \(.total_cost_usd)"
             else empty end' "$RUNNER_TEMP/transcript.jsonl" || true
           echo "::${token}::"
+      - name: Check that Claude Code kept the dontAsk permission mode, before any other check of the run (SPEC-001-R88)
+        if: always() && steps.run.outcome != 'skipped'
+        env:
+          TRANSCRIPT: ${{ runner.temp }}/transcript.jsonl
+        run: |
+          mode="$(jq -rs '[.[] | select(.type == "system" and .subtype == "init") | .permissionMode] | first // empty' "$TRANSCRIPT" 2>/dev/null || true)"
+          [[ "$mode" =~ ^[A-Za-z]+$ ]] || mode="unknown"
+          [ "$mode" = dontAsk ] || { echo "CHECK producer FAILED: permission mode ${mode}"; exit 1; }
+          echo "Permission mode: dontAsk."
       - name: Check that the sandbox blocked the probe (SPEC-001-R87)
         if: inputs.egress_probe
         env:
@@ -212,9 +225,12 @@ jobs:
         env:
           STATUS: ${{ steps.run.outputs.status }}
         run: |
-          subtype="$(jq -rs '[.[] | select(.type == "result") | .subtype] | last // empty' "$RUNNER_TEMP/transcript.jsonl")"
+          result="$(jq -cs '[.[] | select(.type == "result")] | last // {}' "$RUNNER_TEMP/transcript.jsonl" 2>/dev/null || echo '{}')"
+          subtype="$(jq -r '.subtype // empty' <<<"$result")"
           [[ "$subtype" =~ ^[a-z_]+$ ]] || subtype="no result"
           { [ "$STATUS" = 0 ] && [ "$subtype" = success ]; } || { echo "CHECK producer FAILED: agent ${subtype}"; exit 1; }
+          # A failed model call can still end as success with is_error true (run 42389828816), so is_error must be false.
+          [ "$(jq -r '.is_error == false' <<<"$result")" = true ] || { echo "CHECK producer FAILED: agent error"; exit 1; }
       - id: patch
         name: Write the patch against github.sha with git alone (SPEC-001-R89)
         if: ${{ !inputs.egress_probe }}

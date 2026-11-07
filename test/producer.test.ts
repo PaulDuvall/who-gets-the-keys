@@ -247,7 +247,7 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     expect(command).toBe([
       '"$RUNNER_TEMP/claude-code/bin/claude" -p "$(cat "$RUNNER_TEMP/prompt.txt")"',
       "--setting-sources project --strict-mcp-config --mcp-config '{\"mcpServers\":{}}'",
-      '--settings "$RUNNER_TEMP/claude-settings.json" --permission-mode dontAsk',
+      '--settings "$RUNNER_TEMP/claude-settings.json" --permission-mode dontAsk --allowedTools "${allowed[@]}"',
       "--tools Bash,Read,Edit,Write,Glob,Grep --disallowedTools WebFetch WebSearch",
       "--max-turns 40 --max-budget-usd 5 --no-session-persistence",
       "--output-format stream-json --verbose",
@@ -265,6 +265,62 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     expect(agentPrompt("TASK-P", "", "ignored", true)).not.toContain("ignored");
     expect(agentPrompt("TASK-1", "SPEC-014-R7", "Add R7.", false)).toMatch(/task TASK-1 in this repository\. The change implements SPEC-014-R7\.[^]*\nTask:\nAdd R7\.\n$/);
     expect(() => agentPrompt("TASK-1", "R7", "x", false)).toThrow(new ProducerRefusal("input spec"));
+  });
+
+  it("SPEC-001-R88 passes on --allowedTools exactly the allow rules of the settings file, in both modes, and starts no agent without them", () => {
+    const script = runStep("agent").run ?? "";
+    const lines = script.split("\n");
+    const mapLine = lines.findIndex((l) => l.includes("allowed+=("));
+    const guardLine = lines.findIndex((l) => l.includes("CHECK producer FAILED: allow rules"));
+    expect(lines[mapLine]?.trim()).toBe(`allowed=(); while IFS= read -r rule; do allowed+=("$rule"); done < <(jq -r '.permissions.allow[]' "$RUNNER_TEMP/claude-settings.json")`);
+    expect([mapLine >= 0, mapLine < guardLine, guardLine < lines.findIndex((l) => l.includes("env -i"))]).toEqual([true, true, true]);
+    const dir = tempDir("producer-allowed-");
+    try {
+      const snippet = `${lines[mapLine] ?? ""}\n${lines[guardLine] ?? ""}\nprintf '%s\\n' "\${allowed[@]}"`;
+      for (const probe of [false, true]) {
+        const settings = agentSettings(allowlist, probe) as { permissions: { allow: string[] } };
+        writeFileSync(join(dir, "claude-settings.json"), JSON.stringify(settings));
+        const r = bash({ run: snippet }, {}, dir, { RUNNER_TEMP: dir });
+        expect([r.status, r.stdout.split("\n").filter((l) => l !== "")]).toEqual([0, settings.permissions.allow]);
+      }
+      writeFileSync(join(dir, "claude-settings.json"), JSON.stringify({ permissions: { allow: [] } }));
+      expect(bash({ run: snippet }, {}, dir, { RUNNER_TEMP: dir }).stdout).toBe("CHECK producer FAILED: allow rules\n");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("SPEC-001-R88 fails the run unless the transcript's init event shows dontAsk, before the probe and end-of-run checks", () => {
+    const steps = job("agent").steps;
+    const mode = stepIndex("agent", named("Check that Claude Code kept the dontAsk permission mode"));
+    const probe = stepIndex("agent", named("Check that the sandbox blocked the probe"));
+    const ended = stepIndex("agent", named("Check how the agent's run ended"));
+    expect([mode > stepIndex("agent", (s) => s.id === "run"), mode < probe, mode < ended]).toEqual([true, true, true]);
+    const check = steps[mode] as Step;
+    expect(check.if).toBe("always() && steps.run.outcome != 'skipped'");
+    expect(check.run).toContain('select(.type == "system" and .subtype == "init") | .permissionMode');
+    const dir = tempDir("producer-mode-");
+    try {
+      const transcript = join(dir, "transcript.jsonl");
+      const init = (fields: Record<string, unknown>) =>
+        writeFileSync(transcript, `${JSON.stringify({ type: "system", subtype: "init", ...fields })}\n${JSON.stringify({ type: "result", subtype: "success" })}\n`);
+      const cases: [Record<string, unknown> | undefined, number, string][] = [
+        [{ permissionMode: "dontAsk" }, 0, "Permission mode: dontAsk.\n"],
+        [{ permissionMode: "default" }, 1, "CHECK producer FAILED: permission mode default\n"],
+        [{ permissionMode: "bypassPermissions" }, 1, "CHECK producer FAILED: permission mode bypassPermissions\n"],
+        [{ permissionMode: "::warning::x" }, 1, "CHECK producer FAILED: permission mode unknown\n"],
+        [{}, 1, "CHECK producer FAILED: permission mode unknown\n"],
+        [undefined, 1, "CHECK producer FAILED: permission mode unknown\n"],
+      ];
+      for (const [fields, status, out] of cases) {
+        if (fields === undefined) rmSync(transcript, { force: true });
+        else init(fields);
+        const r = bash(check, { TRANSCRIPT: transcript }, dir);
+        expect([r.status, r.stdout]).toEqual([status, out]);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("SPEC-001-R89 writes the binary, rename-free patch against github.sha with git alone, and refuses a commit or an empty patch", () => {
@@ -297,12 +353,20 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
       const clean = repoWith({ "src/a.ts": "x\n" });
       expect(bash(patchStep, {}, clean.dir, { ...extra, GITHUB_SHA: clean.head }).stdout).toBe("CHECK producer FAILED: empty patch\n");
       rmSync(clean.dir, { recursive: true, force: true });
-      const result = (subtype: string) => writeFileSync(join(temp, "transcript.jsonl"), `${JSON.stringify({ type: "result", subtype })}\n`);
+      const result = (subtype: string, fields: Record<string, unknown> = { is_error: false }) =>
+        writeFileSync(join(temp, "transcript.jsonl"), `${JSON.stringify({ type: "result", subtype, ...fields })}\n`);
       result("success");
       expect(bash(ended, { STATUS: "0" }, dir, { RUNNER_TEMP: temp }).status).toBe(0);
       result("error_max_turns");
       expect(bash(ended, { STATUS: "1" }, dir, { RUNNER_TEMP: temp }).stdout).toBe("CHECK producer FAILED: agent error_max_turns\n");
       result("::warning::x");
+      expect(bash(ended, { STATUS: "0" }, dir, { RUNNER_TEMP: temp }).stdout).toBe("CHECK producer FAILED: agent no result\n");
+      // Run 42389828816 ended as success with is_error true after Bedrock refused the model, with no tool run.
+      result("success", { is_error: true });
+      expect(bash(ended, { STATUS: "0" }, dir, { RUNNER_TEMP: temp }).stdout).toBe("CHECK producer FAILED: agent error\n");
+      result("success", {});
+      expect(bash(ended, { STATUS: "0" }, dir, { RUNNER_TEMP: temp }).stdout).toBe("CHECK producer FAILED: agent error\n");
+      rmSync(join(temp, "transcript.jsonl"));
       expect(bash(ended, { STATUS: "0" }, dir, { RUNNER_TEMP: temp }).stdout).toBe("CHECK producer FAILED: agent no result\n");
     } finally {
       rmSync(dir, { recursive: true, force: true });
