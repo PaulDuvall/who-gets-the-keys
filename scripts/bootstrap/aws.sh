@@ -4,22 +4,42 @@ set -euo pipefail
 region="us-east-1"
 
 usage() {
-  echo "usage: EXPECTED_ACCOUNT_ID=<sandbox account> scripts/bootstrap/aws.sh [--bedrock-form <form.json>]"
+  echo "usage: EXPECTED_ACCOUNT_ID=<sandbox account> scripts/bootstrap/aws.sh [--bedrock-form <form.json>] [--yes]"
+  echo "       EXPECTED_ACCOUNT_ID=<management account> scripts/bootstrap/aws.sh --org-state [--yes]"
   echo "  creates the Terraform state bucket in the sandbox account's S3 account regional namespace and, if the"
   echo "  account has none, the GitHub OIDC provider"
   echo "  (needs an AWS CLI with create-bucket --bucket-namespace), optionally submits the Anthropic"
   echo "  first-time-use form for Bedrock, then prints the apply commands for you to run"
+  echo "  --org-state  creates only infra/org's state bucket, who-gets-the-keys-orgstate-<account>-${region}-an,"
+  echo "               with the same settings, for credentials of the management account"
+  echo "  --yes        answers yes to every question and prints no next steps. scripts/bootstrap/aws-setup.sh"
+  echo "               passes it after its own single confirm, which covers these changes"
+  echo "  scripts/bootstrap/aws-setup.sh runs this script, the applies and github.sh --vars as one command."
 }
 
-confirm() { read -r -p "$1 [y/N] " answer; [ "$answer" = "y" ]; }
+yes=""
+confirm() {
+  if [ -n "$yes" ]; then
+    echo "$1 yes (--yes)"
+    return 0
+  fi
+  read -r -p "$1 [y/N] " answer
+  [ "$answer" = "y" ]
+}
 
 form=""
-case "${1:-}" in
-  -h|--help) usage; exit 0 ;;
-  --bedrock-form) form="${2:?form file}"; [ -f "$form" ] || { echo "no ${form}"; exit 1; } ;;
-  "") ;;
-  *) usage; exit 2 ;;
-esac
+org_state=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --bedrock-form) form="${2:?form file}"; [ -f "$form" ] || { echo "no ${form}"; exit 1; }; shift ;;
+    --org-state) org_state="yes" ;;
+    --yes) yes="yes" ;;
+    *) usage; exit 2 ;;
+  esac
+  shift
+done
+if [ -n "$org_state" ] && [ -n "$form" ]; then usage; exit 2; fi
 
 expected="${EXPECTED_ACCOUNT_ID:?set EXPECTED_ACCOUNT_ID to the sandbox account ID}"
 actual="$(aws sts get-caller-identity --query Account --output text)"
@@ -28,6 +48,7 @@ echo "Caller: ${caller}"
 [ "$actual" = "$expected" ] || { echo "Credentials are for account ${actual}, expected ${expected}. Nothing changed."; exit 1; }
 
 bucket="who-gets-the-keys-tfstate-${expected}-${region}-an"
+[ -z "$org_state" ] || bucket="who-gets-the-keys-orgstate-${expected}-${region}-an"
 owned() { aws s3api "$@" --expected-bucket-owner "$expected"; }
 
 if owned head-bucket --bucket "$bucket" 2>/dev/null; then
@@ -46,6 +67,16 @@ owned put-public-access-block --bucket "$bucket" --public-access-block-configura
   BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 owned put-bucket-policy --bucket "$bucket" --policy "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"TlsOnly\",\"Effect\":\"Deny\",\"Principal\":\"*\",\"Action\":\"s3:*\",\"Resource\":[\"arn:aws:s3:::${bucket}\",\"arn:aws:s3:::${bucket}/*\"],\"Condition\":{\"Bool\":{\"aws:SecureTransport\":\"false\"}}}]}"
 echo "State bucket ready."
+
+if [ -n "$org_state" ]; then
+  if [ -z "$yes" ]; then
+    echo
+    echo "Then, with credentials for this account:"
+    echo "terraform -chdir=infra/org init -backend-config=bucket=${bucket}"
+    echo "terraform -chdir=infra/org apply -var sandbox_account_id=<sandbox account>"
+  fi
+  exit 0
+fi
 
 provider_arn="arn:aws:iam::${expected}:oidc-provider/token.actions.githubusercontent.com"
 echo
@@ -84,19 +115,22 @@ if [ -n "$form" ]; then
   fi
 fi
 
+[ -z "$yes" ] || exit 0
+
 echo
-echo "Run these yourself, in order."
+echo "Run these yourself, in order, or run scripts/bootstrap/aws-setup.sh, which does all of them."
 echo
 echo "1. First sandbox apply, with credentials for account ${expected}. This creates the deploy and break-glass roles the SCP exempts:"
 echo "npm ci --ignore-scripts"
 echo "npm run build"
 echo "mkdir -p dist/function && cp dist/src/*.js dist/function/ && echo '{\"type\":\"module\"}' > dist/function/package.json"
-echo "(cd dist/function && zip -X -q ../function.zip ./*)"
+echo "(cd dist/function && TZ=UTC touch -t 198001010000 ./* && zip -X -q ../function.zip ./*)"
 echo "terraform -chdir=infra/sandbox init -backend-config=bucket=${bucket}"
 echo "terraform -chdir=infra/sandbox apply -var artifact_sha256=\$(openssl dgst -sha256 -binary dist/function.zip | base64)"
 echo
 echo "2. SCP, with credentials for the management account and a state bucket in that account:"
-echo "terraform -chdir=infra/org init -backend-config=bucket=<state bucket in the management account>"
+echo "EXPECTED_ACCOUNT_ID=<management account> scripts/bootstrap/aws.sh --org-state"
+echo "terraform -chdir=infra/org init -backend-config=bucket=who-gets-the-keys-orgstate-<management account>-${region}-an"
 echo "terraform -chdir=infra/org apply -var sandbox_account_id=${expected}"
 echo
 echo "3. Repository variables from the outputs:"
