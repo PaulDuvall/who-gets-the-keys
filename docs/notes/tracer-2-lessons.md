@@ -2,7 +2,7 @@
 
 T1 and T2 took one working day. The design held, but much of the owner's time went on manual steps, stale deploys, account set-up nobody had checked and probes that tested the wrong thing. Each row below names what happened, what it cost, and the change that stops it happening again. A script or check is preferred to a note wherever one is possible.
 
-Status: proposed. Nothing in the "Systematize as" column is built yet unless the row says so.
+Status: proposed. Nothing in the "Systematize as" column is built yet unless the row says so. Each open row is an item in `.tasks/backlog.jsonl`; "Backlog" below maps them.
 
 ## The account and the platform
 
@@ -46,8 +46,27 @@ These are the agent's own lessons. They belong in `CLAUDE.md` through a signed c
 
 ## Order
 
-1. Next producer batch (no AWS change): L7, L8, L11.
-2. T3's signed batch: L3, L4, L10, L13, L14, and L15 to L18 in `CLAUDE.md`.
-3. A pipeline batch: L12.
-4. `aws-setup.sh`: L1.
-5. Separate task: L2.
+1. Next producer batch (no AWS change): L7, L8, L11 (`who-gets-the-keys-1kw`).
+2. T3's signed batch: L3 (`nlq`), L4 (`j5t`), L10 and L13 (`u3u`), L14 (`j4e`), and L15 to L18 in `CLAUDE.md` (`l3q`).
+3. A pipeline batch: L12 (`nh9`).
+4. `aws-setup.sh`: L1 (`far`).
+5. Separate task: L2 (`7v1`).
+
+## Backlog
+
+Moved from GitHub issues 1 to 10 to `.tasks/backlog.jsonl` on 2026-11-07. Each item's description is the issue's body, and each issue is closed with a pointer to its ID. `spec_ref` names the requirement IDs an item amends, `SPEC-001 new` when it needs a requirement not yet numbered, or is empty when no spec changes.
+
+| ID | Lessons | Priority | `spec_ref` | Title |
+|---|---|---|---|---|
+| `who-gets-the-keys-nlq` | L3 | 1 | SPEC-001-R209 | Decide how a producer delivery gets checks that main's ruleset counts |
+| `who-gets-the-keys-u3u` | L10, L13 | 1 | SPEC-001-R41 | Make land.sh test a batch before signing and explain a cancelled deploy |
+| `who-gets-the-keys-nh9` | L12 | 1 | SPEC-001-R40 | Run the deploy job only when deployable paths change |
+| `who-gets-the-keys-7v1` | L2 | 1 | SPEC-001 new | Make the break-glass role assumable with MFA, and drill it |
+| `who-gets-the-keys-l3q` | L15 to L18 | 1 | none | Add the agent's owner-step rules to CLAUDE.md |
+| `who-gets-the-keys-utq` | none (independent review of T2) | 1 | SPEC-001-R12, SPEC-001 new | Protect .npmrc and run the checks without npm's project config |
+| `who-gets-the-keys-1kw` | L7, L8, L11 | 2 | SPEC-001-R87 | Harden the producer egress probe and test its checks on real transcripts |
+| `who-gets-the-keys-j4e` | L14 | 2 | none | Add producer.sh to dispatch, find and summarise producer runs |
+| `who-gets-the-keys-far` | L1 | 2 | SPEC-001-R28, SPEC-001-R30 | Make aws-setup.sh refuse a Bedrock model the account cannot call |
+| `who-gets-the-keys-j5t` | L4 | 2 | SPEC-001 new | Version the cloud session setup script in the repo |
+
+L5 and L6 are done, and L9 is practice, so they have no item. The five rows of the Backlog table in `docs/notes/carry-over-2026-11-07.md` not covered above are items `31r`, `ld4`, `0v4`, `wum` and `6bt`.

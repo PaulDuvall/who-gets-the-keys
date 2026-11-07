@@ -16,6 +16,8 @@ Items that existed only in that session's conversation. Next steps are in `docs/
 
 ## Backlog
 
+Moved to `.tasks/backlog.jsonl` on 2026-11-07. The `land.sh` row is part of `who-gets-the-keys-u3u`; the others are, in order, `who-gets-the-keys-31r`, `ld4`, `0v4`, `wum` and `6bt`. The table is kept as it was recorded.
+
 | Item | Notes |
 |---|---|
 | `land.sh` failure message | After a rejected deploy it says "main's run did not pass ... fix the problem in a new commit on top". That is misleading when the only failure is a rejected deployment |
