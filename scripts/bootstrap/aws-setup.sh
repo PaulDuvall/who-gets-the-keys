@@ -316,8 +316,9 @@ if [ -n "$attached" ]; then
     "  its table, its log group or the who-gets-the-keys roles. A sandbox plan that changes them fails at apply."
 fi
 say "GitHub ${repo}, through scripts/bootstrap/github.sh --vars:" \
-  "  repository settings, environments sandbox and probe, ruleset \"protect main\", and the variables" \
-  "  DEPLOY_ROLE_ARN, TRIAGE_ROLE_ARN and PROBE_ROLE_ARN from infra/sandbox, and TRIAGE_MODEL=${model}" \
+  "  repository settings, environments sandbox, probe and producer, ruleset \"protect main\", and the variables" \
+  "  DEPLOY_ROLE_ARN, TRIAGE_ROLE_ARN, PROBE_ROLE_ARN, PRODUCER_ROLE_ARN and PRODUCER_MODEL from infra/sandbox," \
+  "  and TRIAGE_MODEL=${model}" \
   "Here: npm ci --ignore-scripts and npm run build replace node_modules/ and dist/." ""
 ask "Go ahead?" || refuse "You chose not to go ahead."
 started="yes"

@@ -26,8 +26,9 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 | `scripts/checks.ts` | Check dispatcher |
 | `scripts/bootstrap/` | Human-run scripts: GitHub settings, AWS bootstrap, slide refresh, history rewrite, approver-key rotation |
 | `scenarios/` | `scenarios.yaml`, 17 patches `B01` to `B18` (B9 and B11 have none), the B9 fixture, harness `run.ts` |
-| `.github/workflows/` | `pipeline.yml`, `issue-triage.yml`, `scenarios.yml`, `video.yml` |
+| `.github/workflows/` | `pipeline.yml`, `issue-triage.yml`, `scenarios.yml`, `video.yml`, and `producer.yml`, the owner-dispatched runner producer (helpers in `scripts/ci/producer.ts`) |
 | `.github/egress/allowlist.json` | Egress allowlist shared by triage and the B9 replay |
+| `.github/egress/producer-allowlist.json` | The runner producer's sandbox allowlist: no host |
 | `infra/sandbox/`, `infra/org/` | Terraform: workload and roles; SCP |
 | `video/` | Walkthrough kit: page template, orchestrator, recorder, narration pins |
 | `docs/` | Verification log, deviations, slide reconciliation, ADRs, generated practices table |

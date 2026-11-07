@@ -11,15 +11,17 @@ locals {
     pipeline  = "${var.github_repository}/.github/workflows/pipeline.yml@refs/heads/main"
     triage    = "${var.github_repository}/.github/workflows/issue-triage.yml@refs/heads/main"
     scenarios = "${var.github_repository}/.github/workflows/scenarios.yml@refs/heads/main"
+    producer  = "${var.github_repository}/.github/workflows/producer.yml@refs/heads/main"
   }
 }
 
 # One trust policy per OIDC role: exact StringEquals on aud, sub and job_workflow_ref.
 data "aws_iam_policy_document" "github_trust" {
   for_each = {
-    deploy = { sub = "${var.github_subject_prefix}:environment:sandbox", workflow = local.workflow_ref.pipeline }
-    triage = { sub = "${var.github_subject_prefix}:ref:refs/heads/main", workflow = local.workflow_ref.triage }
-    probe  = { sub = "${var.github_subject_prefix}:environment:probe", workflow = local.workflow_ref.scenarios }
+    deploy   = { sub = "${var.github_subject_prefix}:environment:sandbox", workflow = local.workflow_ref.pipeline }
+    triage   = { sub = "${var.github_subject_prefix}:ref:refs/heads/main", workflow = local.workflow_ref.triage }
+    probe    = { sub = "${var.github_subject_prefix}:environment:probe", workflow = local.workflow_ref.scenarios }
+    producer = { sub = "${var.github_subject_prefix}:environment:producer", workflow = local.workflow_ref.producer }
   }
 
   statement {
@@ -218,6 +220,43 @@ resource "aws_iam_role_policy" "triage" {
         "arn:aws:bedrock:${var.region}:${local.account_id}:inference-profile/us.anthropic.*",
       ]
     }]
+  })
+}
+
+# The runner producer's model access and nothing else (SPEC-001-R86): one inference profile, and its foundation model only
+# when the call goes through that profile. A us. profile routes to several US Regions, so the model ARN names any Region.
+locals {
+  producer_profile_arn = "arn:aws:bedrock:${var.region}:${local.account_id}:inference-profile/${var.producer_inference_profile}"
+  producer_model       = trimprefix(var.producer_inference_profile, "us.")
+}
+
+resource "aws_iam_role" "producer" {
+  name                 = "who-gets-the-keys-producer-bedrock"
+  path                 = local.role_path
+  assume_role_policy   = data.aws_iam_policy_document.github_trust["producer"].json
+  max_session_duration = 3600
+}
+
+resource "aws_iam_role_policy" "producer" {
+  name = "bedrock-invoke-one-profile"
+  role = aws_iam_role.producer.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "Profile"
+        Effect   = "Allow"
+        Action   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+        Resource = local.producer_profile_arn
+      },
+      {
+        Sid       = "ModelThroughProfile"
+        Effect    = "Allow"
+        Action    = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+        Resource  = "arn:aws:bedrock:*::foundation-model/${local.producer_model}"
+        Condition = { StringEquals = { "bedrock:InferenceProfileArn" = local.producer_profile_arn } }
+      },
+    ]
   })
 }
 

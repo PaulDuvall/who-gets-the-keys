@@ -171,6 +171,16 @@ output "probe_role_arn" {
   value       = aws_iam_role.probe.arn
 }
 
+output "producer_role_arn" {
+  description = "Role producer.yml's agent job assumes for Bedrock, set as PRODUCER_ROLE_ARN"
+  value       = aws_iam_role.producer.arn
+}
+
+output "producer_inference_profile" {
+  description = "The one inference profile the producer role may invoke, set as PRODUCER_MODEL"
+  value       = var.producer_inference_profile
+}
+
 output "break_glass_topic_arn" {
   description = "SNS topic alarmed on every break-glass assumption; subscribe to it"
   value       = aws_sns_topic.break_glass.arn

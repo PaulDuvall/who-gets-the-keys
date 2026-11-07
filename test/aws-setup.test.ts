@@ -103,7 +103,7 @@ const stubTerraform = [
   "  output)",
   '    if [ "${2:-}" = -raw ]; then echo "arn:aws:sns:us-east-1:${STUB_SBX_ACCOUNT}:who-gets-the-keys-break-glass"',
   '    else r="arn:aws:iam::${STUB_SBX_ACCOUNT}:role/who-gets-the-keys/who-gets-the-keys"',
-  '      printf \'{"deploy_role_arn":{"value":"%s-deploy"},"triage_role_arn":{"value":"%s-triage-bedrock"},"probe_role_arn":{"value":"%s-scenario-probe"}}\\n\' "$r" "$r" "$r"',
+  '      printf \'{"deploy_role_arn":{"value":"%s-deploy"},"triage_role_arn":{"value":"%s-triage-bedrock"},"probe_role_arn":{"value":"%s-scenario-probe"},"producer_role_arn":{"value":"%s-producer-bedrock"},"producer_inference_profile":{"value":"us.anthropic.claude-example-p"}}\\n\' "$r" "$r" "$r" "$r"',
   "    fi ;;",
   "esac",
   "",
@@ -265,6 +265,8 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
       `gh sbx | variable set TRIAGE_ROLE_ARN --repo o/r --body arn:aws:iam::${SANDBOX}:role/who-gets-the-keys/who-gets-the-keys-triage-bedrock`,
       `gh sbx | variable set PROBE_ROLE_ARN --repo o/r --body arn:aws:iam::${SANDBOX}:role/who-gets-the-keys/who-gets-the-keys-scenario-probe`,
       `gh sbx | variable set TRIAGE_MODEL --repo o/r --body ${PICKED}`,
+      `gh sbx | variable set PRODUCER_ROLE_ARN --repo o/r --body arn:aws:iam::${SANDBOX}:role/who-gets-the-keys/who-gets-the-keys-producer-bedrock`,
+      "gh sbx | variable set PRODUCER_MODEL --repo o/r --body us.anthropic.claude-example-p",
     ];
     const at = steps.map((start) => [start, index(r.calls, start)] as const);
     expect(at.filter(([, i]) => i < no.calls.length)).toEqual([]);

@@ -27,3 +27,14 @@ variable "artifact_sha256" {
   type        = string
   default     = ""
 }
+
+variable "producer_inference_profile" {
+  description = "The one us. inference profile the runner producer's role may invoke (SPEC-001-R86), set as PRODUCER_MODEL"
+  type        = string
+  default     = "us.anthropic.claude-sonnet-5-5"
+
+  validation {
+    condition     = can(regex("^us\\.anthropic\\.[a-z0-9.:-]+$", var.producer_inference_profile))
+    error_message = "The producer_inference_profile value must be a us.anthropic. inference profile ID."
+  }
+}

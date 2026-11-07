@@ -10,7 +10,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 type Permissions = string | Record<string, string> | undefined;
 interface Step { name?: string; uses?: string; run?: string }
 interface Job { name?: string; if?: string; needs?: string | string[]; environment?: string; permissions?: Permissions; steps?: Step[] }
-interface Workflow { on: { push?: { branches?: string[] } }; permissions?: Permissions; jobs: Record<string, Job> }
+interface Workflow { on: { push?: { branches?: string[] }; workflow_dispatch?: { inputs?: unknown } | null }; permissions?: Permissions; jobs: Record<string, Job> }
 interface Rule { type: string; parameters?: { strict_required_status_checks_policy: boolean; required_status_checks: { context: string; integration_id: number }[] } }
 interface Ruleset { name: string; bypass_actors: unknown[]; enforcement: string; conditions: { ref_name: { include: string[] } }; rules: Rule[] }
 
@@ -46,6 +46,7 @@ const stubGh = [
   "",
 ].join("\n");
 
+interface EnvironmentBody { deployment_branch_policy: { protected_branches: boolean; custom_branch_policies: boolean }; reviewers?: { type: string; id: number }[] }
 interface Stub { appId: string; rulesetId: string; visibility?: string; refuseMerge?: boolean; mergeMethods?: string }
 
 function runGithubSh(stub: Stub) {
@@ -62,7 +63,11 @@ function runGithubSh(stub: Stub) {
     const calls = read(join(dir, "calls")).trimEnd().split("\n");
     const bodyFile = join(dir, `body_repos_o_r_rulesets${stub.rulesetId ? `_${stub.rulesetId}` : ""}`);
     const ruleset = existsSync(bodyFile) ? (JSON.parse(read(bodyFile)) as Ruleset) : undefined;
-    return { status: r.status, out: r.stdout, calls, writes: calls.filter((c) => c.startsWith("api -X ")), ruleset };
+    const environments = Object.fromEntries(["sandbox", "probe", "producer"].map((env) => {
+      const file = join(dir, `body_repos_o_r_environments_${env}`);
+      return [env, existsSync(file) ? (JSON.parse(read(file)) as EnvironmentBody) : undefined];
+    }));
+    return { status: r.status, out: r.stdout, calls, writes: calls.filter((c) => c.startsWith("api -X ")), ruleset, environments };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -73,6 +78,7 @@ const tokenAndEnvironmentWrites = [
   "api -X PUT repos/o/r/actions/permissions -F enabled=true -f allowed_actions=all -F sha_pinning_required=true",
   "api -X PUT repos/o/r/environments/sandbox --input -",
   "api -X PUT repos/o/r/environments/probe --input -",
+  "api -X PUT repos/o/r/environments/producer --input -",
 ];
 const secretScanningWrites = ["api -X PATCH repos/o/r --input -", "api -X PUT repos/o/r/private-vulnerability-reporting"];
 const mergeWrite = "api -X PATCH repos/o/r -F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=false";
@@ -90,6 +96,34 @@ describe("SPEC-001 checks before main", () => {
     expect(pipeline.jobs["deploy"]?.environment).toBe("sandbox");
     const withEnvironment = Object.entries(pipeline.jobs).filter(([, job]) => job.environment !== undefined).map(([id]) => id);
     expect(withEnvironment).toEqual(["deploy"]);
+  });
+
+  it("SPEC-001-R209 takes a workflow_dispatch with no inputs, and fails checks, never skips it, for a dispatch on any ref but candidate/", () => {
+    expect(Object.keys(pipeline.on).sort()).toEqual(["push", "workflow_dispatch"]);
+    expect(pipeline.on.workflow_dispatch?.inputs).toBeUndefined();
+    const checks = pipeline.jobs["checks"];
+    expect([checks?.if, checks?.needs]).toEqual([undefined, undefined]);
+    const guard = checks?.steps?.[0];
+    expect([guard?.uses, guard?.name]).toEqual([undefined, "Fail a dispatched run on any ref but candidate/** (SPEC-001-R209)"]);
+    const runGuard = (event: string, ref: string) =>
+      spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", guard?.run ?? "exit 9"], {
+        encoding: "utf8", env: { PATH: process.env["PATH"] ?? "", GITHUB_EVENT_NAME: event, GITHUB_REF: ref },
+      });
+    const refused = "CHECK dispatch FAILED: pipeline.yml runs a dispatched run only on a candidate/ branch\n";
+    for (const ref of ["refs/heads/main", "refs/heads/candidate/", "refs/tags/candidate/x", "refs/heads/feature/candidate/x"]) {
+      const r = runGuard("workflow_dispatch", ref);
+      expect([ref, r.status, r.stdout]).toEqual([ref, 1, refused]);
+    }
+    expect(runGuard("workflow_dispatch", "refs/heads/candidate/TASK-1").status).toBe(0);
+    expect(runGuard("push", "refs/heads/main").status).toBe(0);
+    expect(runGuard("push", "refs/heads/candidate/x").status).toBe(0);
+    // Every other job needs checks, directly or through build, so a skipped checks job skips them all.
+    const needs = (id: string): string[] => { const n = pipeline.jobs[id]?.needs; return n === undefined ? [] : Array.isArray(n) ? n : [n]; };
+    const reachesChecks = (id: string): boolean => needs(id).some((n) => n === "checks" || reachesChecks(n));
+    expect(Object.keys(pipeline.jobs).filter((id) => id !== "checks" && !reachesChecks(id))).toEqual([]);
+    expect(pipeline.jobs["deploy"]?.if).toBe("github.ref == 'refs/heads/main'");
+    const statusFunctions = Object.entries(pipeline.jobs).filter(([, job]) => /\b(always|failure|cancelled)\(\)/.test(job.if ?? "")).map(([id]) => id);
+    expect(statusFunctions).toEqual([]);
   });
 
   it("SPEC-001-R190 the deploy job checks main's tip right after checkout, before it reads the artifact, verifies the attestation or calls AWS", () => {
@@ -150,6 +184,16 @@ describe("SPEC-001 checks before main", () => {
     expect(run.out).toContain('ruleset "protect main": skipped');
     expect(run.out).not.toContain(mergeRefused);
     expect(run.status).toBe(1);
+  });
+
+  it("SPEC-001-R85 github.sh makes environment producer deployable from main only, with no required reviewer even on a public repository", () => {
+    const run = runGithubSh({ appId: "15368", rulesetId: "7", visibility: "public" });
+    expect(run.status).toBe(0);
+    const branchOnly = { protected_branches: false, custom_branch_policies: true };
+    expect(run.environments["producer"]).toEqual({ deployment_branch_policy: branchOnly });
+    expect(run.environments["sandbox"]?.reviewers).toEqual([{ type: "User", id: 1 }]);
+    expect(run.environments["probe"]?.reviewers).toEqual([{ type: "User", id: 1 }]);
+    expect(run.out).toContain("environment producer: branch main only\n");
   });
 
   it.each([

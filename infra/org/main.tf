@@ -82,6 +82,7 @@ resource "aws_organizations_policy" "sandbox_writes" {
           local.deploy, local.break_glass,
           "${local.role_arn}who-gets-the-keys-triage-bedrock",
           "${local.role_arn}who-gets-the-keys-scenario-probe",
+          "${local.role_arn}who-gets-the-keys-producer-bedrock",
           "arn:aws:iam::${local.account}:policy/who-gets-the-keys/*",
         ]
         Condition = { ArnNotLike = { "aws:PrincipalArn" = [local.break_glass, local.service_linked] } }

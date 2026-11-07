@@ -6,16 +6,18 @@ ruleset="protect main"
 
 usage() {
   echo "usage: scripts/bootstrap/github.sh [--vars]"
-  echo "  default  read-only workflow token, SHA pinning required, environments sandbox and probe (main only),"
+  echo "  default  read-only workflow token, SHA pinning required, environments sandbox, probe and producer (main only),"
   echo "           merge commits as the only merge method (if GitHub accepts this with linear history required, no pull request"
   echo "           merges in GitHub; a refusal is reported and the script exits 1),"
   echo "           ruleset \"${ruleset}\" blocking force pushes, deletion and merge commits on the default branch, and"
   echo "           requiring the pipeline's checks job, from GitHub Actions, on a commit before main moves to it (SPEC-001-R41)."
   echo "           The ruleset names the GitHub Actions app ID read from main's checks run. If main has none yet, every"
   echo "           other setting is applied, the ruleset is skipped and the script exits 1."
-  echo "           Once the repository is public, also: you as required reviewer on sandbox and probe,"
+  echo "           Once the repository is public, also: you as required reviewer on sandbox and probe (not producer,"
+  echo "           whose runs only you can start; SPEC-001-R85),"
   echo "           secret scanning, push protection and private vulnerability reporting."
-  echo "  --vars   also set DEPLOY_ROLE_ARN, TRIAGE_ROLE_ARN, PROBE_ROLE_ARN from infra/sandbox outputs and TRIAGE_MODEL from \$TRIAGE_MODEL."
+  echo "  --vars   also set DEPLOY_ROLE_ARN, TRIAGE_ROLE_ARN, PROBE_ROLE_ARN, PRODUCER_ROLE_ARN and PRODUCER_MODEL from"
+  echo "           infra/sandbox outputs and TRIAGE_MODEL from \$TRIAGE_MODEL."
   echo "           Refused on a public repository until sandbox and probe each have a required reviewer."
 }
 
@@ -55,7 +57,7 @@ echo "  default workflow token: read, can approve reviews: false"
 echo "  actions enabled: true, allowed: all, SHA pinning required: true"
 echo "  merge methods: merge commit true, squash false, rebase false, read back after the change."
 echo "    If GitHub accepts this with linear history required, no pull request merges in GitHub"
-echo "  environments sandbox and probe, each deployable from branch main only"
+echo "  environments sandbox, probe and producer, each deployable from branch main only; producer never has a reviewer"
 echo "  ruleset \"${ruleset}\": default branch, blocks force pushes, deletion and merge commits, requires status check"
 echo "    checks from GitHub Actions on the commit itself, no bypass actors, active (created or updated)."
 echo "    The app ID is read from main's checks run just before the ruleset step. If main has none yet, the ruleset is skipped"
@@ -77,14 +79,17 @@ reviewers=""
 if [ "$visibility" = "public" ]; then
   reviewers=", \"reviewers\": [{\"type\": \"User\", \"id\": ${me_id}}], \"prevent_self_review\": false"
 fi
-for env in sandbox probe; do
+# producer gets no reviewer: only the owner can start producer.yml, and its job checks the actor (SPEC-001-R83, R85).
+for env in sandbox probe producer; do
+  env_reviewers="$reviewers"
+  [ "$env" != producer ] || env_reviewers=""
   gh api -X PUT "repos/${repo}/environments/${env}" --input - >/dev/null <<JSON
-{"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}${reviewers}}
+{"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}${env_reviewers}}
 JSON
   if ! gh api "repos/${repo}/environments/${env}/deployment-branch-policies" --jq '.branch_policies[].name' | grep -qx main; then
     gh api -X POST "repos/${repo}/environments/${env}/deployment-branch-policies" -f name=main -f type=branch >/dev/null
   fi
-  if [ -n "$reviewers" ]; then
+  if [ -n "$env_reviewers" ]; then
     echo "environment ${env}: branch main only, required reviewer ${me}"
   else
     echo "environment ${env}: branch main only"
@@ -163,15 +168,24 @@ if [ "${1:-}" = "--vars" ]; then
   deploy="$(jq -r .deploy_role_arn.value <<<"$outputs")"
   triage="$(jq -r .triage_role_arn.value <<<"$outputs")"
   probe="$(jq -r .probe_role_arn.value <<<"$outputs")"
+  producer="$(jq -r '.producer_role_arn.value // empty' <<<"$outputs")"
+  producer_model="$(jq -r '.producer_inference_profile.value // empty' <<<"$outputs")"
+  if [ -z "$producer" ] || [ -z "$producer_model" ]; then
+    echo "infra/sandbox has no producer_role_arn or producer_inference_profile output. Apply infra/sandbox first. Variables not set."
+    exit 1
+  fi
   model="${TRIAGE_MODEL:?set TRIAGE_MODEL to the Bedrock model or inference profile ID for triage}"
   echo
   echo "Will set repository variables:"
   printf '  DEPLOY_ROLE_ARN=%s\n  TRIAGE_ROLE_ARN=%s\n  PROBE_ROLE_ARN=%s\n  TRIAGE_MODEL=%s\n' "$deploy" "$triage" "$probe" "$model"
+  printf '  PRODUCER_ROLE_ARN=%s\n  PRODUCER_MODEL=%s\n' "$producer" "$producer_model"
   confirm "Set these variables?" || { echo "Variables not set."; exit 1; }
   gh variable set DEPLOY_ROLE_ARN --repo "$repo" --body "$deploy"
   gh variable set TRIAGE_ROLE_ARN --repo "$repo" --body "$triage"
   gh variable set PROBE_ROLE_ARN --repo "$repo" --body "$probe"
   gh variable set TRIAGE_MODEL --repo "$repo" --body "$model"
+  gh variable set PRODUCER_ROLE_ARN --repo "$repo" --body "$producer"
+  gh variable set PRODUCER_MODEL --repo "$repo" --body "$producer_model"
 fi
 
 echo
