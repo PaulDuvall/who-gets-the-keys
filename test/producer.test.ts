@@ -276,7 +276,7 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     expect(agentPrompt("TASK-P", "", "ignored", true)).toContain("curl -sS --max-time 15 https://example.com/");
     const probePrompt = agentPrompt("TASK-P", "", "ignored", true);
     expect([PROBE_UNLISTED, probePrompt.indexOf(PROBE_UNLISTED) >= 0, probePrompt.indexOf(PROBE_UNLISTED) < probePrompt.indexOf("curl ")])
-      .toEqual(["uname -a", true, true]);
+      .toEqual(["touch probe-unlisted", true, true]);
     expect(agentPrompt("TASK-P", "", "ignored", true)).not.toContain("ignored");
     expect(agentPrompt("TASK-1", "SPEC-014-R7", "Add R7.", false)).toMatch(/task TASK-1 in this repository\. The change implements SPEC-014-R7\.[^]*\nTask:\nAdd R7\.\n$/);
     expect(() => agentPrompt("TASK-1", "R7", "x", false)).toThrow(new ProducerRefusal("input spec"));
@@ -309,7 +309,7 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     const check = step("agent", named("Check that the probe's unlisted command was denied"));
     expect(check.if).toBe("inputs.egress_probe");
     const probeAllow = (agentSettings({ allowedDomains: [] }, true) as { permissions: { allow: string[] } }).permissions.allow;
-    expect([probeAllow.length > 0, probeAllow.filter((rule) => rule.includes("uname"))]).toEqual([true, []]);
+    expect([probeAllow.length > 0, probeAllow.filter((rule) => rule.includes("touch"))]).toEqual([true, []]);
     const dir = tempDir("producer-unlisted-");
     try {
       const use = { type: "assistant", message: { content: [{ type: "tool_use", id: "u1", name: "Bash", input: { command: PROBE_UNLISTED } }] } };
@@ -318,7 +318,7 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
       const denial = { tool_name: "Bash", tool_use_id: "u1", tool_input: { command: PROBE_UNLISTED } };
       const cases: [unknown[], number, string][] = [
         [[use, result("Permission to use Bash has been denied.", true), end([denial])], 0, "BOUNDARY HELD: unlisted command denied"],
-        [[use, result("Linux runner 6.8.0 x86_64", false), end([])], 1, "BOUNDARY BROKEN: unlisted command ran"],
+        [[use, result("", false), end([])], 1, "BOUNDARY BROKEN: unlisted command ran"],
         [[use, result("some error", true), end([])], 1, "BOUNDARY CHECK INVALID: unlisted command failed without a permission denial"],
         [[end([])], 1, "BOUNDARY CHECK INVALID: unlisted command not attempted"],
       ];

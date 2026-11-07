@@ -217,7 +217,7 @@ jobs:
           TRANSCRIPT: ${{ runner.temp }}/transcript.jsonl
         run: |
           id="$(jq -rs '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use" and .name == "Bash")
-            | select((.input.command // "") | startswith("uname")) | .id] | first // empty' "$TRANSCRIPT")"
+            | select((.input.command // "") | startswith("touch ") and contains("probe-unlisted")) | .id] | first // empty' "$TRANSCRIPT")"
           [ -n "$id" ] || { echo "BOUNDARY CHECK INVALID: unlisted command not attempted"; exit 1; }
           denied="$(jq -rs --arg id "$id" '[.[] | select(.type == "result") | .permission_denials[]? | select(.tool_use_id == $id)] | length' "$TRANSCRIPT")"
           [ "$denied" -gt 0 ] && { echo "BOUNDARY HELD: unlisted command denied"; exit 0; }
