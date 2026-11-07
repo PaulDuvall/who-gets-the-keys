@@ -165,7 +165,7 @@ jobs:
           [[ "$MODEL" =~ $MODEL_PATTERN ]] || { echo "CHECK producer FAILED: PRODUCER_MODEL"; exit 1; }
           # The settings' allow rules, also on the command line: without --allowedTools, Claude Code 2.1.304 forces the
           # permission mode to default when CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is set (run 42389828816).
-          mapfile -t allowed < <(jq -r '.permissions.allow[]' "$RUNNER_TEMP/claude-settings.json")
+          allowed=(); while IFS= read -r rule; do allowed+=("$rule"); done < <(jq -r '.permissions.allow[]' "$RUNNER_TEMP/claude-settings.json")
           [ "${#allowed[@]}" -gt 0 ] || { echo "CHECK producer FAILED: allow rules"; exit 1; }
           mkdir -p "$RUNNER_TEMP/agent-home" "$RUNNER_TEMP/agent-tmp"
           node_dir="$(dirname "$(command -v node)")"

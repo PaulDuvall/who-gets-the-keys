@@ -270,9 +270,9 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
   it("SPEC-001-R88 passes on --allowedTools exactly the allow rules of the settings file, in both modes, and starts no agent without them", () => {
     const script = runStep("agent").run ?? "";
     const lines = script.split("\n");
-    const mapLine = lines.findIndex((l) => l.includes("mapfile -t allowed"));
+    const mapLine = lines.findIndex((l) => l.includes("allowed+=("));
     const guardLine = lines.findIndex((l) => l.includes("CHECK producer FAILED: allow rules"));
-    expect(lines[mapLine]?.trim()).toBe(`mapfile -t allowed < <(jq -r '.permissions.allow[]' "$RUNNER_TEMP/claude-settings.json")`);
+    expect(lines[mapLine]?.trim()).toBe(`allowed=(); while IFS= read -r rule; do allowed+=("$rule"); done < <(jq -r '.permissions.allow[]' "$RUNNER_TEMP/claude-settings.json")`);
     expect([mapLine >= 0, mapLine < guardLine, guardLine < lines.findIndex((l) => l.includes("env -i"))]).toEqual([true, true, true]);
     const dir = tempDir("producer-allowed-");
     try {
