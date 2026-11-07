@@ -4,15 +4,19 @@
 # 3. SPEC-001-R89: a result with is_error true fails as "agent error".
 # The copies were staged on top of 4812f27, which landed proposals/producer, so land.sh should print no
 # "Changed since by" warning. If it prints one, answer no and ask the agent to restage the batch on the new main.
-# Order, because the SCP lets only who-gets-the-keys-break-glass change the producer role's policy, so main's deploy
-# job cannot apply the new model:
-#   a. Before you sign: accept the Sonnet 4.6 agreement and see a converse call print OK (the notes give the commands).
-#   b. Land it with land.sh. When it asks you to approve the sandbox deploy, leave it waiting.
-#   c. As who-gets-the-keys-break-glass, with MFA (this fires the alarm), apply infra/sandbox at main's tip as
-#      scripts/bootstrap/aws.sh step 4 prints. Expect only aws_iam_role_policy.producer updated in place and the
-#      producer_inference_profile output changed: 0 to add, 0 to destroy. Answer no to anything else.
-#   d. Set PRODUCER_MODEL and TRIAGE_MODEL to us.anthropic.claude-sonnet-4-6. Then approve the deploy; it plans no change.
-#   e. Dispatch the egress probe again.
+# Order. The SCP lets only who-gets-the-keys-break-glass change the producer role's policy, so main's deploy job cannot
+# apply the new model, and on 2026-11-07 break-glass could not be assumed from the owner's Identity Center session
+# (AccessDenied: its trust requires aws:MultiFactorAuthPresent). Owner decision of 2026-11-07, route C: the management
+# account lifts the SCP for one aws-setup.sh run, which puts it back in its own infra/org step.
+#   a. Before you sign: Sonnet 4.6's agreement is accepted and a converse call printed OK (done 2026-11-07).
+#   b. Run the preflight in the notes, then land it with land.sh. When it asks you to approve the sandbox deploy,
+#      leave it waiting.
+#   c. Detach SCP p-zolwyr2a from 462701644281 with the management profile, and check that only FullAWSAccess is left.
+#   d. Run aws-setup.sh with TRIAGE_MODEL=us.anthropic.claude-sonnet-4-6. infra/sandbox must plan only
+#      aws_iam_role_policy.producer updated in place (0 to add, 1 to change, 0 to destroy); answer no to anything else.
+#      infra/org must plan only the SCP attachment created (1 to add). github.sh --vars sets PRODUCER_MODEL.
+#   e. Check that p-zolwyr2a is attached again. Then approve the deploy; it plans no change.
+#   f. Dispatch the egress probe again.
 message: spec: producer on Sonnet 4.6, dontAsk enforced, is_error checked
 spec: SPEC-001-R86
 spec: SPEC-001-R88

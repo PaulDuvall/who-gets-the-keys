@@ -89,7 +89,7 @@ Every job runs only for `refs/heads/main`, `github.actor_id == '1619259'` and `g
 8. `npm run check:test` passes inside the agent's sandbox without the check tools. If not, the agent sees failures its change did not cause.
 9. With `autoAllowBashIfSandboxed: false` and dontAsk, a Bash command that no allow rule names is denied rather than run, and an empty `allowedDomains` with `strictAllowlist` refuses every host. Both follow from the docs; neither has been observed on a runner. Run 42389828816 also showed that dontAsk was not in force at all: Claude Code forced `default` (see "Probe run 1").
 10. Passing the allow rules on `--allowedTools` keeps `dontAsk` under `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`. This is inferred from Claude Code's own warning. The new permission-mode step fails the run if it does not.
-11. How the owner gets credentials for `who-gets-the-keys-break-glass`. The repo gives the plan and apply commands (`scripts/bootstrap/aws.sh` lines 139 to 143) but not how to assume the role. Its trust allows principals in the sandbox account only with `aws:MultiFactorAuthPresent` true (`infra/sandbox/iam.tf` line 299). Whether a session chained from IAM Identity Center through `OrganizationAccountAccessRole` carries that flag is not verified. The role has never been assumed.
+11. Observed 2026-11-07: break-glass cannot be assumed from the owner's IAM Identity Center session through `OrganizationAccountAccessRole`. A profile with `role_arn` set to `who-gets-the-keys-break-glass` and `source_profile` `wgtk-sandbox-admin` got `AccessDenied ... is not authorized to perform: sts:AssumeRole`. The role's trust requires `aws:MultiFactorAuthPresent` (`infra/sandbox/iam.tf` line 299), and inference: the chained session does not carry it. The role has never been assumed. The owner chose route C for the model switch (below) and a separate follow-up to make break-glass usable (route B: a sandbox IAM principal whose only permission is to assume break-glass, with a TOTP MFA device).
 
 ## Review fixes, 2026-11-07
 
@@ -198,16 +198,22 @@ git fetch -q origin main && wt="$(mktemp -d)/t2-fixes-preflight" && git worktree
 
    Then run `scripts/bootstrap/land.sh proposals/producer-fixes`. When it asks you to approve the sandbox deploy, leave it waiting.
 
-4. Apply `infra/sandbox` as `who-gets-the-keys-break-glass`, with MFA, which fires the alarm. Use the commands `scripts/bootstrap/aws.sh` prints in its steps 1 and 4: build `dist/function.zip`, then `terraform -chdir=infra/sandbox plan -out=plan.out -var artifact_sha256=…`, then `terraform -chdir=infra/sandbox apply plan.out`. The plan must show only `aws_iam_role_policy.producer` updated in place, with its two resources now naming `claude-sonnet-4-6`, and the `producer_inference_profile` output changed: 0 to add, 0 to destroy. How to get the role's credentials is not in the repo (Not verified, item 11).
-
-5. Point both variables at the new profile:
+4. Route C, owner decision of 2026-11-07, because break-glass cannot be assumed (Not verified, item 11). Lift the SCP with the management profile, and check that only `FullAWSAccess` is left:
 
 ```bash
-gh variable set PRODUCER_MODEL --repo PaulDuvall/who-gets-the-keys --body us.anthropic.claude-sonnet-4-6
+aws organizations detach-policy --policy-id p-zolwyr2a --target-id 462701644281 --profile org-management
 ```
 
 ```bash
-gh variable set TRIAGE_MODEL --repo PaulDuvall/who-gets-the-keys --body us.anthropic.claude-sonnet-4-6
+aws organizations list-policies-for-target --target-id 462701644281 --filter SERVICE_CONTROL_POLICY --profile org-management --query 'Policies[].[Id,Name]' --output text
 ```
+
+5. Run `aws-setup.sh` with the new triage model. `infra/sandbox` must plan only `aws_iam_role_policy.producer` updated in place, its two resources now naming `claude-sonnet-4-6` (0 to add, 1 to change, 0 to destroy). `infra/org` must plan only the SCP attachment created (1 to add). Answer no to anything else. `github.sh --vars` sets `PRODUCER_MODEL` from the new output:
+
+```bash
+SANDBOX_ACCOUNT_ID=462701644281 SANDBOX_PROFILE=wgtk-sandbox-admin MANAGEMENT_PROFILE=org-management ALERT_EMAIL=pduvall@gmail.com TRIAGE_MODEL=us.anthropic.claude-sonnet-4-6 scripts/bootstrap/aws-setup.sh
+```
+
+   Then check that `p-zolwyr2a` is attached again, with the `list-policies-for-target` command above.
 
 6. Approve the deploy of `main`'s tip; it plans no change. Then dispatch the egress probe again. Done when the agent job prints `Permission mode: dontAsk.` and `BOUNDARY HELD: egress to example.com`.
