@@ -1,0 +1,334 @@
+# The runner producer (Tracer 2, slice T2; SPEC-001-R83, R85 to R89, R207 to R209). Only the owner starts it.
+# install fetches the dependencies; agent runs Claude Code headless on Bedrock with model access only, in its sandbox,
+# and returns a patch; publish, with no agent, pushes it to candidate/<task>; dispatch starts pipeline.yml there.
+# No job holds both the agent and a write token. Until slice T3, the prompt input stands in for a signed task file.
+name: producer
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Task ID: TASK- then 1 to 32 of A-Z, 0-9 and -. The branch is candidate/<task>"
+        type: string
+        required: true
+      spec:
+        description: "Requirement ID for the Spec trailer, such as SPEC-014-R7. Needed when the change touches src/ or test/"
+        type: string
+        required: false
+        default: ""
+      subject:
+        description: "Commit subject, up to 72 characters"
+        type: string
+        required: true
+      prompt:
+        description: "What the agent should change, up to 8000 bytes. Ignored for an egress probe"
+        type: string
+        required: true
+      egress_probe:
+        description: "Egress probe: the agent runs one curl to example.com, which the sandbox must block. Nothing is pushed"
+        type: boolean
+        default: false
+
+permissions: {}
+cache-mode: none
+
+concurrency:
+  group: producer
+  cancel-in-progress: false
+
+env:
+  CLAUDE_CODE_VERSION: "2.1.304"
+  CLAUDE_CODE_SHA256: 1eda4ee54631c2e313df7bd9c2b7d3ca22815e09c6145774309214f06a8acd15
+
+jobs:
+  install:
+    name: install the dependencies
+    if: github.ref == 'refs/heads/main' && github.actor_id == '1619259' && github.triggering_actor == github.actor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # check out the lockfile
+    outputs:
+      deps_sha256: ${{ steps.pack.outputs.deps_sha256 }}
+    steps:
+      - name: Check the inputs before any step uses them (SPEC-001-R83)
+        env:
+          LC_ALL: C
+          TASK: ${{ inputs.task }}
+          SPEC: ${{ inputs.spec }}
+          SUBJECT: ${{ inputs.subject }}
+          PROMPT: ${{ inputs.prompt }}
+          TASK_PATTERN: "^TASK-[A-Z0-9-]{1,32}$"
+          SPEC_PATTERN: "^SPEC-[0-9]{3}-R[0-9]+$"
+          SUBJECT_PATTERN: "^[A-Za-z0-9][A-Za-z0-9 ,.:;'()/_-]{0,71}$"
+        run: |
+          fail() { echo "CHECK producer FAILED: input $1"; exit 1; }
+          [[ "$TASK" =~ $TASK_PATTERN ]] || fail task
+          [ -z "$SPEC" ] || [[ "$SPEC" =~ $SPEC_PATTERN ]] || fail spec
+          [[ "$SUBJECT" =~ $SUBJECT_PATTERN ]] || fail subject
+          { [ "${#PROMPT}" -ge 1 ] && [ "${#PROMPT}" -le 8000 ]; } || fail prompt
+          echo "Inputs checked: task ${TASK}, spec ${SPEC:-none}."
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - name: Install the dependencies from the lockfile, and fetch the pinned Claude Code (SPEC-001-R207)
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          curl -sSfL --retry 3 -o "$RUNNER_TEMP/claude-code.tgz" \
+            "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64/-/claude-code-linux-x64-${CLAUDE_CODE_VERSION}.tgz"
+          echo "${CLAUDE_CODE_SHA256}  $RUNNER_TEMP/claude-code.tgz" | sha256sum -c --quiet -
+      - id: pack
+        name: Pack node_modules and Claude Code for the agent job
+        run: |
+          mkdir -p "$RUNNER_TEMP/producer-inputs"
+          tar -cf "$RUNNER_TEMP/producer-inputs/node_modules.tar" node_modules
+          mv "$RUNNER_TEMP/claude-code.tgz" "$RUNNER_TEMP/producer-inputs/claude-code.tgz"
+          echo "deps_sha256=$(sha256sum "$RUNNER_TEMP/producer-inputs/node_modules.tar" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: producer-inputs
+          path: ${{ runner.temp }}/producer-inputs
+          if-no-files-found: error
+          retention-days: 1
+
+  agent:
+    name: produce a patch with Claude Code
+    needs: install
+    if: github.ref == 'refs/heads/main' && github.actor_id == '1619259' && github.triggering_actor == github.actor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    environment: producer
+    permissions:
+      contents: read # check out the tree the agent changes
+      id-token: write # assume the invoke-only producer role (SPEC-001-R86)
+    env:
+      EGRESS_ALLOWLIST: .github/egress/producer-allowlist.json
+    outputs:
+      patch_sha256: ${{ steps.patch.outputs.patch_sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: producer-inputs
+          path: ${{ runner.temp }}/producer-inputs
+      - name: Check both digests, then unpack node_modules and Claude Code (SPEC-001-R207)
+        env:
+          DEPS_SHA256: ${{ needs.install.outputs.deps_sha256 }}
+        run: |
+          in="$RUNNER_TEMP/producer-inputs"
+          echo "${DEPS_SHA256}  $in/node_modules.tar" | sha256sum -c --quiet -
+          echo "${CLAUDE_CODE_SHA256}  $in/claude-code.tgz" | sha256sum -c --quiet -
+          tar -xf "$in/node_modules.tar"
+          mkdir -p "$RUNNER_TEMP/claude-code/bin"
+          tar -xzf "$in/claude-code.tgz" -C "$RUNNER_TEMP/claude-code" package/claude
+          install -m 0755 "$RUNNER_TEMP/claude-code/package/claude" "$RUNNER_TEMP/claude-code/bin/claude"
+          "$RUNNER_TEMP/claude-code/bin/claude" --version
+      - name: Install the sandbox's system dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends bubblewrap socat ripgrep
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Write Claude Code's settings from the egress allowlist, and its prompt, before any credential exists (SPEC-001-R87)
+        env:
+          TASK: ${{ inputs.task }}
+          SPEC: ${{ inputs.spec }}
+          PROMPT: ${{ inputs.prompt }}
+          EGRESS_PROBE: ${{ inputs.egress_probe }}
+        run: |
+          node scripts/ci/producer.ts settings "$EGRESS_ALLOWLIST" "$RUNNER_TEMP/claude-settings.json" "$EGRESS_PROBE"
+          node scripts/ci/producer.ts prompt "$RUNNER_TEMP/prompt.txt"
+          cat "$RUNNER_TEMP/claude-settings.json"
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.PRODUCER_ROLE_ARN }}
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          mask-aws-account-id: true
+      # From here on the tree may hold the agent's changes, so no step runs repository code.
+      - id: run
+        name: Run Claude Code headless in its sandbox, from an empty environment with model access only (SPEC-001-R85, R88)
+        timeout-minutes: 40
+        env:
+          MODEL: ${{ vars.PRODUCER_MODEL }}
+          MODEL_PATTERN: "^us\\.anthropic\\.[a-z0-9.:-]+$"
+        run: |
+          [[ "$MODEL" =~ $MODEL_PATTERN ]] || { echo "CHECK producer FAILED: PRODUCER_MODEL"; exit 1; }
+          # The settings' allow rules, also on the command line: without --allowedTools, Claude Code 2.1.304 forces the
+          # permission mode to default when CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is set (run 42389828816).
+          mapfile -t allowed < <(jq -r '.permissions.allow[]' "$RUNNER_TEMP/claude-settings.json")
+          [ "${#allowed[@]}" -gt 0 ] || { echo "CHECK producer FAILED: allow rules"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/agent-home" "$RUNNER_TEMP/agent-tmp"
+          node_dir="$(dirname "$(command -v node)")"
+          status=0
+          env -i \
+            PATH="$RUNNER_TEMP/claude-code/bin:$node_dir:/usr/local/bin:/usr/bin:/bin" \
+            HOME="$RUNNER_TEMP/agent-home" TMPDIR="$RUNNER_TEMP/agent-tmp" LANG=C.UTF-8 TERM=dumb \
+            AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+            AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
+            CLAUDE_CODE_USE_BEDROCK=1 ANTHROPIC_MODEL="$MODEL" ANTHROPIC_DEFAULT_HAIKU_MODEL="$MODEL" \
+            CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 npm_config_update_notifier=false \
+            "$RUNNER_TEMP/claude-code/bin/claude" -p "$(cat "$RUNNER_TEMP/prompt.txt")" \
+              --setting-sources project --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
+              --settings "$RUNNER_TEMP/claude-settings.json" --permission-mode dontAsk --allowedTools "${allowed[@]}" \
+              --tools Bash,Read,Edit,Write,Glob,Grep --disallowedTools WebFetch WebSearch \
+              --max-turns 40 --max-budget-usd 5 --no-session-persistence \
+              --output-format stream-json --verbose \
+              > "$RUNNER_TEMP/transcript.jsonl" || status=$?
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+      - name: Show the agent's tool calls and what they returned
+        if: always() && steps.run.outcome != 'skipped'
+        run: |
+          token="$(openssl rand -hex 16)"
+          echo "::stop-commands::${token}"
+          jq -r '
+            def text: if type == "array" then map(.text? // "") | join("") else tostring end;
+            if .type == "assistant" then (.message.content[]? | select(.type == "tool_use") | "TOOL \(.name): \(.input.command // .input.file_path // "")")
+            elif .type == "user" then (.message.content[]? | select(.type == "tool_result") | "RESULT\(if .is_error then " (error)" else "" end): \(.content | text | .[0:2000])")
+            elif .type == "result" then "RUN ENDED: \(.subtype), \(.num_turns) turns, estimated USD \(.total_cost_usd)"
+            else empty end' "$RUNNER_TEMP/transcript.jsonl" || true
+          echo "::${token}::"
+      - name: Check that Claude Code kept the dontAsk permission mode, before any other check of the run (SPEC-001-R88)
+        if: always() && steps.run.outcome != 'skipped'
+        env:
+          TRANSCRIPT: ${{ runner.temp }}/transcript.jsonl
+        run: |
+          mode="$(jq -rs '[.[] | select(.type == "system" and .subtype == "init") | .permissionMode] | first // empty' "$TRANSCRIPT" 2>/dev/null || true)"
+          [[ "$mode" =~ ^[A-Za-z]+$ ]] || mode="unknown"
+          [ "$mode" = dontAsk ] || { echo "CHECK producer FAILED: permission mode ${mode}"; exit 1; }
+          echo "Permission mode: dontAsk."
+      - name: Check that the sandbox blocked the probe (SPEC-001-R87)
+        if: inputs.egress_probe
+        env:
+          TRANSCRIPT: ${{ runner.temp }}/transcript.jsonl
+        run: |
+          id="$(jq -rs '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use" and .name == "Bash")
+            | select((.input.command // "") | startswith("curl ") and contains("example.com")) | .id] | first // empty' "$TRANSCRIPT")"
+          [ -n "$id" ] || { echo "BOUNDARY CHECK INVALID: egress probe did not run"; exit 1; }
+          out="$(jq -r --arg id "$id" 'select(.type == "user") | .message.content[]? | select(.type == "tool_result" and .tool_use_id == $id)
+            | (.content | if type == "array" then map(.text? // "") | join("") else tostring end)' "$TRANSCRIPT")"
+          case "$out" in
+            *"Example Domain"*) echo "BOUNDARY BROKEN: egress to example.com"; exit 1 ;;
+            *403*) echo "BOUNDARY HELD: egress to example.com" ;;
+            *) echo "BOUNDARY CHECK INVALID: egress probe got no 403 from the sandbox proxy"; exit 1 ;;
+          esac
+      - name: Check how the agent's run ended (SPEC-001-R89)
+        env:
+          STATUS: ${{ steps.run.outputs.status }}
+        run: |
+          result="$(jq -cs '[.[] | select(.type == "result")] | last // {}' "$RUNNER_TEMP/transcript.jsonl" 2>/dev/null || echo '{}')"
+          subtype="$(jq -r '.subtype // empty' <<<"$result")"
+          [[ "$subtype" =~ ^[a-z_]+$ ]] || subtype="no result"
+          { [ "$STATUS" = 0 ] && [ "$subtype" = success ]; } || { echo "CHECK producer FAILED: agent ${subtype}"; exit 1; }
+          # A failed model call can still end as success with is_error true (run 42389828816), so is_error must be false.
+          [ "$(jq -r '.is_error == false' <<<"$result")" = true ] || { echo "CHECK producer FAILED: agent error"; exit 1; }
+      - id: patch
+        name: Write the patch against github.sha with git alone (SPEC-001-R89)
+        if: ${{ !inputs.egress_probe }}
+        run: |
+          [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] || { echo "CHECK producer FAILED: commit made"; exit 1; }
+          git add -A
+          git diff --cached --binary --no-renames "$GITHUB_SHA" > "$RUNNER_TEMP/changes.diff"
+          [ -s "$RUNNER_TEMP/changes.diff" ] || { echo "CHECK producer FAILED: empty patch"; exit 1; }
+          token="$(openssl rand -hex 16)"
+          echo "::stop-commands::${token}"
+          git diff --cached --stat --no-renames "$GITHUB_SHA"
+          echo "::${token}::"
+          echo "patch_sha256=$(openssl dgst -sha256 "$RUNNER_TEMP/changes.diff" | sed 's/^.*= //')" >> "$GITHUB_OUTPUT"
+      - if: ${{ !inputs.egress_probe }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: producer-patch
+          path: ${{ runner.temp }}/changes.diff
+          if-no-files-found: error
+          retention-days: 7
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: producer-transcript
+          path: ${{ runner.temp }}/transcript.jsonl
+          if-no-files-found: warn
+          retention-days: 7
+
+  publish:
+    name: publish the candidate branch
+    needs: agent
+    if: github.ref == 'refs/heads/main' && github.actor_id == '1619259' && github.triggering_actor == github.actor && !inputs.egress_probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # push candidate/<task>; this job runs no agent
+    outputs:
+      branch: ${{ steps.push.outputs.branch }}
+    steps:
+      # trusted runs scripts/ci/producer.ts; work takes the patch. Nothing from the patch runs.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: trusted
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: work
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: trusted/package.json
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: producer-patch
+          path: ${{ runner.temp }}/patch
+      - id: push
+        name: Check the patch, commit it unsigned and push candidate/<task> without force (SPEC-001-R208)
+        working-directory: work
+        env:
+          PATCH_SHA256: ${{ needs.agent.outputs.patch_sha256 }}
+          TASK: ${{ inputs.task }}
+          SPEC: ${{ inputs.spec }}
+          SUBJECT: ${{ inputs.subject }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          patch="$RUNNER_TEMP/patch/changes.diff"
+          echo "${PATCH_SHA256}  ${patch}" | sha256sum -c --status - || { echo "CHECK producer FAILED: patch digest"; exit 1; }
+          git apply --index "$patch" || { echo "CHECK producer FAILED: patch does not apply"; exit 1; }
+          scope="$(node ../trusted/scripts/ci/producer.ts scope "$patch")" || { echo "$scope"; exit 1; }
+          [ "$scope" = "scope ok" ] || { echo "CHECK producer FAILED: scope not confirmed"; exit 1; }
+          node ../trusted/scripts/ci/producer.ts message "$RUNNER_TEMP/message.txt"
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            -c commit.gpgsign=false commit -q -F "$RUNNER_TEMP/message.txt"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::${auth}"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" push origin "HEAD:refs/heads/candidate/${TASK}"
+          echo "branch=candidate/${TASK}" >> "$GITHUB_OUTPUT"
+          echo "Pushed $(git rev-parse HEAD) to candidate/${TASK}."
+
+  dispatch:
+    name: start the pipeline on the candidate branch
+    needs: publish
+    if: github.ref == 'refs/heads/main' && github.actor_id == '1619259' && github.triggering_actor == github.actor && !inputs.egress_probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write # dispatch pipeline.yml on the candidate branch
+    steps:
+      - name: Start pipeline.yml on the branch, because a push made with GITHUB_TOKEN starts no run (SPEC-001-R209)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ needs.publish.outputs.branch }}
+          BRANCH_PATTERN: "^candidate/TASK-[A-Z0-9-]{1,32}$"
+        run: |
+          [[ "$BRANCH" =~ $BRANCH_PATTERN ]] || { echo "CHECK producer FAILED: branch"; exit 1; }
+          gh workflow run pipeline.yml --repo "$REPO" --ref "$BRANCH"
+          echo "Started pipeline.yml on ${BRANCH}. To find its run:"
+          echo "gh run list --repo ${REPO} --workflow pipeline.yml --branch ${BRANCH} --limit 1"

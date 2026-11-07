@@ -1,6 +1,6 @@
 # Tracer 2: a locked-down runner first
 
-Status: T1 done 2026-11-07: `f6044ef` landed, candidate run 42378752588, `main` run 42379109850 deployed, evidence in `docs/verification.md` (Receipt: E2E-R1). T2 staged in `proposals/producer/`, reviewed, not yet landed; design, review fixes and owner steps in `docs/notes/tracer-2-t2-producer.md`. T3 and T4 not started. Owner decisions recorded 2026-11-07.
+Status: T1 done 2026-11-07: `f6044ef` landed, candidate run 42378752588, `main` run 42379109850 deployed, evidence in `docs/verification.md` (Receipt: E2E-R1). T2 landed as `4812f27` (`main` run 42388493889 deployed); the producer role, environment and variables exist. The first egress probe, producer run 42389828816, answered neither question 1 nor 2: Bedrock refused the model before the agent ran a tool. Fixes are staged in `proposals/producer-fixes/` (Sonnet 4.6, dontAsk enforced, `is_error` checked). Design, review fixes, probe findings and owner steps are in `docs/notes/tracer-2-t2-producer.md`. T3 and T4 not started. Owner decisions recorded 2026-11-07.
 
 ## Why
 
@@ -30,16 +30,16 @@ Deferred to thin slices after T4, about 3 to 4 more days: phase 4 (signer out of
 
 ## What the tracer must answer
 
-1. Does Claude Code's sandbox hold egress for an agent with Bash enabled? It is a process sandbox, not a firewall for the whole runner.
-2. Does an invoke-only Bedrock role pinned to one inference profile work? Decision 0004 lists this as not yet verified.
+1. Does Claude Code's sandbox hold egress for an agent with Bash enabled? It is a process sandbox, not a firewall for the whole runner. Not yet answered: in run 42389828816 no tool ran, and the probe check correctly printed `BOUNDARY CHECK INVALID: egress probe did not run`.
+2. Does an invoke-only Bedrock role pinned to one inference profile work? Decision 0004 lists this as not yet verified. Not yet answered: run 42389828816 assumed the role, but Bedrock refused Sonnet 5.5 for the whole account (`is not available for this account`), an admin role included, so IAM was never the deciding layer. The account's quota for Sonnet 5.5 is 0 tokens per minute (`docs/verification.md`, "Bedrock quota").
 3. Does a patch-only agent with a separate publish job satisfy the trace check and the `Spec:` and `Agent:` trailers?
 4. Do the attestation store's lookup limits bite? Phase 1 slice 1 tests this.
 5. Do the task, run ID and model survive the handoff from the runner to the pipeline and reach the receipt?
 
 ## Open questions
 
-- The new producer role in account 462701644281: the SCP's identity statement does not list it yet, so `infra/org` needs it added. Until then the sandbox admin profile could change the role.
-- Whether Anthropic model access on Bedrock is already granted in that account. Listing inference profiles does not prove access.
+- Answered 2026-11-07: `infra/org` lists the producer role in the SCP's identity-write deny, applied by `aws-setup.sh`. Only the break-glass role can now change the role, so any change to the producer's model is a break-glass apply.
+- Answered 2026-11-07: model access was not granted. Listing inference profiles did not prove access, and neither did an accepted agreement: the account's quota is 0 tokens per minute for every Claude 4.7 and 5.x model. The tracer moves to Sonnet 4.6, and a Sonnet 5.5 quota increase is requested separately. Until one is granted, triage, whose `TRIAGE_MODEL` was Sonnet 5.5, cannot call its model either.
 - Whether job 1 should also cache nothing and pin every action by SHA, as `pipeline.yml` does. Expected yes; the workflows check will enforce it.
 
 ## Related

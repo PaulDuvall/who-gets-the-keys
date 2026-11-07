@@ -1,0 +1,27 @@
+# Runner producer fixes after the first egress probe, run 42389828816 (docs/notes/tracer-2-t2-producer.md, "Probe run 1").
+# 1. The producer's model becomes us.anthropic.claude-sonnet-4-6: the account's quota for Sonnet 5.5 is 0 tokens per minute.
+# 2. SPEC-001-R88: the allow rules also go on --allowedTools, and a new step fails any run not in dontAsk mode.
+# 3. SPEC-001-R89: a result with is_error true fails as "agent error".
+# The copies were staged on top of 4812f27, which landed proposals/producer, so land.sh should print no
+# "Changed since by" warning. If it prints one, answer no and ask the agent to restage the batch on the new main.
+# Order, because the SCP lets only who-gets-the-keys-break-glass change the producer role's policy, so main's deploy
+# job cannot apply the new model:
+#   a. Before you sign: accept the Sonnet 4.6 agreement and see a converse call print OK (the notes give the commands).
+#   b. Land it with land.sh. When it asks you to approve the sandbox deploy, leave it waiting.
+#   c. As who-gets-the-keys-break-glass, with MFA (this fires the alarm), apply infra/sandbox at main's tip as
+#      scripts/bootstrap/aws.sh step 4 prints. Expect only aws_iam_role_policy.producer updated in place and the
+#      producer_inference_profile output changed: 0 to add, 0 to destroy. Answer no to anything else.
+#   d. Set PRODUCER_MODEL and TRIAGE_MODEL to us.anthropic.claude-sonnet-4-6. Then approve the deploy; it plans no change.
+#   e. Dispatch the egress probe again.
+message: spec: producer on Sonnet 4.6, dontAsk enforced, is_error checked
+spec: SPEC-001-R86
+spec: SPEC-001-R88
+spec: SPEC-001-R89
+# proposals/producer has landed: its spec rows, workflow and variable are on main.
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R209 |
+requires: .github/workflows/producer.yml Check how the agent's run ended (SPEC-001-R89)
+requires: infra/sandbox/variables.tf variable "producer_inference_profile"
+move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
+move: github-workflows/producer.yml .github/workflows/producer.yml
+move: infra/sandbox/variables.tf infra/sandbox/variables.tf
+move: test/producer.test.ts test/producer.test.ts
