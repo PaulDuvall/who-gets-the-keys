@@ -179,6 +179,8 @@ git commit -S -m "spec: one-command landing for staged batches" --trailer "Spec:
 git -c gpg.ssh.allowedSignersFile=approvers.txt verify-commit HEAD && git push origin HEAD:refs/heads/candidate/land-script && scripts/bootstrap/land.sh --to-main "$(git rev-parse HEAD)" candidate/land-script
 ```
 
+A runner producer delivery is unsigned and touches only unprotected paths, but its branch has no counted checks: the publish job pushes it with the `GITHUB_TOKEN`, which starts no run. Once `proposals/t3-delivery-landing/` has landed, `scripts/bootstrap/land.sh --delivery candidate/<task>` shows the delivery and, on a yes, pushes the same commit to `candidate/<task>-owner`, waits for that run and moves `main` (SPEC-001-R210). The publish job prints the command.
+
 The queue, in order: `proposals/land/` by hand, as above. Then `proposals/deploy-tip/`, one `land.sh` run, because Phase 1's manifest requires it. Then `proposals/phase-1/` with `--stop-before-main`, following "Phase 1 owner steps" in decision 0002, because its end-to-end test runs a deploy-mode receipt probe between the candidate run and `main`. Then later batches, one `land.sh` run each.
 
 ## AWS setup
