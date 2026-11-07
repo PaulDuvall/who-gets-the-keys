@@ -47,3 +47,8 @@ Deferred to thin slices after T4, about 3 to 4 more days: phase 4 (signer out of
 - Decision 0002, "Plan" and "Phase 1 owner steps"
 - Decision 0004, "Cloud sessions as the producer" and Phase D
 - Roadmap page shared on 2026-11-07, which still shows the full-breadth estimate
+
+## Producer runs
+
+| Run | Task | Result |
+|---|---|---|
