@@ -1,6 +1,6 @@
 # Tracer 2: a locked-down runner first
 
-Status: T1 done 2026-11-07: `f6044ef` landed, candidate run 42378752588, `main` run 42379109850 deployed, evidence in `docs/verification.md` (Receipt: E2E-R1). T2 landed as `4812f27` (`main` run 42388493889 deployed); the producer role, environment and variables exist. The first egress probe, producer run 42389828816, answered neither question 1 nor 2: Bedrock refused the model before the agent ran a tool. The fixes landed as `0fd9906` (Sonnet 4.6, by lifting the SCP for one `aws-setup.sh` run, because break-glass could not be assumed). The second probe, producer run 42400602621, answered questions 1 and 2 and failed only at the new permission-mode check. Option A is staged in `proposals/producer-option-a/`. Design, review fixes, probe findings and owner steps are in `docs/notes/tracer-2-t2-producer.md`. T3 and T4 not started. Owner decisions recorded 2026-11-07.
+Status: T1 done 2026-11-07 (`f6044ef`). T2 done 2026-11-07: the runner producer's first delivery, `8147bc5`, reached `main` after its checks passed, with no human between dispatch and green checks. Getting there took four signed landings (`4812f27`, `0fd9906`, `31ac807`, `3422d04`), a model switch to Sonnet 4.6 and one lift of the SCP; see `docs/notes/tracer-2-t2-producer.md` and `docs/notes/tracer-2-lessons.md`. One gap: `main`'s ruleset did not count `checks` from the producer's dispatched run, so the owner re-pushed the commit (lessons, L3). T3 and T4 not started. Owner decisions recorded 2026-11-07.
 
 ## Why
 
@@ -52,3 +52,8 @@ Deferred to thin slices after T4, about 3 to 4 more days: phase 4 (signer out of
 
 | Run | Task | Result |
 |---|---|---|
+| [42389828816](https://github.com/PaulDuvall/who-gets-the-keys/actions/runs/42389828816) | TASK-T2-PROBE | `BOUNDARY CHECK INVALID`: Bedrock refused Sonnet 5.5, account quota 0 |
+| [42400602621](https://github.com/PaulDuvall/who-gets-the-keys/actions/runs/42400602621) | TASK-T2-PROBE | Egress blocked (403); failed the dontAsk check, `default` forced |
+| [42403610421](https://github.com/PaulDuvall/who-gets-the-keys/actions/runs/42403610421) | TASK-T2-PROBE | Egress held; `uname` ran (read-only, a probe design error) |
+| [42405543342](https://github.com/PaulDuvall/who-gets-the-keys/actions/runs/42405543342) | TASK-T2-PROBE | Unlisted write denied; egress `INVALID` (prompt stopped the second `curl`) |
+| [42405917263](https://github.com/PaulDuvall/who-gets-the-keys/actions/runs/42405917263) | TASK-T2-GOOD-1 | Patch `8147bc5`, checks passed on the candidate (run 42406055336); landed on `main` after the owner's re-push |
