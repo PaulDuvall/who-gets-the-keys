@@ -3,7 +3,6 @@
 - Status: Accepted
 - Date: 2026-10-20
 - Requirements: SPEC-002-R1 to SPEC-002-R16
-- Modeled on: an earlier private repository ADR-0018 at `469f0fda93535e0b4a40fe61d22d6e122064d309`
 
 ## Context
 
@@ -52,7 +51,6 @@ Slides can claim a practice. A reader of the repo needs to see it run. The walkt
 | https://pypi.org/pypi/piper-tts/1.8.0/json | 2026-10-20 |
 | https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/ljspeech/medium/MODEL_CARD | 2026-10-20 |
 | https://raw.githubusercontent.com/microsoft/playwright/v1.64.1/packages/playwright-core/browsers.json | 2026-10-20 |
-| Reference `docs/decisions/0018-explainer-kit-in-the-repository.md` and `explainer/README.md` at `469f0fd` | 2026-10-20 |
 
 ## Consequences
 

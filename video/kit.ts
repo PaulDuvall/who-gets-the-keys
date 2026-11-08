@@ -1,5 +1,4 @@
 // Pure parts of the walkthrough kit (SPEC-002): tour, narration, timeline, captions, chapters and checks.
-// Ported from tools/explainer.py in an earlier private repository at 469f0fd; thresholds unchanged.
 import { createHash } from "node:crypto";
 
 export const WIDTH = 1920;

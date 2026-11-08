@@ -1,4 +1,4 @@
-// Records the page's guided tour under Xvfb, entry by entry on the narration timeline (reused from an earlier private repository 469f0fd, ADR-0018 there; docs/decisions/0001 here).
+// Records the page's guided tour under Xvfb, entry by entry on the narration timeline (docs/decisions/0001).
 // usage: node record.cjs --page <page.html> --timeline <timeline.json> --out <capture.mkv> --workdir <dir>
 //          --width 1920 --height 1080 --fps 30 --display :97
 // video/build.ts passes every value. The capture starts on a black cover. It keeps each frame's wall-clock

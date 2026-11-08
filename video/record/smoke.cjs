@@ -1,4 +1,4 @@
-// Headless check of the built page, and the guided tour's narration lines (reused from an earlier private repository 469f0fd; docs/decisions/0001 here).
+// Headless check of the built page, and the guided tour's narration lines (docs/decisions/0001).
 // usage: node smoke.cjs <page.html> <out_dir>
 // Writes out_dir/preview.html, out_dir/tour.json, a screenshot at each width and one of each step wider
 // than its width (overflow-<width>-<tab>-<step>.png), and prints one JSON
