@@ -1,6 +1,6 @@
 # Kokoro for the guided video's voice, hash-pinned. Generated 2026-11-06 with:
-#   pip-compile --generate-hashes --allow-unsafe --strip-extras (input: kokoro-onnx==0.6.1)
-# Install with: pip install --require-hashes -r narration-requirements.txt
+#   pip-compile --generate-hashes --allow-unsafe --strip-extras requirements.in
+# Install with: pip install --require-hashes -r factory-video/narration/requirements.txt
 attrs==26.1.0 \
     --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309 \
     --hash=sha256:d03ceb89cb322a8fd706d4fb91940737b6642aa36998fe130a9bc96c985eff32

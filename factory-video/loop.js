@@ -28,7 +28,6 @@
   const US_LOOP = Math.round(LOOP * 1e6);
   const X = L.stationX;
   const PIPE = L.pipeK;
-  const PROD = L.prodK;
   const DOT = Scene.DOT;
 
   const bump = (p, a, peak, b) => (p <= a || p >= b ? 0 : p < peak ? (p - a) / (peak - a) : 1 - (p - peak) / (b - peak));

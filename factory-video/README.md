@@ -1,6 +1,8 @@
 # Software factory slide animation
 
-The "software factory" scene for *Who Gets the Keys? Trust and Authority in Software Factories* (AI Native DevCon 2026). It moved here from PaulDuvall/paulmduvallcom on 2026-11-08 ([decision 0007](../docs/decisions/0007-factory-video-kit.md)), so the picture sits next to the specs it shows.
+The "software factory" scene for *Who Gets the Keys? Trust and Authority in Software Factories* (AI Native DevCon 2026). It moved here from PaulDuvall/paulmduvallcom on 2026-11-08 ([decision 0008](../docs/decisions/0008-factory-video-kit.md)), so the picture sits next to the specs it shows.
+
+The video shows what this repository should look like and do, not only what it does today. `claims.json` ties every on-screen label and narration line to a claim and cites how far the repository has got: built (requirements in `specs/`), planned (drafts in `docs/decisions/`) or open (backlog items). Each build checks the ledger and writes `out/claims-report.md`, so the video doubles as a check of the code against the target.
 
 The current loop shows the factory model of decision 0004, as evolved in the post-talk design notes (November 2026, a proposed decision 0005). One engineer signs a spec and two sign the factory. Where the policy tier requires it, an engineer who did not write the spec signs the release. The pipeline decides every change. Each place a human decides stays on screen for the whole loop, in blue, and nothing else is blue.
 
@@ -36,6 +38,7 @@ Download the newest from the latest successful `factory-video` run's Artifacts s
 | `factory-full-1920.gif` | 1920×900, 20 fps, 360 frames, 18 s, infinite loop, about 3.5 MB |
 | `factory-guided-clean.mp4` | 1920×900, the same video with no burned-in captions, and the captions as a soft `mov_text` track: for platforms that draw their own |
 | `factory-guided.srt` | The captions as SubRip cues, a sentence or half-sentence at a time, timed to the voice: to upload alongside the clean video |
+| `claims-report.md` | Every claim the video makes, with its status in this repository at the build commit: built, partly built, planned, open or illustrative |
 | `factory-guided.mp4` | 1920×1080, H.264, yuv420p, 30 fps, AAC voiceover, 118.8 s: one narrated, captioned pass with a camera, for video rather than the deck. See [The guided video](#the-guided-video) |
 | `contact-sheet.png` | Six frames of one loop, at 0, 3, 6, 9, 12 and 15 s, with what each shows |
 | `poster.png`, `poster.pdf` | 3840×2160 static poster and a one-page vector PDF with every font embedded |
@@ -52,6 +55,8 @@ Download the newest from the latest successful `factory-video` run's Artifacts s
 | `narration.js` | The guided video's script: one line per shot, with each line's rendered length |
 | `spec-sync-prompt.md` | A prompt for a session in this repository: every claim the video makes, mapped to the requirements, with the gaps to specify. Decision 0006 answered it |
 | `narrate.py` | Renders the lines with Kokoro (`update`, `render`), checks their digests (`check`), mixes them into the soundtrack (`mix`) and writes the SubRip captions (`srt`) |
+| `claims.json` | The claims ledger: each on-screen label and narration line, the claim it makes, and the IDs that show it built, planned or open |
+| `narration/requirements.in` | `kokoro-onnx==0.6.1`, the one direct dependency, which the batch adds to `allowed-deps.txt` |
 | `narration/requirements.txt` | kokoro-onnx 0.6.1 and its dependencies, hash-pinned (pip-compile --generate-hashes). A protected path once the batch `proposals/factory-video/` lands |
 | `narration/models.json` | The two Kokoro model files' source and SHA-256, which `narrate.py` checks before use. Protected with `narration/requirements.txt` |
 | `poster.html` | Static full-detail scene on a 2400×1350 canvas, from the same components |
@@ -155,6 +160,7 @@ For the guided video, `verify.mjs` checks:
 | The camera frames each beat | Every frame: once the camera settles, the shot's focus box is fully in frame; zoom stays between 1.0 and 2.0; every zoomed shot holds at least 1 s |
 | It starts and ends on the overview | The first and last frames are identical |
 | The MP4 matches the page | 1920×1080, H.264, yuv420p, 30 fps, an AAC voiceover as long as the video, and a duration within 0.05 s of the page's |
+| The claims ledger is complete | Every on-screen label and narration line belongs to a claim in `claims.json`; every cited requirement is in `specs/`, every draft in `docs/decisions/` or `proposals/`, every backlog ID in `.tasks/backlog.jsonl`, every file string in its file. Gaps do not fail; they go in `out/claims-report.md` |
 | Captions stay in the safe area | Every caption keeps to the middle 80% of the width and to its strip, in at most three lines, so a player that crops the sides still shows all of it |
 | The clean MP4 matches the page | 1920×900, H.264, 30 fps, the AAC voiceover, a `mov_text` caption track, and a duration within 0.05 s of the page's |
 | The captions file is right | The SubRip cues are in order, never overlap, end inside the video, have at most two lines each, and together are exactly the narration's words |
@@ -163,10 +169,12 @@ It also checks the labels, the 12 story beats (with a PNG of each in `probe/`), 
 
 ## Decisions made in this revision
 
-Revision 20, moved to who-gets-the-keys (decision 0007):
+Revision 20, moved to who-gets-the-keys (decision 0008):
 
 - **Built here, kept once.** The `factory-video` workflow builds the kit on a push to `main` that touches it, and uploads one artifact. A separate job deletes the earlier ones. That replaces paulmduvallcom's release, which was deleted and recreated each build and needed `contents: write`.
 - **No new dependency.** Playwright comes from `video/record`'s pinned package through `playwright.mjs`. The voice's pins moved to `narration/`, which joins the protected paths.
+- **The video is the target, and the ledger is the check.** `claims.json` and its check report, per claim, what is built, planned or open. At this revision: 11 built, 6 partly built, 6 planned, 1 open (DAST) and 2 illustrative.
+- **Dependencies pinned and protected.** `narration/requirements.in` names `kokoro-onnx==0.6.1`; the batch adds it to `allowed-deps.txt` and protects `narration/`, `package.json` and `package-lock.json` under this folder.
 - **Made to pass this repository's checks.** `render.js` became the ES module `render.mjs`. `loop.js` parses each frame's SVG with `DOMParser` instead of assigning `innerHTML`. Each narration line's SHA-256 is named `digest`, not `key`, which gitleaks's generic API-key rule would match. The scene, the narration and every output are unchanged.
 
 Revision 19, the factory is more than the pipeline:

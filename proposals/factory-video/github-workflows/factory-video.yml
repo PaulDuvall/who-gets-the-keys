@@ -1,6 +1,6 @@
-# Builds the software-factory slide assets in factory-video/ (decision 0007): the 18 s loop as a
+# Builds the software-factory slide assets in factory-video/ (decision 0008): the 18 s loop as a
 # GIF and a 3-minute MP4, the narrated guided video with and without burned-in captions, its
-# captions file, and the poster.
+# captions file, the poster, and the claims report: which on-screen claims the repository has built.
 # The build job reads the repository and nothing else: no secrets, no AWS, no caches. Its output
 # is one artifact. The prune job then deletes every earlier factory-video artifact, so only the
 # newest build is kept. Nothing is committed and no release is made, so no job needs contents: write.
@@ -94,6 +94,7 @@ jobs:
             factory-video/out/factory-full-1920.gif
             factory-video/out/poster.png
             factory-video/out/poster.pdf
+            factory-video/out/claims-report.md
           if-no-files-found: error
           retention-days: 30
 

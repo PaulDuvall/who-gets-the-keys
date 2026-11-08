@@ -20,6 +20,8 @@ video/record/package.json
 video/record/package-lock.json
 video/narration/
 factory-video/narration/
+factory-video/package.json
+factory-video/package-lock.json
 # Agent settings, hooks, agents, skills and instructions
 .claude/
 CLAUDE.md

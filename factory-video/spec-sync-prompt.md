@@ -1,6 +1,6 @@
 # Prompt: align who-gets-the-keys with the factory video
 
-Derived on 2026-11-06 from the factory video, revision 18, and updated on 2026-11-07 for revision 19, which draws the factory's boundary. The video was then built in PaulDuvall/paulmduvallcom; since 2026-11-08 it lives in this repository's `factory-video/` (decision 0007). The repository state it compares against is PaulDuvall/who-gets-the-keys `main` at `c7b91a5`, before decision 0006 answered it.
+Derived on 2026-11-06 from the factory video, revision 18, and updated on 2026-11-07 for revision 19, which draws the factory's boundary. The video was then built in PaulDuvall/paulmduvallcom; since 2026-11-08 it lives in this repository's `factory-video/` (decision 0008). The repository state it compares against is PaulDuvall/who-gets-the-keys `main` at `c7b91a5`, before decision 0006 answered it.
 
 Paste everything below the line into a Claude Code session in PaulDuvall/who-gets-the-keys.
 
