@@ -111,7 +111,7 @@ scenarios:
     title: Requirement with no test
     patch: scenarios/B15-requirement-without-test.patch
     check: trace
-    expect: "CHECK trace FAILED: SPEC-014-R8 has no test"
+    expect: "CHECK trace FAILED: SPEC-014-R98 has no test"
     slide: [7, 13]
     spec: SPEC-014-R1
   - id: B16

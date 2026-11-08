@@ -1,9 +1,9 @@
 diff --git a/specs/SPEC-014-export-latency.md b/specs/SPEC-014-export-latency.md
-index db78b16..449ca94 100644
+index bff060b..128e56a 100644
 --- a/specs/SPEC-014-export-latency.md
 +++ b/specs/SPEC-014-export-latency.md
 @@ -20,3 +20,4 @@ Status: approved by signed commit.
  | SPEC-014-R5 | IF an export request body is not valid JSON, or has no non-empty `columns` array of strings, or has no `rows` array of objects, THEN THE export service SHALL respond with status 400 and no CSV body. |
  | SPEC-014-R6 | WHEN an export request of 10,000 rows by 10 columns is serialized, THE export service SHALL finish serializing within 500 ms, measured in-process on the test runner. |
- | SPEC-014-R7 | IF an export request's `columns` array holds the same string more than once, THEN THE export service SHALL respond with status 400 and no CSV body, whatever the number of rows. Strings are compared exactly, so `id` and `ID` are different columns. |
-+| SPEC-014-R8 | WHEN an export request sets `"bom": true`, THE export service SHALL begin the CSV document with a UTF-8 byte order mark. |
+ | SPEC-014-R7 | IF an export request's `columns` array holds the same string more than once, THEN THE export service SHALL respond with status 400 and no CSV body, in place of SPEC-014-R4's 413 when the request also has more than 10,000 rows. Strings are compared exactly once JSON has decoded them, so `"a"` and `"\u0061"` are the same column, and `id`, `ID` and `id ` are three different ones. |
++| SPEC-014-R98 | WHEN an export request sets `"bom": true`, THE export service SHALL begin the CSV document with a UTF-8 byte order mark. |

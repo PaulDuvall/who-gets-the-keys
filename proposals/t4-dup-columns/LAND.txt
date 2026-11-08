@@ -1,9 +1,10 @@
 # Tracer 2, slice T4: SPEC-014-R7, a column named twice gets a 400, and its signed task file TASK-T4-DUP-COLUMNS.
 # See docs/notes/tracer-2-t4.md.
 # The trace check needs every requirement in specs/ named by a listed test, and vitest lists it.fails tests but not
-# it.todo or it.skip. So R7 lands with the approver's acceptance tests written with it.fails.each: they pass while
-# nothing implements R7. The producer implements R7 in src/handler.ts and changes it.fails.each to it.each.
-# B15's patch used SPEC-014-R7 for its untested requirement; it now adds SPEC-014-R8, and its expected line follows.
+# it.todo or it.skip. So R7 lands with the approver's acceptance tests, the 400 cases written with it.fails.each: they
+# pass while nothing implements R7. The producer implements R7 in src/handler.ts and changes it.fails.each to it.each.
+# No check stops a delivery from skipping, deleting or weakening those tests; the delivery's diff is checked by hand.
+# B15's patch used SPEC-014-R7 for its untested requirement; it now adds SPEC-014-R98, and its expected line follows.
 # No AWS change: src/ is unchanged, so main's deploy plans no Lambda change. Order: land.sh, then main's deploy, then
 # the producer dispatch in docs/notes/tracer-2-t4.md.
 message: spec: SPEC-014-R7, a column named twice gets a 400, and its task file (Tracer 2, T4)
@@ -16,7 +17,7 @@ requires: scenarios/scenarios.yaml expect: "CHECK trace FAILED: SPEC-014-R7 has 
 requires: scenarios/B15-requirement-without-test.patch +| SPEC-014-R7 | WHEN an export request sets
 requires: test/export.acceptance.test.ts SPEC-014-R5 returns 200 with CSV for a valid request, plain or base64
 requires: traceability.md | SPEC-014-R6 | `test/export.performance.test.ts` | test |
-requires: specs/protected-paths.txt # Task files: the instruction for one delivery and the paths it may touch
+requires: specs/protected-paths.txt tasks/
 move: SPEC-014-export-latency.md specs/SPEC-014-export-latency.md
 move: tasks/TASK-T4-DUP-COLUMNS.task.md tasks/TASK-T4-DUP-COLUMNS.task.md
 move: test/export.acceptance.test.ts test/export.acceptance.test.ts

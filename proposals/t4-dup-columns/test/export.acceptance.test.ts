@@ -68,15 +68,20 @@ describe("SPEC-014 export service", () => {
   // Written before SPEC-014-R7 is implemented: it.fails passes while the assertion fails. The delivery that implements
   // R7 changes it.fails.each to it.each and nothing else here.
   it.fails.each([
-    ["the same column twice", { columns: ["a", "a"], rows: [] }],
-    ["a repeat that is not next to its first use", { columns: ["a", "b", "a"], rows: [{ a: 1, b: 2 }] }],
-    ["a repeat in a request over 10,000 rows", { columns: ["id", "id"], rows: Array.from({ length: 10_001 }, (_, i) => ({ id: i })) }],
-  ])("SPEC-014-R7 returns 400 with an empty body for %s", async (_label, body) => {
-    expect(await handler(request(body))).toEqual({ statusCode: 400, headers: {}, body: "" });
+    ["the same column twice", request({ columns: ["a", "a"], rows: [] })],
+    ["a repeat that is not next to its first use", request({ columns: ["a", "b", "a"], rows: [{ a: 1, b: 2 }] })],
+    ["a repeat written with a JSON escape", { body: '{"columns":["a","\\u0061"],"rows":[]}' }],
+    ["a repeat in a request over 10,000 rows", request({ columns: ["id", "id"], rows: Array.from({ length: 10_001 }, (_, i) => ({ id: i })) })],
+  ])("SPEC-014-R7 returns 400 with an empty body for %s", async (_label, event) => {
+    expect(await handler(event)).toEqual({ statusCode: 400, headers: {}, body: "" });
   });
 
-  it("SPEC-014-R7 compares column names exactly, so names that differ only in letter case are different columns", async () => {
-    const response = await handler(request({ columns: ["id", "ID"], rows: [{ id: 1, ID: 2 }] }));
-    expect(response).toEqual({ statusCode: 200, headers: { "content-type": "text/csv; charset=utf-8" }, body: "id,ID\r\n1,2\r\n" });
+  it.each([
+    ["letter case", ["id", "ID"], "id,ID\r\n1,2\r\n"],
+    ["a trailing space", ["id", "id "], "id,id \r\n1,2\r\n"],
+    ["Unicode form", ["\u00e9", "e\u0301"], "\u00e9,e\u0301\r\n1,2\r\n"],
+  ])("SPEC-014-R7 treats column names that differ only in %s as different columns", async (_label, columns, csv) => {
+    const row = Object.fromEntries(columns.map((column, i) => [column, i + 1]));
+    expect(await handler(request({ columns, rows: [row] }))).toEqual({ statusCode: 200, headers: { "content-type": "text/csv; charset=utf-8" }, body: csv });
   });
 });
