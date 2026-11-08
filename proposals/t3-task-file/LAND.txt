@@ -30,6 +30,7 @@ requires: scripts/ci/producer.ts export function scopeRefusal(entries: readonly 
 requires: scenarios/run.ts run?: "checks" | "deploy-verify";
 requires: scenarios/scenarios.yaml expect: "CHECK signatures FAILED: unsigned change to .github/"
 requires: specs/protected-paths.txt # Agent settings, hooks, agents, skills and instructions
+requires: factory-video/claims.json "planned": ["SPEC-001-R67", "SPEC-001-R68", "SPEC-001-R72"]
 move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
 move: protected-paths.txt specs/protected-paths.txt
 move: scripts/checks.ts scripts/checks.ts
@@ -53,3 +54,4 @@ move: test/video.test.ts test/video.test.ts
 move: traceability.md traceability.md
 move: CLAUDE.md CLAUDE.md
 move: README.md README.md
+move: factory-video/claims.json factory-video/claims.json

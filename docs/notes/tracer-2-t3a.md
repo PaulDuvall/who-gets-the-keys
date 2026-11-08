@@ -35,6 +35,7 @@ Exactly two keys, each written `<key>: <value>` with one space after the colon, 
 | `test/scenarios.test.ts` | Rows R72 and R73, R107, and B23 and B24 run through `runIn` on a copy of `main` |
 | `test/video.test.ts` | One more SPEC-002-R5 test, for task-mode steps |
 | `traceability.md` | Rows R64 to R68, R72, R73 and R107 |
+| `factory-video/claims.json` | The IDs this batch signs move from planned to built in the same commit, so the claims check (decision 0008) stays green: C04 gains R66; C10 gains R67, R68 and R72; C18 gains R64 and R65. Thin R66 does not make C18's "agent commits need a task" true, so C10 and C18 cite open backlog item `who-gets-the-keys-x2r` for the full rule |
 | `CLAUDE.md`, `README.md` | 21 bad changes, not 19; 18 patches; the `tasks/` path; the task and scope checks after the fifteen |
 
 Requirement IDs: only decision 0004's draft IDs are used, R64 to R68, R72, R73 and R107, so no new ID is allocated. The highest ID on every remote branch on 2026-11-08 was R210.

@@ -1,0 +1,187 @@
+{
+  "about": "Every on-screen label and narration line of the factory video, as claims about the repository it shows. The video is the target. This ledger is the check: verify.mjs fails if a label or line is not here, or if a cited ID or file string does not exist at the build commit, and writes out/claims-report.md with what is built, what is planned and what is open. 'built' cites requirement IDs in specs/ or files that must contain a string. 'planned' cites draft requirement IDs in docs/decisions/. 'open' cites backlog IDs in .tasks/backlog.jsonl. 'illustrative' marks example values that claim nothing.",
+  "claims": [
+    {
+      "id": "C00",
+      "claim": "The scene and its framing",
+      "labels": ["SECONDS", "Production", "Agent", "Deploy"],
+      "narration": [0, 5],
+      "illustrative": true
+    },
+    {
+      "id": "C01",
+      "claim": "A customer states intent; an engineer captures it as a spec and signs it with a security key and a touch",
+      "labels": ["Customer intent", "Engineer signs the spec"],
+      "narration": [1],
+      "built": ["SPEC-001-R12", { "file": "specs/SPEC-014-export-latency.md", "contains": "Customer intent:" }]
+    },
+    {
+      "id": "C02",
+      "claim": "One engineer signs a spec, two sign the factory, and one signs a release where the tier requires it",
+      "labels": ["One engineer signs a spec, two the factory, one a release by tier.", "FACTORY v1 · two signers"],
+      "narration": [15],
+      "built": ["SPEC-001-R12"],
+      "planned": ["SPEC-001-R111", "SPEC-001-R112", "SPEC-001-R115", "SPEC-001-R120"]
+    },
+    {
+      "id": "C03",
+      "claim": "The agent can write anything but ship nothing: it holds no keys and cannot commit, push to main, tag or sign",
+      "labels": ["AGENT SANDBOX", "The agent can write anything.", "It can't ship anything."],
+      "built": ["SPEC-001-R12", "SPEC-001-R85", "SPEC-001-R88", "SPEC-001-R89", "SPEC-001-R208"]
+    },
+    {
+      "id": "C04",
+      "claim": "The agent works in a cloud session, one run per task",
+      "note": "Built as the runner producer: one dispatched run per signed task file (SPEC-001-R64), on a GitHub-hosted runner, not a Claude Code cloud session. The cloud session's setup script is not versioned yet",
+      "labels": ["cloud session one run per task"],
+      "narration": [2],
+      "built": ["SPEC-001-R83", "SPEC-001-R85", "SPEC-001-R66"],
+      "open": ["who-gets-the-keys-j5t"]
+    },
+    {
+      "id": "C05",
+      "claim": "Inside the session, a hook flags a test that asserts nothing, and the agent fixes it",
+      "note": "Built as a project hook: .claude/settings.json runs hook.mjs expect-expect after each Edit or Write. No requirement names the hook, and the runner producer turns hooks off (SPEC-001-R87)",
+      "labels": ["In-run checks", "Empty tests"],
+      "built": [{ "file": ".claude/settings.json", "contains": "hook.mjs expect-expect" }, { "file": ".claude/hooks/hook.mjs", "contains": "vitest/expect-expect" }]
+    },
+    {
+      "id": "C06",
+      "claim": "Inside the session, a dependency allowlist stops an unlisted package",
+      "note": "Built in the pipeline (allowlist check); the in-session hook is planned",
+      "labels": ["Dep allowlist"],
+      "built": ["SPEC-001-R3"],
+      "planned": ["SPEC-001-R164"]
+    },
+    {
+      "id": "C07",
+      "claim": "The pipeline runs the checks of record without the coding agent",
+      "labels": ["PIPELINE", "MINUTES", "Build, test, scan", "Honest tests?"],
+      "narration": [3, 9],
+      "built": ["SPEC-001-R1", "SPEC-001-R40", "SPEC-001-R41"]
+    },
+    {
+      "id": "C08",
+      "claim": "The checks include SAST, SCA and secret scanning",
+      "labels": ["SAST", "SCA", "Secrets"],
+      "built": ["SPEC-001-R9", "SPEC-001-R10", "SPEC-001-R2"]
+    },
+    {
+      "id": "C09",
+      "claim": "The checks include DAST",
+      "note": "Decision 0006 G3 recommends recording DAST as not applicable and dropping the chip; the owner has not decided",
+      "labels": ["DAST"],
+      "open": ["who-gets-the-keys-wum"]
+    },
+    {
+      "id": "C10",
+      "claim": "A scope check fails any path outside the task",
+      "note": "Built as a thin check (SPEC-001-R66): it judges every commit that carries a Task: trailer, and the publish job adds one to every runner delivery. A commit without the trailer is not judged; the full rule waits for an owner decision",
+      "labels": ["Scope"],
+      "built": ["SPEC-001-R208", "SPEC-001-R67", "SPEC-001-R68", "SPEC-001-R72"],
+      "open": ["who-gets-the-keys-x2r"]
+    },
+    {
+      "id": "C11",
+      "claim": "Tests are proven to catch broken code: property tests and a mutation threshold that cannot be lowered",
+      "labels": ["Property", "Mutation"],
+      "built": ["SPEC-001-R15", "SPEC-001-R16", "SPEC-001-R14"]
+    },
+    {
+      "id": "C12",
+      "claim": "Scoped AI checks can fail a change, never pass one, and a failure sticks to the change",
+      "labels": ["Validator", "checks of record · AI can only fail"],
+      "planned": ["SPEC-001-R144", "SPEC-001-R145", "SPEC-001-R146", "SPEC-001-R147", "SPEC-001-R148", "SPEC-001-R149", "SPEC-001-R152"]
+    },
+    {
+      "id": "C13",
+      "claim": "The patch lands on a candidate branch and is promoted to main out of the agent's reach",
+      "labels": ["candidate/*", "promote to main out of reach"],
+      "narration": [4],
+      "built": ["SPEC-001-R40", "SPEC-001-R41", "SPEC-001-R208", "SPEC-001-R210"]
+    },
+    {
+      "id": "C14",
+      "claim": "Only the pipeline signs the evidence and holds the deploy key",
+      "labels": ["pipeline signs the evidence, holds the key", "signed by"],
+      "built": ["SPEC-001-R48", "SPEC-001-R28", "SPEC-001-R50", "SPEC-001-R56"]
+    },
+    {
+      "id": "C15",
+      "claim": "Where the tier requires it, an engineer who did not write the spec checks staging, then signs the release",
+      "labels": ["signs the release, by tier"],
+      "planned": ["SPEC-001-R120", "SPEC-001-R122", "SPEC-001-R136", "SPEC-001-R165"]
+    },
+    {
+      "id": "C16",
+      "claim": "Free text from customers, agents, docs and URLs is untrusted and never starts a run",
+      "labels": ["Untrusted input", "never starts a run", "customers, agents, docs, URLs"],
+      "narration": [6],
+      "built": ["SPEC-001-R83", "SPEC-001-R28"]
+    },
+    {
+      "id": "C17",
+      "claim": "Poisoned issue #4821 stops at the sandbox wall",
+      "labels": ["Issue #4821", "ignore previous instructions"],
+      "built": ["SPEC-001-R28"]
+    },
+    {
+      "id": "C18",
+      "claim": "An issue becomes work only through a spec an engineer signs and a task; known errors start from alarms the signed policy already maps",
+      "note": "The signed task file and its check are built (SPEC-001-R64, R65). The rule that agent commits need a task is thin: only commits with a Task: trailer are judged. Alarm-started work is planned",
+      "labels": ["Engineer checks it against the specs"],
+      "narration": [7, 8],
+      "built": ["SPEC-001-R12", "SPEC-001-R83", "SPEC-001-R64", "SPEC-001-R65"],
+      "planned": ["SPEC-001-R125", "SPEC-001-R126"],
+      "open": ["who-gets-the-keys-x2r"]
+    },
+    {
+      "id": "C19",
+      "claim": "An issue's free text is a quarantined notes field that no agent receives",
+      "labels": ["notes: quarantined"],
+      "planned": ["SPEC-001-R162", "SPEC-001-R163"]
+    },
+    {
+      "id": "C20",
+      "claim": "The receipt records where a change began and traces it from intent to deploy",
+      "note": "Built as SPEC-001-R55's seven lines (COMMIT, FILES, AGENT, MODEL, SPEC, SIGNED, VERIFIED), with MODEL always 'not recorded'. INTENT, TASK and AUTHOR are planned for Tracer 2 slice T3; FACTORY, the checks, DEPLOY, ORIGIN and TRIGGER come later",
+      "labels": ["RECEIPT", "factory", "intent", "task", "author", "checks", "deploy"],
+      "narration": [10],
+      "built": ["SPEC-001-R55", "SPEC-001-R45"],
+      "planned": ["SPEC-001-R46", "SPEC-001-R63", "SPEC-001-R69", "SPEC-001-R70", "SPEC-001-R71", "SPEC-001-R79", "SPEC-001-R98", "SPEC-001-R118", "SPEC-001-R119", "SPEC-001-R161"]
+    },
+    {
+      "id": "C21",
+      "claim": "Production telemetry is untrusted; a quarantined reader fills a fixed schema, and its free text never reaches the agent",
+      "labels": ["Telemetry", "schema fields only", "HOURS"],
+      "narration": [12],
+      "planned": ["SPEC-001-R127", "SPEC-001-R119"]
+    },
+    {
+      "id": "C22",
+      "claim": "Only an alarm named in the signed policy can start an approved task",
+      "narration": [13],
+      "planned": ["SPEC-001-R125", "SPEC-001-R126"]
+    },
+    {
+      "id": "C23",
+      "claim": "A separate security account watches the pipeline and production for drift, and the pipeline cannot touch it",
+      "labels": ["Security account · watches for drift"],
+      "narration": [14],
+      "planned": ["SPEC-001-R154", "SPEC-001-R155", "SPEC-001-R156", "SPEC-001-R157"]
+    },
+    {
+      "id": "C24",
+      "claim": "Production opens only for a change whose evidence is complete",
+      "labels": ["locked", "The agent advises. The pipeline acts.", "No evidence, no deploy."],
+      "narration": [16],
+      "built": ["SPEC-001-R17", "SPEC-001-R56", "SPEC-001-R190", "SPEC-001-R40"]
+    },
+    {
+      "id": "C25",
+      "claim": "Example values on screen",
+      "labels": ["SPEC-118", "mutation 91%", "no sign-off, policy v3", "T-0043 · untrusted issue"],
+      "illustrative": true
+    }
+  ]
+}
