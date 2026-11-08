@@ -1,6 +1,6 @@
 # Tracer 2, slice T4: SPEC-014-R7 and its task file
 
-Status: staged 2026-11-08 in `proposals/t4-dup-columns/` for the owner to sign, with the fixes of an independent review. Nothing is landed. T4's row in `docs/notes/tracer-2.md`: the owner signs R7, dispatches the runner producer, the checks pass, the owner lands the delivery with `land.sh --delivery`, and the deploy succeeds. The delivery is the first `land.sh --delivery` landing, which closes backlog item `who-gets-the-keys-nlq`.
+Status: landed 2026-11-08. The signed batch is `c7c6b4d` (candidate run 111, `main` run 112, deploy with no Lambda change). Producer run [42499336951](https://github.com/PaulDuvall/who-gets-the-keys/actions/runs/42499336951) made delivery `9f959a3` in about 2 minutes, and the owner landed it with `land.sh --delivery`: `candidate/TASK-T4-DUP-COLUMNS-owner` run 113, then `main` run 114, whose deploy updated `aws_lambda_function.export` in place (0 added, 1 changed, 0 destroyed). It was the first `land.sh --delivery` landing, which closes backlog item `who-gets-the-keys-nlq`.
 
 ## The requirement
 
@@ -135,3 +135,29 @@ gh workflow run producer.yml --repo PaulDuvall/who-gets-the-keys --ref main -f t
 
 4. The agent checks the delivery on `candidate/TASK-T4-DUP-COLUMNS`: the test-file diff above, and `git apply --check` of every scenario patch on it (L20).
 5. Land it: `scripts/bootstrap/land.sh --delivery candidate/TASK-T4-DUP-COLUMNS`. Approve the deploy; this one changes the Lambda. Then `main`'s run summary should trace SPEC-014-R7, the task and the run.
+
+## Landed, 2026-11-08
+
+The delivery, `9f959a3`, did what the task file asked and nothing else. Its test-file diff removes the two comment lines and `it.fails.each([` and adds `it.each([`. Its `src/handler.ts` diff adds one check in `parse`, `new Set(columns as string[]).size !== (columns as string[]).length`, and the `@requirement SPEC-014-R7` tag.
+
+| Check on `9f959a3` before landing | Result |
+|---|---|
+| task and scope from `c7c6b4d`; lint, typecheck, trace, slides, secrets | Pass |
+| `npx vitest run` | 213 passed, no expected failures left; the same 3 `ssh-keygen` failures as on `main` in the agent's container |
+| `node scripts/checks.ts mutation` | Pass: `src/handler.ts` 57 of 58 killed (98.28%), `src/export.ts` 20 of 20 |
+| `git apply --check`, all 18 scenario patches; B23 and B24 in the real harness; B2's patch with the mutation check | All apply; both `pass`; `below break threshold` (92.3%) |
+| Scenarios run 58 on `c7c6b4d` | Success: B15 on SPEC-014-R98 holds in CI |
+
+`main` run 114's receipt:
+
+```text
+COMMIT   9f959a350e54
+FILES    dist/function.zip sha256:722ac6715a0d
+AGENT    Claude Code (as reported by the commit)
+MODEL    not recorded
+SPEC     SPEC-014-R7
+SIGNED   pipeline.yml@refs/heads/main (editable by the agent)
+VERIFIED 2/2 predicate types
+```
+
+Against T4's done criterion in `docs/notes/tracer-2.md`: R7 signed, the runner dispatched, the checks passed, the delivery on `main` and the deploy succeeded. The receipt traces SPEC-014-R7 but not yet the task, the producer run, the model or R7's signature: those are T3b's lines (INTENT, TASK, AUTHOR, MODEL), and T3b comes next. Not verified: a live request to the deployed Lambda, because the agent may run no `aws` command.
