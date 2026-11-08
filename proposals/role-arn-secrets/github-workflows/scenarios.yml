@@ -1,0 +1,132 @@
+# Proves each bad scenario fails at its named check (SPEC-001-R19 to R37).
+# Local scenarios and the B9 replay run on every push; AWS-backed checks run only by hand.
+name: scenarios
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+cache-mode: none
+
+jobs:
+  local:
+    name: local scenarios
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    concurrency:
+      group: scenarios-local-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.32"
+          enable-cache: false
+      - name: Install check tools
+        run: |
+          scripts/ci/install-tools.sh "$RUNNER_TEMP/tools/bin"
+          echo "$RUNNER_TEMP/tools/bin" >> "$GITHUB_PATH"
+      - name: Run the scenarios
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run scenarios
+      - name: Upload each scenario's check output
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scenario-logs
+          path: build/scenarios/
+          if-no-files-found: warn
+
+  b9-replay:
+    name: B9 replay under the triage boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: scenarios-b9-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      issues: read
+      id-token: write
+    env:
+      EGRESS_ALLOWLIST: .github/egress/allowlist.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - name: Install the sandbox's system dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends bubblewrap socat ripgrep
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          npm ci --ignore-scripts --no-audit --no-fund
+      - name: Write sandbox settings from the egress allowlist
+        run: |
+          jq '{network: {allowedDomains: .allowedDomains, deniedDomains: []},
+               filesystem: {denyRead: [], allowWrite: ["/tmp"], denyWrite: []}}' "$EGRESS_ALLOWLIST" > "$RUNNER_TEMP/srt.json"
+      - name: Replay each injected action from issue 4821
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: npx --no-install srt --settings "$RUNNER_TEMP/srt.json" bash scenarios/b9-replay.sh | tee "$RUNNER_TEMP/b9-replay.log"
+      - name: Upload the replay log for the video
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: b9-replay-log
+          path: ${{ runner.temp }}/b9-replay.log
+          if-no-files-found: warn
+
+  on-demand:
+    name: sandbox-account scenarios (B9 AWS, B11, B14)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: probe
+    concurrency:
+      group: scenarios-on-demand
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.16.6"
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.PROBE_ROLE_ARN }}
+          aws-region: us-east-1
+          mask-aws-account-id: true
+      - name: Run the on-demand probes
+        env:
+          DEPLOY_ROLE_ARN: ${{ secrets.DEPLOY_ROLE_ARN }}
+        run: scenarios/on-demand.sh | tee on-demand.log
+      - name: Upload the on-demand log for the video
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: on-demand-log
+          path: on-demand.log
+          if-no-files-found: warn
