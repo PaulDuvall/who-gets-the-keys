@@ -1,0 +1,10 @@
+# Backlog s7e: renew the 7 sca exceptions, 3 of which expire on 2026-11-22 and 4 on 2026-11-30.
+# Checked on 2026-11-08 against PyPI, npm and the OSV database: no fixed version is reachable inside any dependent's
+# declared range, so every exception is still needed. Each reason is re-checked and every ignoreUntil is 2026-12-08.
+# Evidence, registry pages and the override options: docs/notes/sca-renewal-2026-11-08.md.
+# No code, workflow or lockfile changes. Land it before 2026-11-22, or every push fails the sca check that day.
+message: spec: renew the sca exceptions to 2026-12-08, after re-checking each fix (backlog s7e)
+spec: SPEC-001-R10
+# main still holds the exceptions this batch renews.
+requires: specs/sca-exceptions.toml ignoreUntil = 2026-11-22T00:00:00Z
+move: sca-exceptions.toml specs/sca-exceptions.toml
