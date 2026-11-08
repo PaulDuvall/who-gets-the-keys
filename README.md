@@ -1,6 +1,10 @@
 # who-gets-the-keys
 
+[![pipeline](https://img.shields.io/github/actions/workflow/status/PaulDuvall/who-gets-the-keys/pipeline.yml?branch=main&label=pipeline)](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/pipeline.yml?query=branch%3Amain)
 [![bad changes stopped](https://img.shields.io/github/actions/workflow/status/PaulDuvall/who-gets-the-keys/scenarios.yml?branch=main&label=bad%20changes%20stopped)](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/scenarios.yml)
+[![mutation floor](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FPaulDuvall%2Fwho-gets-the-keys%2Fmain%2Fstryker.config.json&query=%24.thresholds.break&label=mutation%20floor&suffix=%25)](stryker.config.json)
+[![node](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FPaulDuvall%2Fwho-gets-the-keys%2Fmain%2Fpackage.json&query=%24.engines.node&label=node)](package.json)
+[![last commit](https://img.shields.io/github/last-commit/PaulDuvall/who-gets-the-keys/main)](https://github.com/PaulDuvall/who-gets-the-keys/commits/main)
 [![licence: MIT](https://img.shields.io/github/license/PaulDuvall/who-gets-the-keys)](LICENSE)
 
 Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code, the pipeline holds the keys, and 21 deliberately bad changes are stopped before they ship.
@@ -39,14 +43,14 @@ npm run scenarios
 
 | Tool | Version | Needed for |
 |---|---|---|
-| Node.js | 24.x (`engines`) | everything |
-| gitleaks | 8.30.1 | `check:secrets` |
-| zizmor | 1.31.1 | `check:workflows` |
-| Terraform, tflint | 1.16.6, 0.64.0 | `check:iac` |
-| Semgrep | 1.181.0 | `check:sast` |
-| OSV-Scanner | 2.7.0 | `check:sca` |
-| ssh-keygen | OpenSSH 8.2 or later; to sign approver commits, 8.4 or later with security-key support (Homebrew's on macOS) | `check:signatures` |
-| ffmpeg, ffprobe, Xvfb, uv | system | `npm run video` |
+| [Node.js](https://nodejs.org/) | [24.x](https://nodejs.org/en/about/previous-releases) (`engines`) | everything |
+| [gitleaks](https://github.com/gitleaks/gitleaks) | [8.30.1](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1) | `check:secrets` |
+| [zizmor](https://docs.zizmor.sh/) | [1.31.1](https://pypi.org/project/zizmor/1.31.1/) | `check:workflows` |
+| [Terraform](https://developer.hashicorp.com/terraform), [tflint](https://github.com/terraform-linters/tflint) | [1.16.6](https://releases.hashicorp.com/terraform/1.16.6/), [0.64.0](https://github.com/terraform-linters/tflint/releases/tag/v0.64.0) | `check:iac` |
+| [Semgrep](https://semgrep.dev/docs/) | [1.181.0](https://pypi.org/project/semgrep/1.181.0/) | `check:sast` |
+| [OSV-Scanner](https://github.com/google/osv-scanner) | [2.7.0](https://github.com/google/osv-scanner/releases/tag/v2.7.0) | `check:sca` |
+| [ssh-keygen](https://man.openbsd.org/ssh-keygen) | [OpenSSH](https://www.openssh.com/) 8.2 or later; to sign approver commits, 8.4 or later with security-key support (Homebrew's on macOS) | `check:signatures` |
+| [ffmpeg](https://ffmpeg.org/), [ffprobe](https://ffmpeg.org/ffprobe.html), [Xvfb](https://www.x.org/releases/X11R7.7/doc/man/man1/Xvfb.1.xhtml), [uv](https://docs.astral.sh/uv/) | system | `npm run video` |
 
 Versions, sources and dates: [docs/verification.md](docs/verification.md).
 
@@ -58,23 +62,23 @@ A check is automated. A gate is a human approval: an approver-signed commit, or 
 
 | # | Check | Tool | Fails when |
 |---|---|---|---|
-| 1 | secrets | gitleaks | A secret is in the working tree |
+| 1 | secrets | [gitleaks](https://github.com/gitleaks/gitleaks) | A secret is in the working tree |
 | 2 | allowlist | `package.json` scan | A dependency name is not in `allowed-deps.txt` |
-| 3 | workflows | zizmor + script | Any zizmor finding; a cache in `pipeline.yml` (`deploy-cache`); or the B9 replay job's permissions or egress differ from the triage job's (`replay-parity`) |
-| 4 | install | `npm ci --ignore-scripts` | The lockfile does not install |
-| 5 | lint | ESLint, typescript-eslint, `@vitest/eslint-plugin` | Any error, including a test with no assertion |
-| 6 | typecheck | `tsc --noEmit` | Any type error under strict settings |
-| 7 | iac | `terraform fmt`, `validate`, tflint | `infra/sandbox` or `infra/org` fails a check |
-| 8 | sast | Semgrep `p/default` | Any finding |
-| 9 | sca | OSV-Scanner | A known vulnerability in any npm or Python lockfile, unless `specs/sca-exceptions.toml` lists it and its `ignoreUntil` has not passed |
+| 3 | workflows | [zizmor](https://docs.zizmor.sh/) + script | Any zizmor finding; a cache in `pipeline.yml` (`deploy-cache`); or the B9 replay job's permissions or egress differ from the triage job's (`replay-parity`) |
+| 4 | install | [`npm ci --ignore-scripts`](https://docs.npmjs.com/cli/commands/npm-ci) | The lockfile does not install |
+| 5 | lint | [ESLint](https://eslint.org/), [typescript-eslint](https://typescript-eslint.io/), [`@vitest/eslint-plugin`](https://github.com/vitest-dev/eslint-plugin-vitest) | Any error, including a test with no assertion |
+| 6 | typecheck | [`tsc --noEmit`](https://www.typescriptlang.org/docs/handbook/compiler-options.html) | Any type error under strict settings |
+| 7 | iac | [`terraform fmt`](https://developer.hashicorp.com/terraform/cli/commands/fmt), [`validate`](https://developer.hashicorp.com/terraform/cli/commands/validate), [tflint](https://github.com/terraform-linters/tflint) | `infra/sandbox` or `infra/org` fails a check |
+| 8 | sast | [Semgrep `p/default`](https://semgrep.dev/p/default) | Any finding |
+| 9 | sca | [OSV-Scanner](https://github.com/google/osv-scanner) | A known vulnerability in any npm or Python lockfile, unless `specs/sca-exceptions.toml` lists it and its `ignoreUntil` has not passed |
 | 10 | trace | git + script | No `Spec:` trailer, a requirement with no test, or an export with no `@requirement` |
-| 11 | signatures | `git verify-commit`, then the signature's flags | An unsigned change to `specs/`, `approvers.txt` or a protected path. An approver signature without a touch: touch only for now, per the owner decision of 2026-11-05. A key in `approvers.txt` that is not a security key |
+| 11 | signatures | [`git verify-commit`](https://git-scm.com/docs/git-verify-commit), then the signature's flags | An unsigned change to `specs/`, `approvers.txt` or a protected path. An approver signature without a touch: touch only for now, per the owner decision of 2026-11-05. A key in `approvers.txt` that is not a security key |
 | 12 | slides | script | `practices.yaml` disagrees with the pinned slide snapshot |
 | 13 | ratchet | script | Stryker `thresholds.break` is below the highest value it has had in any commit |
-| 14 | test | Vitest | Any test fails |
-| 15 | mutation | Stryker | Mutation score below `thresholds.break` (95) |
-| deploy | attestation | `gh attestation verify` | The artifact has no valid attestation |
-| deploy | irreversible | `terraform show -json plan.out` | A stateful resource would be deleted without an approver-signed commit |
+| 14 | test | [Vitest](https://vitest.dev/) | Any test fails |
+| 15 | mutation | [Stryker](https://stryker-mutator.io/) | Mutation score below `thresholds.break` (95) |
+| deploy | attestation | [`gh attestation verify`](https://cli.github.com/manual/gh_attestation_verify) | The artifact has no valid attestation |
+| deploy | irreversible | [`terraform show -json plan.out`](https://developer.hashicorp.com/terraform/cli/commands/show) | A stateful resource would be deleted without an approver-signed commit |
 | after 15 | task | `git show` + script | A `Task:` trailer in the range names a task file that is missing or malformed at the merge base with `main`, or that cites a requirement no spec defines |
 | after 15 | scope | `git diff-tree` + script | A commit with a `Task:` trailer touches a path outside its task's `produces`, a protected path, `specs/`, `tasks/` or `approvers.txt`, names another task, or names a requirement its task does not cite |
 
@@ -123,17 +127,17 @@ The deck's speaker notes name example tools for each practice. Where this repo u
 
 | Practice | The deck names | This repo uses | Why |
 |---|---|---|---|
-| SAST, SCA, secrets | Semgrep or CodeQL; OSV-Scanner, Trivy or Snyk; gitleaks or TruffleHog | Semgrep, OSV-Scanner, gitleaks | The first tool the deck names for each |
-| Mutation and property tests | Stryker or PIT; fast-check or Hypothesis | Stryker, fast-check | TypeScript repo |
-| Runner egress control | StepSecurity Harden-Runner | Anthropic `srt` and Claude Code sandbox settings, both from `.github/egress/allowlist.json` | Harden-Runner block mode needs a paid plan for private repos (D04) |
-| Codified policy checks | Open Policy Agent with Conftest, or Cedar | `scripts/checks.ts`, one function per check | One language for repo code; each check prints one failure line |
-| Specs and acceptance criteria | Tessl, GitHub Spec Kit or Kiro; Cucumber | EARS-style tables in `specs/`; Vitest tests titled by requirement ID | The trace check verifies both directions without another toolchain |
-| Spec and pipeline approval | CODEOWNERS, rulesets, GitHub Environments required reviewers | Approver-signed commits, checked by the signatures check for `specs/`, `approvers.txt` and every path in `specs/protected-paths.txt` | Trunk-based with no pull requests, so approval is a signature the pipeline verifies |
-| Attestation verification | Kyverno or Sigstore policy-controller; cosign | GitHub artifact attestations, verified by `gh attestation verify` before any AWS call | The deploy target is a Lambda, not Kubernetes; deploy fails closed without a valid attestation (B10) |
-| Waivers with an expiry | Snyk ignore, Trivy `expired_at`, OPA exceptions | OSV-Scanner `ignoreUntil` entries in `specs/sca-exceptions.toml`, owner-signed | OSV-Scanner is the SCA tool |
-| Dependency intake | CodeArtifact, Artifactory or Socket; pip `--require-hashes`, `npm ci` | `allowed-deps.txt`, lockfile hashes, `npm ci`, pip `--require-hashes` | No private mirror in a demo repo |
-| Break-glass | TEAM for IAM Identity Center; CloudTrail plus an EventBridge alarm | A separate IAM role with MFA and an EventBridge alarm | One sandbox account, no Identity Center |
-| Not shown | DAST (ZAP, StackHawk), CloudWatch Logs data protection, OpenTelemetry redaction, IAM Access Analyzer, Security Hub, GuardDuty, CodeDeploy or Argo rollback | none | The repo shows the pipeline, not a running production service; see `docs/slide-reconciliation.md` |
+| SAST, SCA, secrets | [Semgrep](https://semgrep.dev/docs/) or [CodeQL](https://codeql.github.com/); [OSV-Scanner](https://github.com/google/osv-scanner), [Trivy](https://github.com/aquasecurity/trivy) or [Snyk](https://snyk.io/); [gitleaks](https://github.com/gitleaks/gitleaks) or [TruffleHog](https://github.com/trufflesecurity/trufflehog) | [Semgrep](https://semgrep.dev/docs/), [OSV-Scanner](https://github.com/google/osv-scanner), [gitleaks](https://github.com/gitleaks/gitleaks) | The first tool the deck names for each |
+| Mutation and property tests | [Stryker](https://stryker-mutator.io/) or [PIT](https://pitest.org/); [fast-check](https://fast-check.dev/) or [Hypothesis](https://hypothesis.readthedocs.io/) | [Stryker](https://stryker-mutator.io/), [fast-check](https://fast-check.dev/) | TypeScript repo |
+| Runner egress control | [StepSecurity Harden-Runner](https://github.com/step-security/harden-runner) | Anthropic [`srt`](https://github.com/anthropics/sandbox-runtime) and [Claude Code sandbox settings](https://code.claude.com/docs/en/sandboxing), both from `.github/egress/allowlist.json` | Harden-Runner block mode needs a paid plan for private repos (D04) |
+| Codified policy checks | [Open Policy Agent](https://www.openpolicyagent.org/) with [Conftest](https://www.conftest.dev/), or [Cedar](https://www.cedarpolicy.com/) | `scripts/checks.ts`, one function per check | One language for repo code; each check prints one failure line |
+| Specs and acceptance criteria | [Tessl](https://tessl.io/), [GitHub Spec Kit](https://github.com/github/spec-kit) or [Kiro](https://kiro.dev/); [Cucumber](https://cucumber.io/) | EARS-style tables in `specs/`; [Vitest](https://vitest.dev/) tests titled by requirement ID | The trace check verifies both directions without another toolchain |
+| Spec and pipeline approval | [CODEOWNERS](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners), [rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets), [GitHub Environments](https://docs.github.com/en/actions/managing-workflow-runs-and-deployments/managing-deployments/managing-environments-for-deployment) required reviewers | Approver-signed commits, checked by the signatures check for `specs/`, `approvers.txt` and every path in `specs/protected-paths.txt` | Trunk-based with no pull requests, so approval is a signature the pipeline verifies |
+| Attestation verification | [Kyverno](https://kyverno.io/) or [Sigstore policy-controller](https://github.com/sigstore/policy-controller); [cosign](https://github.com/sigstore/cosign) | [GitHub artifact attestations](https://docs.github.com/en/actions/concepts/security/artifact-attestations), verified by [`gh attestation verify`](https://cli.github.com/manual/gh_attestation_verify) before any AWS call | The deploy target is a Lambda, not Kubernetes; deploy fails closed without a valid attestation (B10) |
+| Waivers with an expiry | Snyk ignore, Trivy `expired_at`, OPA exceptions | [OSV-Scanner `ignoreUntil`](https://google.github.io/osv-scanner/configuration/) entries in `specs/sca-exceptions.toml`, owner-signed | OSV-Scanner is the SCA tool |
+| Dependency intake | [CodeArtifact](https://aws.amazon.com/codeartifact/), Artifactory or Socket; [pip `--require-hashes`](https://pip.pypa.io/en/stable/topics/secure-installs/), [`npm ci`](https://docs.npmjs.com/cli/commands/npm-ci) | `allowed-deps.txt`, lockfile hashes, [`npm ci`](https://docs.npmjs.com/cli/commands/npm-ci), [pip `--require-hashes`](https://pip.pypa.io/en/stable/topics/secure-installs/) | No private mirror in a demo repo |
+| Break-glass | [TEAM for IAM Identity Center](https://github.com/aws-samples/iam-identity-center-team); [CloudTrail](https://aws.amazon.com/cloudtrail/) plus an [EventBridge](https://aws.amazon.com/eventbridge/) alarm | A separate IAM role with MFA and an [EventBridge](https://aws.amazon.com/eventbridge/) alarm | One sandbox account, no Identity Center |
+| Not shown | DAST ([ZAP](https://www.zaproxy.org/), [StackHawk](https://www.stackhawk.com/)), [CloudWatch Logs data protection](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/mask-sensitive-log-data.html), [OpenTelemetry](https://opentelemetry.io/) redaction, [IAM Access Analyzer](https://aws.amazon.com/iam/access-analyzer/), [Security Hub](https://aws.amazon.com/security-hub/), [GuardDuty](https://aws.amazon.com/guardduty/), [CodeDeploy](https://aws.amazon.com/codedeploy/) or [Argo Rollouts](https://argoproj.github.io/rollouts/) | none | The repo shows the pipeline, not a running production service; see `docs/slide-reconciliation.md` |
 
 ## Repository map
 
@@ -193,7 +197,7 @@ The queue, in order: `proposals/land/` by hand, as above. Then `proposals/deploy
 
 The sandbox must be a member account of your AWS Organization, not its management account. SCPs do not affect the management account, so B11's SCP denial would not hold there. AWS also advises against running workloads in it.
 
-`scripts/bootstrap/aws-setup.sh` does the whole AWS setup as one command. It is staged in `proposals/aws-setup/` until you land it with `scripts/bootstrap/land.sh proposals/aws-setup`, which is independent of the queue above. It needs admin CLI profiles for the sandbox account and the management account. It also needs AWS CLI v2 with `create-bucket --bucket-namespace`, Terraform 1.11 or later, Node.js 24.11 or later, zip, openssl, jq and a signed-in gh.
+`scripts/bootstrap/aws-setup.sh` does the whole AWS setup as one command. It is staged in `proposals/aws-setup/` until you land it with `scripts/bootstrap/land.sh proposals/aws-setup`, which is independent of the queue above. It needs admin CLI profiles for the sandbox account and the management account. It also needs [AWS CLI](https://aws.amazon.com/cli/) v2 with `create-bucket --bucket-namespace`, [Terraform](https://developer.hashicorp.com/terraform) 1.11 or later, [Node.js](https://nodejs.org/) 24.11 or later, zip, [OpenSSL](https://www.openssl.org/), [jq](https://jqlang.org/) and a signed-in [gh](https://cli.github.com/).
 
 When `land.sh` says to approve the sandbox deploy in `main`'s run, leave it waiting. In a second terminal at the same checkout, run `aws-setup.sh` as below: `HEAD` and `origin/main` are already the landed commit. Then approve the deploy of `main`'s tip. That ends `land.sh`'s watch, and it deletes its candidate branch.
 
