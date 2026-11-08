@@ -30,6 +30,7 @@ Status: done; the hand-off below is the owner queue.
 | 20:12 | 7v1 restaged (`bf49374`, `1f9524e`) | R210 renumbered to R217; account ID, email and SCP policy ID replaced by placeholders |
 | 20:14 | k9s (`02e52b5`) | Blocked: kokoro-onnx 0.6.1 has no program to run. Decision note, nothing staged |
 | 20:16 | Landing-order check (`ef423f6`) | Simulated `land.sh`'s "Changed since by" check across the landing order: every warning reports "keeps every line" |
+| 20:25 | 7v1 review fixes | Nothing critical; its high finding was already fixed by `ef423f6`; one medium, seven low, fixed or recorded. The landing-order check re-run: still no copy lacks a line |
 
 An out-of-memory kill hit one process at about 19:56, while a reviewer's test run overlapped the agent's. Every preflight after it was re-run and passed.
 
@@ -41,7 +42,7 @@ Each batch was preflighted by applying its moves, and every earlier batch's in l
 |---|---|---|---|
 | sca-renewal | 213 | OSV-Scanner with the staged exceptions: exit 0 | ok |
 | role-arn-secrets | 221 | B8b through the real harness: `CHECK workflows FAILED: unpinned-uses` | ok |
-| all eight, in landing order (sca-renewal is independent) | 283 | `iac` (Terraform fmt, validate, tflint) and `sast` (Semgrep `p/default`) on the moved tree: exit 0. 19 of 19 scenario patches apply | ok |
+| all eight, in landing order (sca-renewal is independent) | 284 | `iac` (Terraform fmt, validate, tflint) and `sast` (Semgrep `p/default`) on the moved tree: exit 0. 19 of 19 scenario patches apply | ok |
 
 ## Hand-off
 
@@ -58,11 +59,9 @@ Landing order is the table's order. Each later batch's spec, `traceability.md` a
 | 5 | `proposals/land-presign/` | u3u | `scripts/bootstrap/land.sh`, `test/land-presign.test.ts` (new), `test/land.test.ts`, the spec, `traceability.md`, `README.md` | New R213; Spec: R41 | 2 critical, 2 high, 4 medium, 6 low. All fixed except a macOS run of the full suite, which the next landing gives | `docs/notes/land-presign.md` |
 | 6 | `proposals/agent-rules/` | l3q | `CLAUDE.md` (staged as `CLAUDE.proposed.md`), `.claude/hooks/hook.mjs`, `.claude/settings.json`, `test/hook.test.ts`, the spec, `traceability.md` | New R214; Spec: R39 | 4 medium, several low. All fixed except the tripwire's known misses, recorded | `docs/notes/agent-rules.md` |
 | 7 | `proposals/npmrc/` | utq | `specs/protected-paths.txt`, `pipeline.yml`, `scripts/checks.ts`, `scenarios/run.ts`, `scenarios.yaml`, B18's and the new B81's patches, three test files, `practices.yaml`, `docs/practices.md`, `video/explanations.yaml`, `.claude/settings.json`, the spec, `traceability.md` | New R215, R216; amends R68; Spec: R38 | 2 medium, 6 low. All fixed except stale "npm run checks" text outside the batch, recorded | `docs/notes/npmrc-node-options.md` |
-| 8 | `proposals/break-glass-mfa/` | 7v1 | `infra/sandbox/iam.tf`, `infra/sandbox/main.tf`, `infra/org/main.tf`, `aws-setup.sh`, `aws.sh`, `test/break-glass.test.ts` (new), `test/aws-setup.test.ts`, the spec, `traceability.md`, `README.md` | New R217; Spec: R30 | See "7v1 review" below | `docs/notes/break-glass-mfa.md`, `docs/decisions/0007-break-glass-mfa.md` |
+| 8 | `proposals/break-glass-mfa/` | 7v1 | `infra/sandbox/iam.tf`, `infra/sandbox/main.tf`, `infra/org/main.tf`, `aws-setup.sh`, `aws.sh`, `test/break-glass.test.ts` (new), `test/aws-setup.test.ts`, the spec, `traceability.md`, `README.md` | New R217; Spec: R30 | 1 high (already fixed), 1 medium, 7 low. All fixed except a stricter Terraform test and the quarterly drill, recorded | `docs/notes/break-glass-mfa.md`, `docs/decisions/0007-break-glass-mfa.md` |
 
-Candidate runs on `candidate/auto-2026-11-08`: runs 124 to 135 passed, one per push; the tip's run is in the final message.
-
-7v1 review: pending at the time of writing; recorded in the final message.
+Candidate runs on `candidate/auto-2026-11-08`: runs 124 to 136 passed, one per push; the tip's run is in the final message.
 
 Agent commits on the chain that need no signature: `e82fdfe` (README), `8f46f78` (31r, README check table), the notes above, `b116f95` (MODEL and AUTHOR memo), `bf49374` (decision 0007, runbook, verification rows), `02e52b5` (k9s note) and this log.
 
@@ -170,6 +169,16 @@ scripts/bootstrap/land.sh proposals/npmrc
 scripts/bootstrap/land.sh proposals/break-glass-mfa
 ```
 
+13. Delete the two branches this run restaged from. They were staged before the history rewrite, and `claude/epic-dijkstra-7xi2um` still holds the sandbox account ID, your email and the SCP's policy ID. The agent may not delete branches. Success: `git ls-remote` lists neither.
+
+```bash
+git push origin --delete claude/epic-dijkstra-7xi2um claude/hopeful-sagan-ae220j
+```
+
+```bash
+git ls-remote origin claude/epic-dijkstra-7xi2um claude/hopeful-sagan-ae220j
+```
+
 ### 3. Questions for you, each with a recommendation
 
 | # | Question | Recommendation |
@@ -180,7 +189,7 @@ scripts/bootstrap/land.sh proposals/break-glass-mfa
 | 4 | T3b AUTHOR line (R71): A as drafted, B verify the producer run and its patch artifact, C none until promote | B |
 | 5 | k9s: Kokoro has no program of its own. A one GPL-licensed driver file as the separate program, B a third-party CLI package, C a driver generated at setup, D keep the import, E Piper | A, with the backlog criterion amended (`docs/notes/k9s-kokoro-separate-program.md`) |
 | 6 | m7a: give the triage job an environment, so its secret sits outside the repository scope (zizmor's auditor finding)? | Not now: the secret is an ARN, and the trust policy pins the workflow |
-| 7 | m7a steps 3 and 4: delete or let expire the old run logs that show the account ID, and whether to rewrite history | Decide after step 2 lands, as planned. Leaning: let logs expire; no history rewrite, since earlier clones keep the ID anyway |
+| 7 | m7a steps 3 and 4: delete or let expire the old run logs that show the account ID, and whether to rewrite history. The 7v1 review also found your email and the SCP's policy ID in `main`'s history (`git log -S`) | Decide after step 2 lands, as planned. Leaning: let logs expire; no history rewrite, since earlier clones keep them anyway |
 | 8 | l3q: where the private-repository denylist lives, for a hook that refuses those names | A file outside the repository, read by the hook only when present, such as one under your home directory; never committed |
 | 9 | Decision 0006 #17, DAST | (b): record that DAST does not apply; the export service has no HTTP surface |
 | 10 | Decision 0006 #22, dependency allowlist in the session | (b): build the `allowlist-staged` hook mode; the pipeline's allowlist check stays the control |
@@ -200,3 +209,4 @@ scripts/bootstrap/land.sh proposals/break-glass-mfa
 | `test/land.test.ts`'s staged change was not run | It needs `ssh-keygen`, which this container lacks. The reviewer ran it with a stand-in and found the file-list bug, now fixed. The landing's candidate run in step 9 is its first real run |
 | B81's expected line, and the full suite on macOS | Observed only after landing: `scenarios.yml` on `main` (step 11), and the owner's first preflight (step 10) |
 | The SHA in this log's first version for m7a's staging commit | Was wrong (`8e2c5d2`); it is `6b87dd5`, then `60feb8c` |
+| Backlog 7v1's quarterly break-glass drill, and the stale "npm run checks" text outside the utq batch | Out of the batches' scope; the drill keeps 7v1 open, and the text is question 15 |
