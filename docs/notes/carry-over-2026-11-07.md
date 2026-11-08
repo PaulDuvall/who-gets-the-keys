@@ -5,7 +5,7 @@ Items that existed only in that session's conversation. Next steps are in `docs/
 ## State at the end of the session
 
 - `main` is at `dd4d261` (the signed AWS setup landing). `candidate/tracer-2-plan` holds this note and the Tracer 2 plan, not yet on `main`.
-- The AWS sandbox is set up in member account 462701644281, with the SCP `who-gets-the-keys-sandbox-writes` attached to that account only. The management account is 417764041678.
+- The AWS sandbox is set up in the sandbox member account, with the SCP `who-gets-the-keys-sandbox-writes` attached to that account only.
 - The first deploy through OIDC succeeded: run 42325449980, attempt 2. Terraform planned no changes.
 - The owner's CLI profiles are `org-management` (management account) and `wgtk-sandbox-admin` (sandbox, through `OrganizationAccountAccessRole`).
 

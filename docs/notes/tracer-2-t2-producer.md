@@ -201,20 +201,20 @@ git fetch -q origin main && wt="$(mktemp -d)/t2-fixes-preflight" && git worktree
 4. Route C, owner decision of 2026-11-07, because break-glass cannot be assumed (Not verified, item 11). Lift the SCP with the management profile, and check that only `FullAWSAccess` is left:
 
 ```bash
-aws organizations detach-policy --policy-id p-zolwyr2a --target-id 462701644281 --profile org-management
+aws organizations detach-policy --policy-id <SCP policy ID> --target-id <sandbox account ID> --profile org-management
 ```
 
 ```bash
-aws organizations list-policies-for-target --target-id 462701644281 --filter SERVICE_CONTROL_POLICY --profile org-management --query 'Policies[].[Id,Name]' --output text
+aws organizations list-policies-for-target --target-id <sandbox account ID> --filter SERVICE_CONTROL_POLICY --profile org-management --query 'Policies[].[Id,Name]' --output text
 ```
 
 5. Run `aws-setup.sh` with the new triage model. `infra/sandbox` must plan only `aws_iam_role_policy.producer` updated in place, its two resources now naming `claude-sonnet-4-6` (0 to add, 1 to change, 0 to destroy). `infra/org` must plan only the SCP attachment created (1 to add). Answer no to anything else. `github.sh --vars` sets `PRODUCER_MODEL` from the new output:
 
 ```bash
-SANDBOX_ACCOUNT_ID=462701644281 SANDBOX_PROFILE=wgtk-sandbox-admin MANAGEMENT_PROFILE=org-management ALERT_EMAIL=pduvall@gmail.com TRIAGE_MODEL=us.anthropic.claude-sonnet-4-6 scripts/bootstrap/aws-setup.sh
+SANDBOX_ACCOUNT_ID=<sandbox account ID> SANDBOX_PROFILE=wgtk-sandbox-admin MANAGEMENT_PROFILE=org-management ALERT_EMAIL=<alert email> TRIAGE_MODEL=us.anthropic.claude-sonnet-4-6 scripts/bootstrap/aws-setup.sh
 ```
 
-   Then check that `p-zolwyr2a` is attached again, with the `list-policies-for-target` command above.
+   Then check that the SCP is attached again, with the `list-policies-for-target` command above.
 
 6. Approve the deploy of `main`'s tip; it plans no change. Then dispatch the egress probe again. Done when the agent job prints `Permission mode: dontAsk.` and `BOUNDARY HELD: egress to example.com`.
 
