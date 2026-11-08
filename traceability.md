@@ -58,12 +58,20 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R50 | `test/checks.test.ts` | receipt | — |
 | SPEC-001-R55 | `test/checks.test.ts` | receipt | — |
 | SPEC-001-R56 | `test/checks.test.ts`, `test/receipt.test.ts` | receipt | — |
+| SPEC-001-R64 | `test/task-scope.test.ts` | task | B24 |
+| SPEC-001-R65 | `test/task-scope.test.ts` | task | B24 |
+| SPEC-001-R66 | `test/task-scope.test.ts` | scope | B23 |
+| SPEC-001-R67 | `test/task-scope.test.ts` | scope | B23 |
+| SPEC-001-R68 | `test/task-scope.test.ts` | task, scope | B23, B24 |
+| SPEC-001-R72 | `test/scenarios.test.ts` | scope | B23 |
+| SPEC-001-R73 | `test/scenarios.test.ts` | task | B24 |
 | SPEC-001-R83 | `test/producer.test.ts` | test | — |
 | SPEC-001-R85 | `test/producer.test.ts`, `test/checks-before-main.test.ts` | test | — |
 | SPEC-001-R86 | `test/producer.test.ts` | test | — |
 | SPEC-001-R87 | `test/producer.test.ts` | test | — |
 | SPEC-001-R88 | `test/producer.test.ts` | test | — |
 | SPEC-001-R89 | `test/producer.test.ts` | test | — |
+| SPEC-001-R107 | `test/scenarios.test.ts` | harness | B23, B24 |
 | SPEC-001-R190 | `test/checks.test.ts`, `test/checks-before-main.test.ts` | deploy-tip | — |
 | SPEC-001-R207 | `test/producer.test.ts` | test | — |
 | SPEC-001-R208 | `test/producer.test.ts` | test | — |

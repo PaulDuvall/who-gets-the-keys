@@ -18,7 +18,7 @@ practices:
     area: Claude Code
     slides: [3, 5, 8]
     coverage: good+bad
-    enforced_by: [check:signatures, B4]
+    enforced_by: [check:signatures, check:task, B4, B24]
     files: [specs/SPEC-014-export-latency.md, approvers.txt]
   - id: P03
     practice: Every code change names the requirement it serves
@@ -171,7 +171,7 @@ practices:
     area: AWS
     slides: [8, 10, 11]
     coverage: good+bad
-    enforced_by: [B11]
+    enforced_by: [check:scope, B11, B23]
     files: [infra/sandbox/iam.tf, infra/org/main.tf]
   - id: P25
     practice: The agent cannot loosen its own guardrails

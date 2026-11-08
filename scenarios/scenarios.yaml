@@ -1,5 +1,7 @@
-# Bad scenarios (SPEC-001-R19 to R37). Each `expect` was observed from a real failing run.
+# Bad scenarios (SPEC-001-R19 to R38, R72, R73). Each `expect` was observed from a real failing run.
 # requires: github-actions → scenarios.yml b9-replay; sandbox-account → scenarios.yml on-demand.
+# task: a fixture the harness commits as tasks/<ID>.task.md before the patch; run: task-verify or scope-verify runs
+# only the task check, or the task and scope checks, over the range from that commit (SPEC-001-R107).
 scenarios:
   - id: B1
     title: Test with no assertion
@@ -133,3 +135,19 @@ scenarios:
     expect: "CHECK signatures FAILED: unsigned change to .github/"
     slide: [8]
     spec: SPEC-001-R12
+  - id: B23
+    title: Change outside the task's scope
+    patch: scenarios/B23-change-outside-task-scope.patch
+    task: scenarios/fixtures/tasks/TASK-B23.task.md
+    check: scope
+    expect: "CHECK scope FAILED: src/handler.ts"
+    slide: [8, 11]
+    spec: SPEC-014-R2
+    run: scope-verify
+  - id: B24
+    title: Task citing an unapproved requirement
+    task: scenarios/fixtures/tasks/TASK-B24.task.md
+    check: task
+    expect: "CHECK task FAILED: TASK-B24 cites unapproved SPEC-014-R99"
+    slide: [3, 8]
+    run: task-verify

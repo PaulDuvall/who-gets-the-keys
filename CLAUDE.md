@@ -1,6 +1,6 @@
 # who-gets-the-keys
 
-Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code, the pipeline holds the keys, and 19 deliberately bad changes are stopped before they ship.
+Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code, the pipeline holds the keys, and 21 deliberately bad changes are stopped before they ship.
 
 ## Commands
 
@@ -25,7 +25,8 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 | `test/` | Vitest acceptance, property and unit tests |
 | `scripts/checks.ts` | Check dispatcher |
 | `scripts/bootstrap/` | Human-run scripts: GitHub settings, AWS bootstrap, slide refresh, history rewrite, approver-key rotation |
-| `scenarios/` | `scenarios.yaml`, 17 patches `B01` to `B18` (B9 and B11 have none), the B9 fixture, harness `run.ts` |
+| `scenarios/` | `scenarios.yaml`, 18 patches, `B01` to `B18` and `B23` (B9, B11 and B24 have none), the B9 fixture, the B23 and B24 task fixtures, harness `run.ts` |
+| `tasks/` | Task files, `tasks/<ID>.task.md`: the requirements one delivery serves, the paths it may produce, and the instruction (SPEC-001-R64). The runner producer works only from one. Approver-signed commits only |
 | `.github/workflows/` | `pipeline.yml`, `issue-triage.yml`, `scenarios.yml`, `video.yml`, and `producer.yml`, the owner-dispatched runner producer (helpers in `scripts/ci/producer.ts`) |
 | `.github/egress/allowlist.json` | Egress allowlist shared by triage and the B9 replay |
 | `.github/egress/producer-allowlist.json` | The runner producer's sandbox allowlist: no host |
@@ -46,7 +47,7 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 - Agent commits carry `Agent: Claude Code`.
 - Every export from `src/` carries `@requirement <ID>` in its doc comment.
 - Every test names the requirement ID it checks.
-- Check order: secrets → allowlist → workflows → install → lint → typecheck → iac → sast → sca → trace → ratchet → signatures → slides → test → mutation.
+- Check order: secrets → allowlist → workflows → install → lint → typecheck → iac → sast → sca → trace → ratchet → signatures → slides → test → mutation. Then, outside that order, the checks job runs task → scope over the range from the merge base with `main` (SPEC-001-R68).
 - A failing check prints one line: `CHECK <name> FAILED: <identifier>`.
 - Say "customer", never "client".
 - Say "check" for automated verification and "gate" only for a human approval: an approver's signature or a required reviewer.
@@ -57,8 +58,8 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 
 | The agent may | The agent may not |
 |---|---|
-| Write code, tests and docs | Write under `specs/`, to `approvers.txt`, or to any path listed in `specs/protected-paths.txt` (workflows, check script and the configs it reads, CI tools, dependency manifests, `.claude/`, this file, Terraform, bootstrap scripts, the scenario scripts that hold credentials) |
-| Propose spec, pipeline, dependency, Terraform and bootstrap-script changes under `proposals/` | Sign commits or force-push |
+| Write code, tests and docs | Write under `specs/`, to `approvers.txt`, or to any path listed in `specs/protected-paths.txt` (workflows, check script and the configs it reads, CI tools, the receipt script, dependency manifests, task files, `.claude/`, this file, Terraform, bootstrap scripts, the scenario scripts that hold credentials) |
+| Propose spec, task-file, pipeline, dependency, Terraform and bootstrap-script changes under `proposals/` | Sign commits or force-push |
 | Run checks, scenarios, the video build | Run `terraform apply` or `destroy`, or any `aws` command |
 | | Read `~/.ssh`, `~/.aws`, `~/.config/gh` |
 | | Add or install dependencies; lower `thresholds.break` |

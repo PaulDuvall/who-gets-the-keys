@@ -32,11 +32,10 @@
     {
       "id": "C04",
       "claim": "The agent works in a cloud session, one run per task",
-      "note": "Built as the runner producer: one dispatched run per task on a GitHub-hosted runner, not a Claude Code cloud session",
+      "note": "Built as the runner producer: one dispatched run per signed task file (SPEC-001-R64), on a GitHub-hosted runner, not a Claude Code cloud session. The cloud session's setup script is not versioned yet",
       "labels": ["cloud session one run per task"],
       "narration": [2],
-      "built": ["SPEC-001-R83", "SPEC-001-R85"],
-      "planned": ["SPEC-001-R66"],
+      "built": ["SPEC-001-R83", "SPEC-001-R85", "SPEC-001-R66"],
       "open": ["who-gets-the-keys-j5t"]
     },
     {
@@ -77,10 +76,10 @@
     {
       "id": "C10",
       "claim": "A scope check fails any path outside the task",
-      "note": "Built for runner producer patches; the task-scoped pipeline check is planned",
+      "note": "Built as a thin check (SPEC-001-R66): it judges every commit that carries a Task: trailer, and the publish job adds one to every runner delivery. A commit without the trailer is not judged; the full rule waits for an owner decision",
       "labels": ["Scope"],
-      "built": ["SPEC-001-R208"],
-      "planned": ["SPEC-001-R67", "SPEC-001-R68", "SPEC-001-R72"]
+      "built": ["SPEC-001-R208", "SPEC-001-R67", "SPEC-001-R68", "SPEC-001-R72"],
+      "open": ["who-gets-the-keys-x2r"]
     },
     {
       "id": "C11",
@@ -129,10 +128,12 @@
     {
       "id": "C18",
       "claim": "An issue becomes work only through a spec an engineer signs and a task; known errors start from alarms the signed policy already maps",
+      "note": "The signed task file and its check are built (SPEC-001-R64, R65). The rule that agent commits need a task is thin: only commits with a Task: trailer are judged. Alarm-started work is planned",
       "labels": ["Engineer checks it against the specs"],
       "narration": [7, 8],
-      "built": ["SPEC-001-R12", "SPEC-001-R83"],
-      "planned": ["SPEC-001-R64", "SPEC-001-R65", "SPEC-001-R66", "SPEC-001-R125", "SPEC-001-R126"]
+      "built": ["SPEC-001-R12", "SPEC-001-R83", "SPEC-001-R64", "SPEC-001-R65"],
+      "planned": ["SPEC-001-R125", "SPEC-001-R126"],
+      "open": ["who-gets-the-keys-x2r"]
     },
     {
       "id": "C19",

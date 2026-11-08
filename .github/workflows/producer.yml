@@ -1,32 +1,24 @@
-# The runner producer (Tracer 2, slice T2; SPEC-001-R83, R85 to R89, R207, R208). Only the owner starts it.
+# The runner producer (Tracer 2, slices T2 and T3a; SPEC-001-R83, R85 to R89, R207, R208). Only the owner starts it.
 # install fetches the dependencies; agent runs Claude Code headless on Bedrock with model access only, in its sandbox,
 # and returns a patch; publish, with no agent, pushes it to candidate/<task>. That push starts no run, so the owner
 # lands it with scripts/bootstrap/land.sh --delivery, whose push run reports the checks main counts (SPEC-001-R210).
-# No job holds both the agent and a write token. Until slice T3, the prompt input stands in for a signed task file.
+# No job holds both the agent and a write token. The agent's instruction is the approver-signed task file
+# tasks/<task>.task.md at github.sha (SPEC-001-R64); until slice T3a, spec and prompt inputs stood in for it.
 name: producer
 
 on:
   workflow_dispatch:
     inputs:
       task:
-        description: "Task ID: TASK- then 1 to 32 of A-Z, 0-9 and -. The branch is candidate/<task>"
+        description: "Task ID: TASK- then 1 to 32 of A-Z, 0-9 and -. The agent works from tasks/<task>.task.md on main; the branch is candidate/<task>"
         type: string
         required: true
-      spec:
-        description: "Requirement ID for the Spec trailer, such as SPEC-014-R7. Needed when the change touches src/ or test/"
-        type: string
-        required: false
-        default: ""
       subject:
         description: "Commit subject, up to 72 characters"
         type: string
         required: true
-      prompt:
-        description: "What the agent should change, up to 8000 bytes. Ignored for an egress probe"
-        type: string
-        required: true
       egress_probe:
-        description: "Egress probe: the agent runs one curl to example.com, which the sandbox must block. Nothing is pushed"
+        description: "Egress probe: the agent runs one curl to example.com, which the sandbox must block. Needs no task file. Nothing is pushed"
         type: boolean
         default: false
 
@@ -56,19 +48,14 @@ jobs:
         env:
           LC_ALL: C
           TASK: ${{ inputs.task }}
-          SPEC: ${{ inputs.spec }}
           SUBJECT: ${{ inputs.subject }}
-          PROMPT: ${{ inputs.prompt }}
           TASK_PATTERN: "^TASK-[A-Z0-9-]{1,32}$"
-          SPEC_PATTERN: "^SPEC-[0-9]{3}-R[0-9]+$"
           SUBJECT_PATTERN: "^[A-Za-z0-9][A-Za-z0-9 ,.:;'()/_-]{0,71}$"
         run: |
           fail() { echo "CHECK producer FAILED: input $1"; exit 1; }
           [[ "$TASK" =~ $TASK_PATTERN ]] || fail task
-          [ -z "$SPEC" ] || [[ "$SPEC" =~ $SPEC_PATTERN ]] || fail spec
           [[ "$SUBJECT" =~ $SUBJECT_PATTERN ]] || fail subject
-          { [ "${#PROMPT}" -ge 1 ] && [ "${#PROMPT}" -le 8000 ]; } || fail prompt
-          echo "Inputs checked: task ${TASK}, spec ${SPEC:-none}."
+          echo "Inputs checked: task ${TASK}."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -76,6 +63,11 @@ jobs:
         with:
           node-version-file: package.json
           package-manager-cache: false
+      - name: Check the signed task file at github.sha with the task check's rules, before installing anything (SPEC-001-R83)
+        if: ${{ !inputs.egress_probe }}
+        env:
+          TASK: ${{ inputs.task }}
+        run: node scripts/ci/producer.ts task
       - name: Install the dependencies from the lockfile, and fetch the pinned Claude Code (SPEC-001-R207)
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
@@ -139,11 +131,9 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y -q --no-install-recommends bubblewrap socat ripgrep
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - name: Write Claude Code's settings from the egress allowlist, and its prompt, before any credential exists (SPEC-001-R87)
+      - name: Write Claude Code's settings from the egress allowlist, and its prompt from the task file, before any credential exists (SPEC-001-R87)
         env:
           TASK: ${{ inputs.task }}
-          SPEC: ${{ inputs.spec }}
-          PROMPT: ${{ inputs.prompt }}
           EGRESS_PROBE: ${{ inputs.egress_probe }}
         run: |
           node scripts/ci/producer.ts settings "$EGRESS_ALLOWLIST" "$RUNNER_TEMP/claude-settings.json" "$EGRESS_PROBE"
@@ -307,12 +297,11 @@ jobs:
           name: producer-patch
           path: ${{ runner.temp }}/patch
       - id: push
-        name: Check the patch, commit it unsigned and push candidate/<task> without force (SPEC-001-R208)
+        name: Check the patch against the task, commit it unsigned and push candidate/<task> without force (SPEC-001-R208)
         working-directory: work
         env:
           PATCH_SHA256: ${{ needs.agent.outputs.patch_sha256 }}
           TASK: ${{ inputs.task }}
-          SPEC: ${{ inputs.spec }}
           SUBJECT: ${{ inputs.subject }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
           GH_TOKEN: ${{ github.token }}

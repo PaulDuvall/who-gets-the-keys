@@ -30,7 +30,7 @@ export interface Practice {
   reason?: string;
 }
 
-export interface ScenarioDef { id: string; title: string; patch?: string; fixture?: string; check: string; expect: string; requires?: string }
+export interface ScenarioDef { id: string; title: string; patch?: string; fixture?: string; task?: string; run?: string; check: string; expect: string; requires?: string }
 export interface ScenarioResult { id: string; status: string; line?: string }
 
 // One line of a replayed run: a check that passed, the failure that stopped the change, a boundary that held, or a note.
@@ -66,6 +66,7 @@ export interface TourInput {
   commits: Record<string, string[]>;
   patches: Record<string, string>;
   fixtures: Record<string, string>;
+  tasks?: Record<string, string>;
   onDemand: string[];
   existing: (path: string) => boolean;
   templates: Record<string, string>;
@@ -130,6 +131,12 @@ export function changeExcerpt(patch: string, max = MAX_CHANGE): string {
 }
 
 const PASS = /^check (\S+) passed$/;
+
+// Scenarios the harness runs in a task mode (SPEC-001-R107): the checks job runs these after npm run checks (SPEC-001-R68).
+const TASK_MODES: Readonly<Record<string, string>> = {
+  "task-verify": "node scripts/checks.ts task",
+  "scope-verify": "node scripts/checks.ts task && node scripts/checks.ts scope",
+};
 
 export function buildTour(input: TourInput): StepData[] {
   const results = new Map(input.results.map((r) => [r.id, r]));
@@ -211,19 +218,28 @@ function scenarioStep(input: TourInput, s: ScenarioDef, p: Practice, result: Sce
       throw new KitError(`${s.id} captured "${result?.line ?? "nothing"}", expected "${s.expect}"`);
     }
     line = result.line;
+    const taskMode = TASK_MODES[s.run ?? ""];
     const before = position < 0 ? [] : (input.logs[s.id] ?? []).filter((l) => input.checks.indexOf(PASS.exec(l)?.[1] ?? "") >= 0);
     run = [...before.map((text): RunLine => ({ text, kind: "pass" })), { text: line, kind: "fail" }];
-    command = position < 0 ? `node scripts/checks.ts ${s.check} dist/function.zip   (deploy job)` : "npm run checks";
-    verdict = position < 0 ? "Deploy stopped before any AWS call" : `Stopped at check ${position + 1} of ${input.checks.length}: ${name}. Not deployed`;
-    stopped = withWhy(position < 0 ? `${cap(name)} stops the deploy.` : `${cap(name)} stops it.`);
+    if (taskMode !== undefined) {
+      command = `${taskMode}   (checks job, after npm run checks)`;
+      verdict = "Stopped before the change can reach main. Not deployed";
+      stopped = withWhy(`${cap(name)} stops it.`);
+    } else {
+      command = position < 0 ? `node scripts/checks.ts ${s.check} dist/function.zip   (deploy job)` : "npm run checks";
+      verdict = position < 0 ? "Deploy stopped before any AWS call" : `Stopped at check ${position + 1} of ${input.checks.length}: ${name}. Not deployed`;
+      stopped = withWhy(position < 0 ? `${cap(name)} stops the deploy.` : `${cap(name)} stops it.`);
+    }
   }
   const commit = (input.commits[s.id] ?? []).map((m, i) => (i === 0 ? `$ git commit -m "${m}"` : `             -m "${m}"`));
   if (s.id === "B3") commit.push("  (no Spec: trailer)");
+  const taskFile = s.task === undefined ? "" : `▸ tasks/${s.task.replace(/^.*\//, "")}\n${(input.tasks?.[s.id] ?? "").trim()}`;
   const body = s.fixture ? `▸ ${s.fixture}\n${(input.fixtures[s.id] ?? "").trim()}` : changeExcerpt(input.patches[s.id] ?? "");
-  const change = [...(s.patch ? commit : []), body].filter(Boolean).join("\n");
+  const change = [taskFile, ...(s.patch ? commit : []), body].filter(Boolean).join("\n");
   const fields = { id: s.id, title: s.title, check: s.check, expect: s.expect, line, outcome, practice: p.practice, practice_id: p.id, did, stopped };
+  const changeLabel = s.fixture ? "The poisoned input" : s.task !== undefined && s.patch === undefined ? "The task" : "The agent's change";
   return { id: s.id, kind: "scenario", head: p.practice, ref: `scenario ${s.id} · practice ${p.id}`, title: s.title, fields, rows: [],
-    change, changeLabel: s.fixture ? "The poisoned input" : "The agent's change", command, run, ...(verdict === undefined ? {} : { verdict }),
+    change, changeLabel, command, run, ...(verdict === undefined ? {} : { verdict }),
     ...(does ? { note: `${cap(name)} ${does}` } : {}), say: say(s.id, "scenario", fields) };
 }
 

@@ -4,6 +4,7 @@
 .github/
 scripts/checks.ts
 scripts/ci/
+scripts/receipt.ts
 .gitleaks.toml
 .semgrepignore
 .tflint.hcl
@@ -22,6 +23,8 @@ video/narration/
 factory-video/narration/
 factory-video/package.json
 factory-video/package-lock.json
+# Task files: the instruction for one delivery and the paths it may touch (SPEC-001-R64)
+tasks/
 # Agent settings, hooks, agents, skills and instructions
 .claude/
 CLAUDE.md

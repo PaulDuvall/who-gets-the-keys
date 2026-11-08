@@ -6,7 +6,8 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { agentPrompt, agentSettings, BASH_RULES, commitMessage, DENY_RULES, EDIT_RULES, inScope, isEntryPoint, MAX_PATCH_BYTES, PROBE_RULE, PROBE_UNLISTED, ProducerRefusal, SCOPE_DIRS, SCOPE_FILES, scopeRefusal, SPEC_ID, stagedEntries, SUBJECT, TASK_ID } from "../scripts/ci/producer.ts";
+import { TASK_ID as CHECKS_TASK_ID } from "../scripts/checks.ts";
+import { agentPrompt, agentSettings, BASH_RULES, commitMessage, DENY_RULES, EDIT_RULES, inScope, isEntryPoint, MAX_PATCH_BYTES, PROBE_RULE, PROBE_UNLISTED, ProducerRefusal, SCOPE_DIRS, SCOPE_FILES, scopeRefusal, stagedEntries, SUBJECT, TASK_ID } from "../scripts/ci/producer.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -49,6 +50,13 @@ function tempDir(prefix: string): string {
 const gitIn = (dir: string, ...args: string[]) =>
   execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", ...args], { cwd: dir, encoding: "utf8" });
 
+// A signed task file and the spec it cites, as main holds them for the producer (SPEC-001-R64, R65).
+const SPEC_FILE = { "specs/SPEC-014-x.md": "| SPEC-014-R7 | duplicate columns |\n| SPEC-014-R8 | other |\n" };
+const taskFile = (produces: string, requirements = "SPEC-014-R7", body = "Reject duplicate column names, per SPEC-014-R7.\n") =>
+  `---\nrequirements: [${requirements}]\nproduces: [${produces}]\n---\n${body}`;
+const FILE = { requirements: ["SPEC-014-R7"], produces: ["src/export.ts", "test/export.acceptance.test.ts"], body: "Add R7.\n" };
+const producerScript = join(process.cwd(), "scripts/ci/producer.ts");
+
 function repoWith(files: Record<string, string>): { dir: string; head: string } {
   const dir = tempDir("producer-repo-");
   gitIn(dir, "init", "-q", "-b", "main");
@@ -62,12 +70,13 @@ function repoWith(files: Record<string, string>): { dir: string; head: string } 
 }
 
 describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
-  it("SPEC-001-R83 is started only by workflow_dispatch with the five inputs, and every job runs only for the owner on main", () => {
+  it("SPEC-001-R83 is started only by workflow_dispatch with the three inputs, and every job runs only for the owner on main", () => {
     expect(Object.keys(producer.on)).toEqual(["workflow_dispatch"]);
     const inputs = producer.on["workflow_dispatch"]?.inputs ?? {};
     expect(Object.fromEntries(Object.entries(inputs).map(([k, v]) => [k, [v.type, v.required ?? false]]))).toEqual({
-      task: ["string", true], spec: ["string", false], subject: ["string", true], prompt: ["string", true], egress_probe: ["boolean", false],
+      task: ["string", true], subject: ["string", true], egress_probe: ["boolean", false],
     });
+    expect(producerText).not.toMatch(/inputs\.(spec|prompt)\b/);
     expect(inputs["egress_probe"]?.default).toBe(false);
     expect(Object.fromEntries(Object.entries(jobs).map(([id, j]) => [id, j.if]))).toEqual({
       install: guard, agent: guard, publish: `${guard} && !inputs.egress_probe`,
@@ -79,27 +88,53 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     const first = job("install").steps[0] ?? {};
     expect(first.uses).toBeUndefined();
     expect(first.env?.["TASK_PATTERN"]).toBe(TASK_ID.source);
-    expect(first.env?.["SPEC_PATTERN"]).toBe(SPEC_ID.source);
+    expect(TASK_ID).toBe(CHECKS_TASK_ID);
     expect(first.env?.["SUBJECT_PATTERN"]).toBe(SUBJECT.source);
     const usesInput = Object.entries(jobs).flatMap(([id, j]) => j.steps.map((s, i) => [id, i, JSON.stringify(s)] as const))
-      .filter(([, , text]) => text.includes("inputs.task") || text.includes("inputs.prompt") || text.includes("inputs.subject"))
+      .filter(([, , text]) => text.includes("inputs.task") || text.includes("inputs.subject"))
       .map(([id, i]) => `${id}:${i}`);
     expect(usesInput[0]).toBe("install:0");
     const dir = tempDir("producer-inputs-");
     try {
-      const good = { TASK: "TASK-T2-1", SPEC: "SPEC-014-R7", SUBJECT: "Reject duplicate column names (SPEC-014-R7)", PROMPT: "Add R7." };
+      const good = { TASK: "TASK-T2-1", SUBJECT: "Reject duplicate column names (SPEC-014-R7)" };
       const ok = bash(first, good, dir);
-      expect([ok.status, ok.stdout]).toEqual([0, "Inputs checked: task TASK-T2-1, spec SPEC-014-R7.\n"]);
+      expect([ok.status, ok.stdout]).toEqual([0, "Inputs checked: task TASK-T2-1.\n"]);
       const cases: [Record<string, string>, string][] = [
         [{ TASK: "task-1" }, "task"], [{ TASK: "TASK-$(id)" }, "task"], [{ TASK: `TASK-${"A".repeat(33)}` }, "task"],
-        [{ SPEC: "SPEC-14-R7" }, "spec"], [{ SUBJECT: "::warning::x" }, "subject"], [{ SUBJECT: "x".repeat(73) }, "subject"],
-        [{ SUBJECT: "a\nb" }, "subject"], [{ PROMPT: "" }, "prompt"], [{ PROMPT: "p".repeat(8001) }, "prompt"],
+        [{ SUBJECT: "::warning::x" }, "subject"], [{ SUBJECT: "x".repeat(73) }, "subject"], [{ SUBJECT: "a\nb" }, "subject"],
       ];
       for (const [bad, name] of cases) {
         const r = bash(first, { ...good, ...bad }, dir);
         expect([r.status, r.stdout]).toEqual([1, `CHECK producer FAILED: input ${name}\n`]);
       }
-      expect(bash(first, { ...good, SPEC: "" }, dir).status).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("SPEC-001-R83 reads the signed task file at github.sha with the task check's rules before installing anything, except for a probe", () => {
+    const steps = job("install").steps;
+    const read = stepIndex("install", named("Check the signed task file"));
+    expect(steps.slice(0, read).map((s) => s.uses?.split("@")[0] ?? s.name)).toEqual(["Check the inputs before any step uses them (SPEC-001-R83)", "actions/checkout", "actions/setup-node"]);
+    expect([steps[read]?.run, steps[read]?.if, steps[read]?.env]).toEqual(["node scripts/ci/producer.ts task", "${{ !inputs.egress_probe }}", { TASK: "${{ inputs.task }}" }]);
+    expect(read).toBeLessThan(stepIndex("install", named("Install the dependencies")));
+    const { dir } = repoWith({ ...SPEC_FILE, "specs/protected-paths.txt": ".github/\n", "tasks/TASK-T3-1.task.md": taskFile("src/export.ts, test/") });
+    try {
+      const task = (id: string) => spawnSync(process.execPath, [producerScript, "task"], { cwd: dir, encoding: "utf8", env: { ...process.env, TASK: id } });
+      const ok = task("TASK-T3-1");
+      expect([ok.status, ok.stdout]).toEqual([0, "Task TASK-T3-1 checked: requirements SPEC-014-R7; produces src/export.ts, test/.\n"]);
+      expect([task("TASK-T3-2").stdout, task("TASK-$(id)").stdout]).toEqual(["CHECK task FAILED: TASK-T3-2 not found\n", "CHECK task FAILED: invalid task id\n"]);
+      writeFileSync(join(dir, "tasks/TASK-T3-3.task.md"), taskFile("src/export.ts", "SPEC-014-R99"));
+      gitIn(dir, "add", "-A");
+      gitIn(dir, "commit", "-q", "-m", "unapproved");
+      writeFileSync(join(dir, "tasks/TASK-T3-1.task.md"), taskFile(".github/workflows/x.yml"));
+      expect([task("TASK-T3-3").stdout, task("TASK-T3-1").status]).toEqual(["CHECK task FAILED: TASK-T3-3 cites unapproved SPEC-014-R99\n", 0]);
+      // A body that long would make claude -p fail with "Argument list too long" after the credentials were issued.
+      writeFileSync(join(dir, "tasks/TASK-T3-4.task.md"), taskFile("src/export.ts", "SPEC-014-R7", `${"x".repeat(8001)}\n`));
+      writeFileSync(join(dir, "tasks/TASK-T3-5.task.md"), taskFile(".npmrc"));
+      gitIn(dir, "add", "-A");
+      gitIn(dir, "commit", "-q", "-m", "too long, and outside the producer's scope");
+      expect([task("TASK-T3-4").stdout, task("TASK-T3-5").stdout]).toEqual(["CHECK task FAILED: TASK-T3-4 body over 8000 bytes\n", "CHECK task FAILED: TASK-T3-5 invalid produces\n"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -204,9 +239,36 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
       'node scripts/ci/producer.ts prompt "$RUNNER_TEMP/prompt.txt"', 'cat "$RUNNER_TEMP/claude-settings.json"', "",
     ].join("\n"));
     expect([settings < credentials, credentials < run]).toEqual([true, true]);
+    expect(steps[settings]?.env).toEqual({ TASK: "${{ inputs.task }}", EGRESS_PROBE: "${{ inputs.egress_probe }}" });
     const repoCode = /\b(node|npm|npx|tsx|bash|sh)\s+(?!-)|scripts\//;
     const after = steps.slice(run + 1).filter((s) => repoCode.test(s.run ?? "") || (s.uses !== undefined && !s.uses.startsWith("actions/upload-artifact@")));
     expect(after.map((s) => s.name ?? s.uses)).toEqual([]);
+  });
+
+  it("SPEC-001-R87 writes the prompt from the signed task file at HEAD: its requirements, its produces and its body as the only instruction", () => {
+    const prompt = agentPrompt("TASK-T3-1", { ...FILE, body: "Reject duplicate columns.\n\nKeep the order.\n" }, false);
+    expect(prompt).toContain("You are the runner producer for task TASK-T3-1 in this repository. The change implements SPEC-014-R7.\n");
+    expect(prompt).toContain("- Change only these paths, which the task produces: src/export.ts, test/export.acceptance.test.ts. A path ending in / covers everything under it.\n");
+    expect(prompt.endsWith("\nTask:\nReject duplicate columns.\n\nKeep the order.\n")).toBe(true);
+    expect(agentPrompt("TASK-T3-1", { ...FILE, requirements: ["SPEC-014-R7", "SPEC-014-R8"] }, false)).toContain("The change implements SPEC-014-R7, SPEC-014-R8.");
+    const { dir } = repoWith({ ...SPEC_FILE, "specs/protected-paths.txt": ".github/\n", "tasks/TASK-T3-1.task.md": taskFile("src/export.ts", "SPEC-014-R7", "Signed body.\n") });
+    const temp = tempDir("producer-prompt-");
+    try {
+      const written = (task: string, probe: string) => {
+        const r = spawnSync(process.execPath, [producerScript, "prompt", join(temp, "prompt.txt")], { cwd: dir, encoding: "utf8", env: { ...process.env, TASK: task, EGRESS_PROBE: probe } });
+        return [r.status, r.stdout, r.status === 0 ? read(join(temp, "prompt.txt")) : ""];
+      };
+      const [status, , text] = written("TASK-T3-1", "false");
+      expect([status, String(text).endsWith("\nTask:\nSigned body.\n"), String(text).includes("produces: src/export.ts.")]).toEqual([0, true, true]);
+      writeFileSync(join(dir, "tasks/TASK-T3-1.task.md"), taskFile("src/export.ts", "SPEC-014-R7", "Unsigned body.\n"));
+      expect(String(written("TASK-T3-1", "false")[2])).toContain("\nSigned body.\n");
+      expect(written("TASK-T3-9", "false").slice(0, 2)).toEqual([1, "CHECK task FAILED: TASK-T3-9 not found\n"]);
+      const probe = written("TASK-T2-PROBE", "true");
+      expect([probe[0], String(probe[2]).includes(PROBE_UNLISTED)]).toEqual([0, true]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(temp, { recursive: true, force: true });
+    }
   });
 
   it("SPEC-001-R87 prints BOUNDARY HELD only when the sandbox proxy refused the probe's curl with a 403", () => {
@@ -270,16 +332,17 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
       "Bash(git status)", "Bash(git diff)", "Bash(git diff *)",
     ]);
     // With autoAllowBashIfSandboxed off, a command the prompt asks for runs only if an allow rule names it.
-    const asked = [...agentPrompt("TASK-1", "", "x", false).matchAll(/npm run check:\w+/g)].map((m) => `Bash(${m[0]})`);
+    const asked = [...agentPrompt("TASK-1", FILE, false).matchAll(/npm run check:\w+/g)].map((m) => `Bash(${m[0]})`);
     expect(asked.length).toBeGreaterThan(0);
     expect(asked.filter((rule) => !(BASH_RULES as readonly string[]).includes(rule))).toEqual([]);
-    expect(agentPrompt("TASK-P", "", "ignored", true)).toContain("curl -sS --max-time 15 https://example.com/");
-    const probePrompt = agentPrompt("TASK-P", "", "ignored", true);
+    expect(agentPrompt("TASK-P", undefined, true)).toContain("curl -sS --max-time 15 https://example.com/");
+    const probePrompt = agentPrompt("TASK-P", undefined, true);
     expect([PROBE_UNLISTED, probePrompt.indexOf(PROBE_UNLISTED) >= 0, probePrompt.indexOf(PROBE_UNLISTED) < probePrompt.indexOf("curl ")])
       .toEqual(["touch probe-unlisted", true, true]);
-    expect(agentPrompt("TASK-P", "", "ignored", true)).not.toContain("ignored");
-    expect(agentPrompt("TASK-1", "SPEC-014-R7", "Add R7.", false)).toMatch(/task TASK-1 in this repository\. The change implements SPEC-014-R7\.[^]*\nTask:\nAdd R7\.\n$/);
-    expect(() => agentPrompt("TASK-1", "R7", "x", false)).toThrow(new ProducerRefusal("input spec"));
+    expect(agentPrompt("TASK-P", { ...FILE, body: "ignored" }, true)).not.toContain("ignored");
+    expect(agentPrompt("TASK-1", FILE, false)).toMatch(/task TASK-1 in this repository\. The change implements SPEC-014-R7\.[^]*\nTask:\nAdd R7\.\n$/);
+    expect(() => agentPrompt("TASK-1", undefined, false)).toThrow(new ProducerRefusal("task file"));
+    expect(() => agentPrompt("task-1", FILE, false)).toThrow(new ProducerRefusal("input task"));
   });
 
   it("SPEC-001-R88 passes on --allowedTools exactly the allow rules of the settings file, in both modes, and starts no agent without them", () => {
@@ -471,9 +534,10 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
 
   it("SPEC-001-R208 allows only src/, test/, docs/ and traceability.md, the same places the Edit rules name, and refuses every other path", () => {
     expect([...SCOPE_DIRS.map((d) => `Edit(${d}**)`), ...SCOPE_FILES.map((f) => `Edit(${f})`)]).toEqual([...EDIT_RULES]);
-    expect(agentPrompt("TASK-1", "", "x", false)).toContain("Change only files under src/, test/ or docs/, or traceability.md.");
+    expect(agentPrompt("TASK-1", FILE, false)).toContain("Change only files under src/, test/ or docs/, or traceability.md.");
     const protectedList = [".github/", "scripts/ci/", "package.json", "CLAUDE.md"];
-    const refusal = (path: string, spec = "SPEC-014-R7") => scopeRefusal([{ status: "A", mode: "100644", path }], protectedList, 10, spec);
+    const everywhere = ["src/", "test/", "docs/", "traceability.md", ".npmrc", "package.json", "README.md", ".github/", "srcx/", "infra/", "traceability.md.bak"];
+    const refusal = (path: string) => scopeRefusal([{ status: "A", mode: "100644", path }], protectedList, 10, everywhere);
     for (const allowed of ["src/export.ts", "test/export.acceptance.test.ts", "docs/notes/x.md", "traceability.md"]) {
       expect([allowed, refusal(allowed)]).toEqual([allowed, undefined]);
     }
@@ -488,37 +552,45 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     expect([inScope("src/export.ts"), inScope("src"), inScope("src/"), inScope(".gitattributes")]).toEqual([true, false, false, false]);
   });
 
-  it("SPEC-001-R208 refuses a patch that is too big, empty, protected, not a plain file, or touches src/ or test/ with no spec", () => {
+  it("SPEC-001-R208 refuses a patch that is too big, empty, protected, not a plain file, or outside the signed task's produces", () => {
     const protectedList = [".github/", "scripts/ci/", "CLAUDE.md"];
+    const produces = ["src/", "test/", "docs/", "CLAUDE.md"];
     const entry = (path: string, mode = "100644", status = "M") => ({ status, mode, path });
-    expect(scopeRefusal([entry("src/a.ts")], protectedList, 10, "SPEC-014-R7")).toBeUndefined();
-    expect(scopeRefusal([entry("docs/a.md")], protectedList, 10, "")).toBeUndefined();
-    expect(scopeRefusal([entry("src/a.ts")], protectedList, MAX_PATCH_BYTES + 1, "SPEC-014-R7")).toBe("patch over 1 MiB");
-    expect(scopeRefusal([], protectedList, 0, "")).toBe("empty patch");
-    expect(scopeRefusal([entry("docs/a.md"), entry(".github/workflows/x.yml", "100644", "A")], protectedList, 10, "")).toBe("protected path .github/workflows/x.yml");
-    expect(scopeRefusal([entry("specs/SPEC-014-export-latency.md")], [], 10, "")).toBe("protected path specs/SPEC-014-export-latency.md");
-    expect(scopeRefusal([entry("approvers.txt")], [], 10, "")).toBe("protected path approvers.txt");
-    expect(scopeRefusal([entry("CLAUDE.md", "100644", "D")], protectedList, 10, "")).toBe("protected path CLAUDE.md");
-    expect(scopeRefusal([entry("docs/link", "120000", "A")], protectedList, 10, "")).toBe("file mode 120000 docs/link");
-    expect(scopeRefusal([entry("docs/sub", "160000", "A")], protectedList, 10, "")).toBe("file mode 160000 docs/sub");
-    expect(scopeRefusal([entry("docs/old.md", "000000", "D")], protectedList, 10, "")).toBeUndefined();
-    expect(scopeRefusal([entry("test/a.test.ts")], protectedList, 10, "")).toBe("missing spec");
+    expect(scopeRefusal([entry("src/a.ts")], protectedList, 10, produces)).toBeUndefined();
+    expect(scopeRefusal([entry("docs/a.md")], protectedList, 10, produces)).toBeUndefined();
+    expect(scopeRefusal([entry("src/a.ts")], protectedList, MAX_PATCH_BYTES + 1, produces)).toBe("patch over 1 MiB");
+    expect(scopeRefusal([], protectedList, 0, produces)).toBe("empty patch");
+    expect(scopeRefusal([entry("docs/a.md"), entry(".github/workflows/x.yml", "100644", "A")], protectedList, 10, produces)).toBe("protected path .github/workflows/x.yml");
+    expect(scopeRefusal([entry("specs/SPEC-014-export-latency.md")], [], 10, ["specs/"])).toBe("protected path specs/SPEC-014-export-latency.md");
+    expect(scopeRefusal([entry("approvers.txt")], [], 10, ["approvers.txt"])).toBe("protected path approvers.txt");
+    expect(scopeRefusal([entry("CLAUDE.md", "100644", "D")], protectedList, 10, produces)).toBe("protected path CLAUDE.md");
+    expect(scopeRefusal([entry("docs/link", "120000", "A")], protectedList, 10, produces)).toBe("file mode 120000 docs/link");
+    expect(scopeRefusal([entry("docs/sub", "160000", "A")], protectedList, 10, produces)).toBe("file mode 160000 docs/sub");
+    expect(scopeRefusal([entry("docs/old.md", "000000", "D")], protectedList, 10, produces)).toBeUndefined();
+    const task = ["src/export.ts", "test/export.acceptance.test.ts"];
+    expect(scopeRefusal([entry("src/export.ts"), entry("test/export.acceptance.test.ts", "100644", "A")], protectedList, 10, task)).toBeUndefined();
+    expect(scopeRefusal([entry("src/export.ts"), entry("src/handler.ts")], protectedList, 10, task)).toBe("outside task src/handler.ts");
+    expect(scopeRefusal([entry("docs/x.md", "120000"), entry("README.md")], protectedList, 10, task)).toBe("outside task docs/x.md");
+    expect(scopeRefusal([entry("README.md")], protectedList, 10, ["README.md"])).toBe("outside scope README.md");
     expect(stagedEntries(":100644 100644 aaa bbb M\0src/a.ts\0:000000 120000 000 ccc A\0docs/l\0:100644 000000 ddd 000 D\0x.md\0")).toEqual([
       entry("src/a.ts"), entry("docs/l", "120000", "A"), entry("x.md", "100644", "D"),
     ]);
   });
 
-  it("SPEC-001-R208 the scope command reads the protected paths from HEAD, not from the patched tree", () => {
-    const { dir } = repoWith({ "specs/protected-paths.txt": "# list\n.github/\nscripts/ci/\n", "docs/a.md": "a\n" });
+  it("SPEC-001-R208 the scope command reads the protected paths and the task's produces from HEAD, not from the patched tree", () => {
+    const { dir } = repoWith({
+      ...SPEC_FILE, "specs/protected-paths.txt": "# list\n.github/\nscripts/ci/\n", "docs/a.md": "a\n",
+      "tasks/TASK-1.task.md": taskFile("docs/"), "tasks/TASK-2.task.md": taskFile("src/c.ts"),
+    });
     const temp = tempDir("producer-scope-");
     try {
       const script = join(process.cwd(), "scripts/ci/producer.ts");
-      const scope = (patchText: string, spec = "") => {
+      const scope = (patchText: string, task = "TASK-1") => {
         gitIn(dir, "reset", "-q", "--hard", "HEAD");
         gitIn(dir, "clean", "-qfd");
         writeFileSync(join(temp, "changes.diff"), patchText);
         gitIn(dir, "apply", "--index", join(temp, "changes.diff"));
-        return spawnSync(process.execPath, [script, "scope", join(temp, "changes.diff")], { cwd: dir, encoding: "utf8", env: { ...process.env, SPEC: spec } });
+        return spawnSync(process.execPath, [script, "scope", join(temp, "changes.diff")], { cwd: dir, encoding: "utf8", env: { ...process.env, TASK: task } });
       };
       const add = (path: string, text: string) => `diff --git a/${path} b/${path}\nnew file mode 100644\n--- /dev/null\n+++ b/${path}\n@@ -0,0 +1 @@\n+${text}\n`;
       const ok = scope(add("docs/b.md", "b"));
@@ -530,8 +602,11 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
       const loosened = "diff --git a/specs/protected-paths.txt b/specs/protected-paths.txt\n--- a/specs/protected-paths.txt\n+++ b/specs/protected-paths.txt\n@@ -1,3 +1 @@\n # list\n-.github/\n-scripts/ci/\n";
       const both = scope(`${loosened}${add("scripts/ci/x.sh", "x")}`);
       expect(both.stdout).toBe("CHECK producer FAILED: protected path scripts/ci/x.sh\n");
-      expect(scope(add("src/c.ts", "export const c = 1;")).stdout).toBe("CHECK producer FAILED: missing spec\n");
-      expect(scope(add("src/c.ts", "export const c = 1;"), "SPEC-014-R7").status).toBe(0);
+      expect(scope(add("src/c.ts", "export const c = 1;")).stdout).toBe("CHECK producer FAILED: outside task src/c.ts\n");
+      expect(scope(add("src/c.ts", "export const c = 1;"), "TASK-2").status).toBe(0);
+      const widened = "diff --git a/tasks/TASK-2.task.md b/tasks/TASK-2.task.md\n--- a/tasks/TASK-2.task.md\n+++ b/tasks/TASK-2.task.md\n@@ -2,3 +2,3 @@\n requirements: [SPEC-014-R7]\n-produces: [src/c.ts]\n+produces: [src/]\n ---\n";
+      expect(scope(`${add("src/d.ts", "x")}${widened}`, "TASK-2").stdout).toBe("CHECK producer FAILED: outside task src/d.ts\n");
+      expect(scope(add("docs/b.md", "b"), "TASK-9").stdout).toBe("CHECK task FAILED: TASK-9 not found\n");
     } finally {
       rmSync(dir, { recursive: true, force: true });
       rmSync(temp, { recursive: true, force: true });
@@ -540,7 +615,7 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
 
   it("SPEC-001-R208 runs scope when started through a symlink or a path that needs percent-encoding, never exiting 0 silently", () => {
     const temp = tempDir("producer entry ");
-    const { dir } = repoWith({ "specs/protected-paths.txt": ".github/\n", "docs/a.md": "a\n" });
+    const { dir } = repoWith({ ...SPEC_FILE, "specs/protected-paths.txt": ".github/\n", "docs/a.md": "a\n", "tasks/TASK-1.task.md": taskFile("docs/") });
     try {
       const script = join(process.cwd(), "scripts/ci/producer.ts");
       const spaced = join(temp, "with space.ts");
@@ -554,7 +629,7 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
       writeFileSync(join(dir, "docs/a.md"), "b\n");
       gitIn(dir, "add", "docs/a.md");
       writeFileSync(join(temp, "changes.diff"), "x\n");
-      const r = spawnSync(process.execPath, [join(temp, "ci", "linked.ts"), "scope", join(temp, "changes.diff")], { cwd: dir, encoding: "utf8" });
+      const r = spawnSync(process.execPath, [join(temp, "ci", "linked.ts"), "scope", join(temp, "changes.diff")], { cwd: dir, encoding: "utf8", env: { ...process.env, TASK: "TASK-1" } });
       expect([r.status, r.stdout]).toEqual([0, "scope ok\n"]);
     } finally {
       rmSync(temp, { recursive: true, force: true });
@@ -562,21 +637,26 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     }
   });
 
-  it("SPEC-001-R208 commits with the Task, Spec, Agent and Producer-Run trailers, and refuses inputs it did not check", () => {
+  it("SPEC-001-R208 commits with the Task trailer, one Spec trailer per requirement of the signed task, Agent and Producer-Run, and refuses inputs it did not check", () => {
     const url = "https://github.com/PaulDuvall/who-gets-the-keys/actions/runs/42/attempts/1";
-    const message = commitMessage("TASK-T2-1", "SPEC-014-R7", "Reject duplicate column names", url);
+    const message = commitMessage("TASK-T2-1", ["SPEC-014-R7", "SPEC-014-R8"], "Reject duplicate column names", url);
     expect(message.split("\n")[0]).toBe("Reject duplicate column names");
-    expect(message.endsWith(`\n\nTask: TASK-T2-1\nSpec: SPEC-014-R7\nAgent: Claude Code\nProducer-Run: ${url}\n`)).toBe(true);
-    expect(commitMessage("TASK-T2-1", "", "Docs only", url)).not.toContain("Spec:");
-    expect(() => commitMessage("TASK-T2-1", "", "x\nSpec: SPEC-001-R1", url)).toThrow(new ProducerRefusal("input subject"));
-    expect(() => commitMessage("TASK-T2-1", "", "x", "https://evil.example/actions/runs/1")).toThrow(new ProducerRefusal("run URL"));
-    const { dir } = repoWith({ "a.txt": "a\n" });
+    expect(message.endsWith(`\n\nTask: TASK-T2-1\nSpec: SPEC-014-R7\nSpec: SPEC-014-R8\nAgent: Claude Code\nProducer-Run: ${url}\n`)).toBe(true);
+    expect(() => commitMessage("TASK-T2-1", [], "Docs only", url)).toThrow(new ProducerRefusal("task requirements"));
+    expect(() => commitMessage("TASK-T2-1", ["SPEC-014-R7\nAgent: x"], "x", url)).toThrow(new ProducerRefusal("task requirements"));
+    expect(() => commitMessage("TASK-T2-1", ["SPEC-014-R7"], "x\nSpec: SPEC-001-R1", url)).toThrow(new ProducerRefusal("input subject"));
+    expect(() => commitMessage("TASK-T2-1", ["SPEC-014-R7"], "x", "https://evil.example/actions/runs/1")).toThrow(new ProducerRefusal("run URL"));
+    const { dir } = repoWith({ ...SPEC_FILE, "specs/protected-paths.txt": ".github/\n", "tasks/TASK-T2-1.task.md": taskFile("src/", "SPEC-014-R8, SPEC-014-R7") });
+    const temp = tempDir("producer-message-");
     try {
-      writeFileSync(join(dir, "msg"), message);
-      gitIn(dir, "commit", "-q", "--allow-empty", "-F", "msg");
-      expect(gitIn(dir, "log", "-1", "--format=%(trailers:key=Spec,valueonly)%(trailers:key=Agent,valueonly)%(trailers:key=Task,valueonly)")).toBe("SPEC-014-R7\nClaude Code\nTASK-T2-1\n\n");
+      const env = { ...process.env, TASK: "TASK-T2-1", SUBJECT: "Reject duplicate column names", RUN_URL: url };
+      const r = spawnSync(process.execPath, [producerScript, "message", join(temp, "msg")], { cwd: dir, encoding: "utf8", env });
+      expect([r.status, read(join(temp, "msg"))]).toEqual([0, commitMessage("TASK-T2-1", ["SPEC-014-R8", "SPEC-014-R7"], "Reject duplicate column names", url)]);
+      gitIn(dir, "commit", "-q", "--allow-empty", "-F", join(temp, "msg"));
+      expect(gitIn(dir, "log", "-1", "--format=%(trailers:key=Spec,valueonly)%(trailers:key=Agent,valueonly)%(trailers:key=Task,valueonly)")).toBe("SPEC-014-R8\nSPEC-014-R7\nClaude Code\nTASK-T2-1\n\n");
     } finally {
       rmSync(dir, { recursive: true, force: true });
+      rmSync(temp, { recursive: true, force: true });
     }
   });
 

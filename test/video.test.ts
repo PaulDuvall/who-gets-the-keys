@@ -81,6 +81,31 @@ describe("SPEC-002 walkthrough video", () => {
     expect(() => buildTour(input({ practices: [practice("P11", "good+bad", ["check:lint"])] }))).toThrow(/maps to no scenario/);
   });
 
+  it("SPEC-002-R5 shows a task-mode scenario's task file and change, and the task and scope commands the checks job runs", () => {
+    const tasks = { B23: "---\nrequirements: [SPEC-014-R2]\nproduces: [src/export.ts]\n---\nDocument the serializer.\n", B24: "---\nrequirements: [SPEC-014-R99]\nproduces: [src/export.ts]\n---\nBuild R99.\n" };
+    const steps = buildTour(input({
+      practices: [practice("P02", "good+bad", ["check:task", "B24"]), practice("P24", "good+bad", ["check:scope", "B23"])],
+      scenarios: [
+        { id: "B23", title: "Change outside the task's scope", patch: "p", task: "scenarios/fixtures/tasks/TASK-B23.task.md", run: "scope-verify", check: "scope", expect: "CHECK scope FAILED: src/handler.ts" },
+        { id: "B24", title: "Task citing an unapproved requirement", task: "scenarios/fixtures/tasks/TASK-B24.task.md", run: "task-verify", check: "task", expect: "CHECK task FAILED: TASK-B24 cites unapproved SPEC-014-R99" },
+      ],
+      results: [{ id: "B23", status: "pass", line: "CHECK scope FAILED: src/handler.ts" }, { id: "B24", status: "pass", line: "CHECK task FAILED: TASK-B24 cites unapproved SPEC-014-R99" }],
+      logs: { B23: ["CHECK scope FAILED: src/handler.ts"], B24: ["CHECK task FAILED: TASK-B24 cites unapproved SPEC-014-R99"] },
+      commits: { B23: ["scenario B23: Change outside the task's scope", "Spec: SPEC-014-R2\nTask: TASK-B23"] },
+      patches: { B23: "diff --git a/src/handler.ts b/src/handler.ts\n--- a/src/handler.ts\n+++ b/src/handler.ts\n@@ -1 +1 @@\n+  cors();\n" }, tasks,
+    }));
+    expect(steps.map((s) => s.id)).toEqual(["opening", "B24", "B23", "closing"]);
+    const [b24, b23] = [steps[1], steps[2]];
+    expect([b23?.command, b24?.command]).toEqual([
+      "node scripts/checks.ts task && node scripts/checks.ts scope   (checks job, after npm run checks)", "node scripts/checks.ts task   (checks job, after npm run checks)",
+    ]);
+    expect([b23?.verdict, b24?.verdict]).toEqual(Array(2).fill("Stopped before the change can reach main. Not deployed"));
+    expect(b23?.run).toEqual([{ text: "CHECK scope FAILED: src/handler.ts", kind: "fail" }]);
+    expect(b23?.change).toBe(`▸ tasks/TASK-B23.task.md\n${tasks.B23.trim()}\n$ git commit -m "scenario B23: Change outside the task's scope"\n             -m "Spec: SPEC-014-R2\nTask: TASK-B23"\n▸ src/handler.ts\n+  cors();`);
+    expect([b23?.changeLabel, b24?.changeLabel, b24?.change]).toEqual(["The agent's change", "The task", `▸ tasks/TASK-B24.task.md\n${tasks.B24.trim()}`]);
+    expect(b23?.say).toBe(`${explain.scenarios["B23"] ?? ""} The scope check stops it. It fails a task's change that touches any file the task does not list.`);
+  });
+
   it("SPEC-002-R6 shows an on-demand scenario only from a real log", () => {
     const without = buildTour(input()).find((s) => s.id === "B11");
     expect(without?.run?.[0]?.text).toMatch(/^Not recorded: B11 needs the sandbox account/);

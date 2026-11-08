@@ -2,6 +2,8 @@
 # No caches in attest or deploy. The deploy role trusts only this file, in environment sandbox.
 # Pushes only (SPEC-001-R40). The checks job has no job-level condition, and every other job needs it: GitHub reports a
 # job that a condition skips as a success, which satisfies a required check.
+# After the fifteen ordered checks, the checks job runs the task and scope checks over the range from HEAD's merge base
+# with main (SPEC-001-R68). fetch-depth 0 brings refs/remotes/origin/main; on main itself the range is empty.
 name: pipeline
 
 on:
@@ -40,6 +42,10 @@ jobs:
           echo "$RUNNER_TEMP/tools/bin" >> "$GITHUB_PATH"
       - name: Run every check
         run: npm run checks
+      - name: Check the task that the range's Task trailer names (SPEC-001-R64, R65, R68)
+        run: node scripts/checks.ts task
+      - name: Check the range's Task commits against that task (SPEC-001-R66, R67, R68)
+        run: node scripts/checks.ts scope
 
   build:
     name: build

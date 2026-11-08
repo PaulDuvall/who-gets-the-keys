@@ -100,6 +100,7 @@ function tourInputs(c: Captured) {
     commits: Object.fromEntries(scenarios.map((s) => [s.id, commitMessage(s)])),
     patches: Object.fromEntries(scenarios.map((s) => [s.id, read(s.patch)])),
     fixtures: Object.fromEntries(scenarios.map((s) => [s.id, read(s.fixture)])),
+    tasks: Object.fromEntries(scenarios.map((s) => [s.id, read(s.task)])),
     existing: (p) => existsSync(join(ROOT, p)), templates: yaml<Record<string, string>>("video/narration-templates.yaml"),
     explain: yaml<Explanations>("video/explanations.yaml"),
   });

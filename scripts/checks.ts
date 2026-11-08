@@ -1,4 +1,5 @@
-// Check dispatcher (SPEC-001-R1 to R18 and R190). Usage: node scripts/checks.ts [check | practices-md]
+// Check dispatcher (SPEC-001-R1 to R18 and R190), and the task and scope checks (R64 to R68), which run outside ORDER.
+// Usage: node scripts/checks.ts [check [args] | practices-md]; node scripts/checks.ts task|scope [<base commit>]
 // No check imports a package before the install check has run, so the first three need only Node.js built-ins.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -399,6 +400,222 @@ export function receiptLines(artifact: string, digest: string, record: ReceiptRe
   ].map(([label = "", value = ""]) => `${label.padEnd(8)} ${value}`);
 }
 
+// ---------- task files, and the scope of a task's commits (SPEC-001-R64 to R68) ----------
+
+/** A task ID, which also names its file, tasks/<ID>.task.md. @requirement SPEC-001-R64 */
+export const TASK_ID = /^TASK-[A-Z0-9-]{1,32}$/;
+export const TASK_KEYS = ["requirements", "produces"] as const;
+export const MAX_TASK_ENTRIES = 16;
+// The body is the producer's prompt, passed to claude -p as one argument; 8,000 bytes keeps it far below the argument limit.
+export const MAX_TASK_BODY_BYTES = 8000;
+// Paths no task may produce and no task's commit may touch, besides those specs/protected-paths.txt lists (SPEC-001-R64, R67).
+// Compared without regard to letter case, as a case-insensitive checkout on macOS would treat them.
+export const RESERVED_PATHS: readonly string[] = ["specs/", "tasks/", "approvers.txt"];
+// The runner producer's scope (SPEC-001-R208), shared with scripts/ci/producer.ts: the only places a task may produce.
+export const SCOPE_DIRS = ["src/", "test/", "docs/"] as const;
+export const SCOPE_FILES = ["traceability.md"] as const;
+
+export interface Task { id: string; requirements: string[]; produces: string[]; body: string }
+export interface RangeCommit { sha: string; parent: string | undefined; tasks: string[]; specs: string[] }
+export interface PathEntry { path: string; mode: string }
+
+const gitIn = (cwd: string, ...args: string[]): Result => tool(["git", ...args], cwd);
+const showIn = (cwd: string, rev: string, path: string): string | undefined => {
+  const r = gitIn(cwd, "show", `${rev}:${path}`);
+  return r.status === 0 ? r.stdout : undefined;
+};
+
+// A path or trailer value inside a failure identifier: as a JSON string when it holds a control character, so the
+// failure stays one line and cannot start a workflow command.
+const printable = (text: string): string => ([...text].some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f) ? JSON.stringify(text) : text);
+
+/** Compares two paths by their UTF-8 bytes, as git sorts them. @requirement SPEC-001-R67 */
+export const byteOrder = (a: string, b: string): number => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"));
+
+/**
+ * A YAML flow list on one line, "[a, b]", of plain entries: none empty, quoted, nested, or holding white space or a YAML
+ * indicator. Anything else gives undefined, so the task check needs no YAML parser. @requirement SPEC-001-R64
+ */
+export function flowList(value: string): string[] | undefined {
+  const inner = /^\[(.*)\]$/.exec(value)?.[1];
+  if (inner === undefined) return undefined;
+  const entries = inner.split(",").map((e) => e.trim());
+  return entries.every((e) => /^[^\s"'`[\]{},#&*!|>%@?:]+$/.test(e)) ? entries : undefined;
+}
+
+/**
+ * A relative repository path of letters, digits, ".", "_", "-" and "/", with no empty, "." or ".." segment and no leading
+ * "-". A trailing "/" makes it a directory entry, which covers everything under it. @requirement SPEC-001-R64
+ */
+export const plainPath = (path: string): boolean =>
+  /^(?!-)[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*\/?$/.test(path) && !path.split("/").some((s) => s === "." || s === "..");
+
+// True when either entry covers the other, the same file or a path under a directory entry, ignoring letter case.
+const overlaps = (a: string, b: string): boolean => {
+  const [x, y] = [a.toLowerCase(), b.toLowerCase()];
+  return guardedBy(x, [y]) !== undefined || guardedBy(y, [x]) !== undefined;
+};
+
+/** The reserved or protected entry that guards `path`, ignoring letter case, if any (SPEC-001-R67). @requirement SPEC-001-R67 */
+export const guardedIgnoringCase = (path: string, protectedList: readonly string[]): string | undefined =>
+  [...RESERVED_PATHS, ...protectedList].find((p) => guardedBy(path.toLowerCase(), [p.toLowerCase()]) !== undefined);
+
+/**
+ * True for a path or directory entry inside the producer's scope (SPEC-001-R208): under src/, test/ or docs/ with no
+ * segment that is empty or starts with ".", or traceability.md. A trailing "/" marks a directory entry. @requirement SPEC-001-R64
+ */
+export function inDeliveryScope(entry: string): boolean {
+  const path = entry.endsWith("/") ? entry.slice(0, -1) : entry;
+  if (path.split("/").some((s) => s === "" || s.startsWith("."))) return false;
+  return SCOPE_DIRS.some((dir) => entry.startsWith(dir)) || (SCOPE_FILES as readonly string[]).includes(entry);
+}
+
+/**
+ * Parses a task file strictly and throws the task check's failure (SPEC-001-R64). The lines between a first line "---"
+ * and the next "---" line are the front matter, each "<key>: <value>"; the rest is the body, the instruction.
+ * `protectedList` is specs/protected-paths.txt at the base commit. @requirement SPEC-001-R64
+ */
+export function parseTask(id: string, text: string, protectedList: readonly string[] = []): Task {
+  const failure = (what: string) => new CheckFailure("task", `${id} ${what}`);
+  const lines = text.split("\n");
+  const close = lines[0] === "---" ? lines.indexOf("---", 1) : -1;
+  const values = new Map<string, string[]>();
+  for (const line of close < 0 ? [] : lines.slice(1, close)) {
+    // Exactly "<key>: <value>": a colon, then one space. A tab, no space or a space before the colon is another form.
+    const m = /^([^:\s]+): (.*)$/.exec(line);
+    const key = m?.[1] ?? "";
+    if (!(TASK_KEYS as readonly string[]).includes(key)) throw failure("unknown key");
+    values.set(key, [...(values.get(key) ?? []), m?.[2] ?? ""]);
+  }
+  const list = (key: (typeof TASK_KEYS)[number], valid: (entry: string) => boolean): string[] => {
+    const raw = values.get(key) ?? [];
+    const entries = raw.length === 1 ? flowList(raw[0] ?? "") : undefined;
+    if (entries === undefined || entries.length > MAX_TASK_ENTRIES || new Set(entries).size !== entries.length || !entries.every(valid)) {
+      throw failure(`invalid ${key}`);
+    }
+    return entries;
+  };
+  const requirements = list("requirements", (e) => SPEC_ID.test(e));
+  const produces = list("produces", (e) => plainPath(e) && inDeliveryScope(e) && ![...RESERVED_PATHS, ...protectedList].some((p) => overlaps(e, p)));
+  const body = lines.slice(close + 1).join("\n");
+  if (body.trim() === "") throw failure("empty body");
+  if (Buffer.byteLength(body, "utf8") > MAX_TASK_BODY_BYTES) throw failure(`body over ${MAX_TASK_BODY_BYTES} bytes`);
+  return { id, requirements, produces, body };
+}
+
+/** Requirement IDs that a file under specs/ defines at `rev` (SPEC-001-R65). @requirement SPEC-001-R65 */
+export function requirementIdsAt(rev: string, cwd = "."): Set<string> {
+  const files = gitIn(cwd, "ls-tree", "-r", "-z", "--name-only", rev, "--", "specs/").stdout.split("\0").filter((f) => f.endsWith(".md"));
+  return new Set(files.flatMap((f) => requirementIds(showIn(cwd, rev, f) ?? "")));
+}
+
+/**
+ * Reads tasks/<ID>.task.md at `base` with git show only and checks it (SPEC-001-R64), then checks that specs/ at `base`
+ * defines every requirement it cites, naming the first that is not (SPEC-001-R65). @requirement SPEC-001-R64 @requirement SPEC-001-R65
+ */
+export function readTask(id: string, base: string, cwd = "."): Task {
+  if (!TASK_ID.test(id)) throw new CheckFailure("task", "invalid task id");
+  const text = showIn(cwd, base, `tasks/${id}.task.md`);
+  if (text === undefined) throw new CheckFailure("task", `${id} not found`);
+  const task = parseTask(id, text, protectedPaths(showIn(cwd, base, PROTECTED) ?? ""));
+  const defined = requirementIdsAt(base, cwd);
+  const unapproved = task.requirements.find((r) => !defined.has(r));
+  if (unapproved !== undefined) throw new CheckFailure("task", `${id} cites unapproved ${unapproved}`);
+  return task;
+}
+
+/**
+ * The base of the task and scope checks' range: the commit given, or the merge base of HEAD with main as last fetched,
+ * refs/remotes/origin/main, or refs/heads/main where that is missing. Undefined when there is none. @requirement SPEC-001-R68
+ */
+export function rangeBase(given: string | undefined, cwd = "."): string | undefined {
+  const commit = (rev: string): string | undefined => {
+    const r = gitIn(cwd, "rev-parse", "--verify", "--quiet", "--end-of-options", `${rev}^{commit}`);
+    return r.status === 0 ? r.stdout.trim() : undefined;
+  };
+  if (given !== undefined) return commit(given);
+  const main = ["refs/remotes/origin/main", "refs/heads/main"].find((ref) => commit(ref) !== undefined);
+  if (main === undefined) return undefined;
+  const r = gitIn(cwd, "merge-base", "HEAD", main);
+  return r.status === 0 ? r.stdout.trim() : undefined;
+}
+
+// A trailer field from git log: "Key: value" entries separated by 0x1d, or nothing. An empty value still counts as one.
+const trailerValues = (field: string): string[] => (field === "" ? [] : field.split("\x1d").map((t) => t.replace(/^[^:]*:\s*/, "").trim()));
+
+/** The commits after `base` up to HEAD, oldest first, with their first parent and their Task and Spec trailers. @requirement SPEC-001-R66 */
+export function rangeCommits(base: string, cwd = "."): RangeCommit[] | undefined {
+  const format = "--format=%H%x1f%P%x1f%(trailers:key=Task,unfold,separator=%x1d)%x1f%(trailers:key=Spec,unfold,separator=%x1d)%x1e";
+  const r = gitIn(cwd, "log", "--reverse", "--topo-order", format, `${base}..HEAD`);
+  if (r.status !== 0) return undefined;
+  return r.stdout.split("\x1e").map((e) => e.replace(/^\n/, "")).filter((e) => e !== "").map((entry) => {
+    const [sha = "", parents = "", tasks = "", specs = ""] = entry.split("\x1f");
+    return { sha, parent: parents.split(" ")[0] || undefined, tasks: trailerValues(tasks), specs: trailerValues(specs) };
+  });
+}
+
+/**
+ * Every path a commit adds, changes or deletes against its first parent, with renames split into a delete and an add, and
+ * the mode each leaves: the new mode, or the old one for a delete (SPEC-001-R67). @requirement SPEC-001-R67
+ */
+export function pathEntries(commit: string, parent: string | undefined, cwd = "."): PathEntry[] {
+  const range = parent ? [parent, commit] : ["--root", commit];
+  const parts = gitIn(cwd, "diff-tree", "-r", "--no-commit-id", "--raw", "--no-renames", "-z", ...range).stdout.split("\0");
+  const out: PathEntry[] = [];
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    const [oldMode = "", newMode = "", , , status = ""] = (parts[i] ?? "").replace(/^:/, "").split(" ");
+    const path = parts[i + 1] ?? "";
+    if (path !== "") out.push({ path, mode: status.startsWith("D") ? oldMode : newMode });
+  }
+  return out;
+}
+
+/**
+ * The scope failure for the paths a task's commits touch, or undefined (SPEC-001-R67). In byte order, a path fails if it is
+ * reserved, protected at the base or outside the task's produces, and otherwise if it leaves a symlink or a gitlink.
+ * @requirement SPEC-001-R67
+ */
+export function scopeFailure(entries: readonly PathEntry[], produces: readonly string[], protectedList: readonly string[]): string | undefined {
+  for (const path of [...new Set(entries.map((e) => e.path))].sort(byteOrder)) {
+    if (guardedIgnoringCase(path, protectedList) !== undefined || guardedBy(path, produces) === undefined) return printable(path);
+    const link = entries.find((e) => e.path === path && (e.mode === "120000" || e.mode === "160000"));
+    if (link) return `${printable(path)} mode ${link.mode}`;
+  }
+  return undefined;
+}
+
+function taskRange(check: string, args: readonly string[], cwd: string): { base: string; commits: RangeCommit[] } {
+  const base = rangeBase(args[0], cwd);
+  const commits = base === undefined ? undefined : rangeCommits(base, cwd);
+  if (base === undefined || commits === undefined) throw new CheckFailure(check, "no merge base");
+  return { base, commits };
+}
+
+/** The task check: each task a Task trailer in the range names, in the order first named, at the range's base. @requirement SPEC-001-R68 */
+export function taskCheck(args: readonly string[], cwd = "."): void {
+  const { base, commits } = taskRange("task", args, cwd);
+  for (const id of new Set(commits.flatMap((c) => c.tasks))) readTask(id, base, cwd);
+}
+
+/**
+ * The scope check: only the range's commits that carry a Task trailer, all naming one task, judged against that task at
+ * the base (SPEC-001-R66, R67). @requirement SPEC-001-R66 @requirement SPEC-001-R67 @requirement SPEC-001-R68
+ */
+export function scopeCheck(args: readonly string[], cwd = "."): void {
+  const { base, commits } = taskRange("scope", args, cwd);
+  const tasked = commits.filter((c) => c.tasks.length > 0);
+  if (tasked.length === 0) return;
+  const ids = new Set(tasked.flatMap((c) => c.tasks));
+  const [id = ""] = ids;
+  if (ids.size !== 1 || tasked.some((c) => c.tasks.length !== 1)) throw new CheckFailure("scope", "mixed Task trailers");
+  const task = readTask(id, base, cwd);
+  const stray = tasked.flatMap((c) => c.specs).find((s) => !task.requirements.includes(s));
+  if (stray !== undefined) throw new CheckFailure("scope", `Spec ${printable(stray)} not in ${task.id}`);
+  const protectedList = protectedPaths(showIn(cwd, base, PROTECTED) ?? "");
+  const failure = scopeFailure(tasked.flatMap((c) => pathEntries(c.sha, c.parent, cwd)), task.produces, protectedList);
+  if (failure !== undefined) throw new CheckFailure("scope", failure);
+}
+
 const show = (rev: string, path: string): string | undefined => {
   const r = tool(["git", "show", `${rev}:${path}`]);
   return r.status === 0 ? r.stdout : undefined;
@@ -575,6 +792,15 @@ const checks: Record<string, (args: string[]) => void | Promise<void>> = {
   mutation() {
     const r = tool(["node_modules/.bin/stryker", "run"]);
     mustPass("mutation", r, mutationId(r.stdout + r.stderr));
+  },
+
+  // Outside ORDER: the checks job runs these two after npm run checks, over the range from the merge base with main (SPEC-001-R68).
+  task(args) {
+    taskCheck(args);
+  },
+
+  scope(args) {
+    scopeCheck(args);
   },
 
   // Run first in the deploy job: main's tip is read from the remote, and an unreadable tip fails closed (SPEC-001-R190).

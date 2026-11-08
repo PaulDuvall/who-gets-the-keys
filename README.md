@@ -3,17 +3,17 @@
 [![bad changes stopped](https://img.shields.io/github/actions/workflow/status/PaulDuvall/who-gets-the-keys/scenarios.yml?branch=main&label=bad%20changes%20stopped)](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/scenarios.yml)
 [![licence: MIT](https://img.shields.io/github/license/PaulDuvall/who-gets-the-keys)](LICENSE)
 
-Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code, the pipeline holds the keys, and 19 deliberately bad changes are stopped before they ship.
+Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code, the pipeline holds the keys, and 21 deliberately bad changes are stopped before they ship.
 
 | | |
 |---|---|
 | Rule demonstrated | Bad changes never reach production, because the pipeline prevents them |
 | Good scenario | `main`, always green |
-| Bad scenarios | 19 scenarios (B1 to B18, with B8 split into B8a and B8b), each failing at one named check with one expected line. 17 are patches against `main`; B9 replays an issue fixture and B11 is an AWS call |
+| Bad scenarios | 21 scenarios (B1 to B18, with B8 split into B8a and B8b, then B23 and B24), each failing at one named check with one expected line. 18 are patches against `main`; B9 replays an issue fixture, B11 is an AWS call and B24 is a task file alone |
 | Source of record | Talk deck "Who Gets the Keys? Trust and Authority in Software Factories" (AI Native DevCon 2026), pinned at `specs/source-of-record/slides.txt` |
-| Status | All 15 checks and 16 local scenarios pass on `main`. The repo is public, and the attest job has signed builds since 2026-11-02. No deploy has reached AWS yet: the first waits for the `sandbox` reviewer. The sandbox-account scenarios (B11, B14) have not been recorded |
+| Status | All 15 checks and 18 local scenarios pass on `main`. The repo is public, and the attest job has signed builds since 2026-11-02. No deploy has reached AWS yet: the first waits for the `sandbox` reviewer. The sandbox-account scenarios (B11, B14) have not been recorded |
 
-Coding agents now change code faster than anyone can read the diffs. The talk argues that human review after the code exists was never the control, so the deployment pipeline has to hold the keys. This repo runs that argument end to end. Claude Code wrote a small export service. A pipeline of 15 checks guards it, and 19 deliberately bad changes show each control holding, from a test that asserts nothing to a poisoned GitHub issue. It is for engineering, platform and security leads deciding how far to trust agent-written code, and for anyone who saw the talk and wants to see the practices run.
+Coding agents now change code faster than anyone can read the diffs. The talk argues that human review after the code exists was never the control, so the deployment pipeline has to hold the keys. This repo runs that argument end to end. Claude Code wrote a small export service. A pipeline of 15 checks guards it, and 21 deliberately bad changes show each control holding, from a test that asserts nothing to a poisoned GitHub issue. It is for engineering, platform and security leads deciding how far to trust agent-written code, and for anyone who saw the talk and wants to see the practices run.
 
 ## Quick start
 
@@ -75,6 +75,8 @@ A check is automated. A gate is a human approval: an approver-signed commit, or 
 | 15 | mutation | Stryker | Mutation score below `thresholds.break` (95) |
 | deploy | attestation | `gh attestation verify` | The artifact has no valid attestation |
 | deploy | irreversible | `terraform show -json plan.out` | A stateful resource would be deleted without an approver-signed commit |
+| after 15 | task | `git show` + script | A `Task:` trailer in the range names a task file that is missing or malformed at the merge base with `main`, or that cites a requirement no spec defines |
+| after 15 | scope | `git diff-tree` + script | A commit with a `Task:` trailer touches a path outside its task's `produces`, a protected path, `specs/`, `tasks/` or `approvers.txt`, names another task, or names a requirement its task does not cite |
 
 ## Scenarios
 
@@ -99,6 +101,8 @@ A check is automated. A gate is a human approval: an approver-signed commit, or 
 | B16 | Capability with no requirement | trace | 7, 13, Q3 |
 | B17 | Tampered source of record | signatures | 6 |
 | B18 | Agent loosens the pipeline without a signature | signatures | 8, Q3 |
+| B23 | Change outside the task's scope | scope | 8, 11 |
+| B24 | Task citing an unapproved requirement | task | 3, 8 |
 
 Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and B14 need the sandbox account and run on demand.
 
@@ -144,7 +148,8 @@ The deck's speaker notes name example tools for each practice. Where this repo u
 | `src/`, `test/` | Export service and its acceptance, property and unit tests |
 | `scripts/checks.ts` | Check dispatcher |
 | `scripts/bootstrap/` | Scripts the owner runs: GitHub settings, AWS bootstrap, slide refresh |
-| `scenarios/` | Scenario definitions, patches and harness |
+| `scenarios/` | Scenario definitions, patches, fixtures and harness |
+| `tasks/` | Approver-signed task files: what one delivery may change, and why |
 | `.github/workflows/` | `pipeline.yml`, `issue-triage.yml`, `scenarios.yml`, `video.yml` |
 | `infra/sandbox/`, `infra/org/` | Terraform for the workload and roles; the SCP |
 | `video/` | Walkthrough page template, orchestrator, recorder and narration pins |
