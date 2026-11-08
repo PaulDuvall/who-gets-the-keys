@@ -77,7 +77,10 @@ A check is automated. A gate is a human approval: an approver-signed commit, or 
 | 13 | ratchet | script | Stryker `thresholds.break` is below the highest value it has had in any commit |
 | 14 | test | [Vitest](https://vitest.dev/) | Any test fails |
 | 15 | mutation | [Stryker](https://stryker-mutator.io/) | Mutation score below `thresholds.break` (95) |
+| receipt | receipt | [`gh attestation verify`](https://cli.github.com/manual/gh_attestation_verify) + script | The build provenance or the receipt predicate does not verify for this commit, ref and artifact, or its record is malformed (`unpinned ref`, `unpinned commit`, `missing <predicate type>`). Runs in the receipt job, after build and attest, on every candidate and `main` push |
+| deploy | deploy-tip | [`git ls-remote`](https://git-scm.com/docs/git-ls-remote) + script | The run's commit is not `main`'s current tip, or the tip cannot be read: `CHECK deploy-tip FAILED: <first 12 characters of the commit SHA>`. Runs first, before the artifact is read or AWS is called, so an approval given to an older run deploys nothing (SPEC-001-R190) |
 | deploy | attestation | [`gh attestation verify`](https://cli.github.com/manual/gh_attestation_verify) | The artifact has no valid attestation |
+| deploy | receipt | as above, pinned to `refs/heads/main` | The receipt check again, after attestation and before any AWS call (SPEC-001-R56) |
 | deploy | irreversible | [`terraform show -json plan.out`](https://developer.hashicorp.com/terraform/cli/commands/show) | A stateful resource would be deleted without an approver-signed commit |
 | after 15 | task | `git show` + script | A `Task:` trailer in the range names a task file that is missing or malformed at the merge base with `main`, or that cites a requirement no spec defines |
 | after 15 | scope | `git diff-tree` + script | A commit with a `Task:` trailer touches a path outside its task's `produces`, a protected path, `specs/`, `tasks/` or `approvers.txt`, names another task, or names a requirement its task does not cite |
