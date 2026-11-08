@@ -1,0 +1,16 @@
+# Tracer 2, slice T3b, backlog l3q (lessons L15 to L18, and the owner's rules of 2026-11-08): CLAUDE.md gains the
+# public-repository, session-link, requirement-ID, batch, owner-step and unattended-run rules, and a new PreToolUse hook,
+# no-session-link, refuses a git commit whose message links a Claude Code session (owner decision D24), SPEC-001-R214.
+# CLAUDE.md is staged as CLAUDE.proposed.md so that no session loads the copy as a nested memory file.
+# Built on proposals/land-presign/'s spec and traceability copies, which land first. Notes: docs/notes/agent-rules.md.
+message: spec: CLAUDE.md rules for batches, owner steps and unattended runs, and a no-session-link hook (backlog l3q)
+spec: SPEC-001-R214
+spec: SPEC-001-R39
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R213 |
+requires: traceability.md | SPEC-001-R213 | `test/land-presign.test.ts`, `test/land.test.ts` | test |
+move: CLAUDE.proposed.md CLAUDE.md
+move: claude-hooks/hook.mjs .claude/hooks/hook.mjs
+move: claude/settings.json .claude/settings.json
+move: test/hook.test.ts test/hook.test.ts
+move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
+move: traceability.md traceability.md
