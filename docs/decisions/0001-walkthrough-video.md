@@ -14,7 +14,7 @@ Slides can claim a practice. A reader of the repo needs to see it run. The walkt
 |---|---|
 | 1 | The kit lives under `video/`; `npm run video` builds everything into `build/video/` |
 | 2 | The page is generated from `practices.yaml`, `scenarios/scenarios.yaml` and live check and scenario results at the current commit; it is never hand-authored |
-| 3 | The orchestrator is TypeScript; the recorder and headless check are Node.js, reused from the reference with its page contract (`window.walkthrough`, `.wrap`, caption row) |
+| 3 | The orchestrator is TypeScript; the recorder and headless check are Node.js, with a page contract (`window.walkthrough`, `.wrap`, caption row) |
 | 4 | Piper runs as a separate program from a hash-pinned environment under `build/`; nothing imports, links or ships it |
 | 5 | The build checks its own output against measured thresholds and writes `report.json`; one frame per line is a session's look (`.claude/skills/video/SKILL.md`) |
 | 6 | Built on demand and on pushes that change its inputs, never on every push; the video is never committed |
@@ -37,12 +37,12 @@ Slides can claim a practice. A reader of the repo needs to see it run. The walkt
 
 | Option | Verdict |
 |---|---|
-| A. Hand-authored page with drift tests, as the reference | Rejected: generated pages cannot drift from the repo |
+| A. Hand-authored page with drift tests | Rejected: generated pages cannot drift from the repo |
 | B. Port the orchestrator to TypeScript, keep the Node.js recorder | **Chosen**: one language for repo code |
 | C. Keep the Python orchestrator | Rejected: a second language for repo code |
 | D. Full build on every push | Rejected: browser, voice download and real-time recording on every push |
 | E. Commit the video | Rejected: binary history, and a committed video can go stale |
-| F. Voice `en_US-joe-medium`, as the reference | Rejected: open licence question on its fine-tune lineage (reference Q29); ljspeech is trained from scratch on public-domain data |
+| F. Voice `en_US-joe-medium` | Rejected: open licence question on its fine-tune lineage; ljspeech is trained from scratch on public-domain data |
 
 ## Sources
 

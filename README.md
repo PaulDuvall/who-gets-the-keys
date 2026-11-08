@@ -258,7 +258,7 @@ gh run download --repo PaulDuvall/who-gets-the-keys --pattern 'factory-video-*'
 |---|---|
 | [factory-video/README.md](factory-video/README.md) | The software-factory scene: what each part shows, how it is built and checked, and where to download the videos |
 | [docs/verification.md](docs/verification.md) | Every version and syntax choice, with source URL and date |
-| [docs/deviations.md](docs/deviations.md) | Where the build departs from its prompt, the slides or the reference, and why |
+| [docs/deviations.md](docs/deviations.md) | Where the build departs from its prompt or the slides, and why |
 | [docs/slide-reconciliation.md](docs/slide-reconciliation.md) | Each practice the audience slides state, and what demonstrates it |
 | [docs/practices.md](docs/practices.md) | Practice table generated from `practices.yaml` by `npm run practices` |
 | [docs/lockdown-check.md](docs/lockdown-check.md) | Manual check that `.claude/settings.json` denies and hooks work in a local session |
