@@ -1,0 +1,15 @@
+# Tracer 2, slice T3b, backlog j4e (lesson L14): scripts/bootstrap/producer.sh dispatches the runner producer, finds the
+# run that dispatch started by its commit and creation time, watches it and prints only the result lines, under the new
+# SPEC-001-R212. Tests run it against a temporary clone and a stub gh.
+# Built on proposals/cloud-session-setup/'s spec, traceability and README copies, which land first.
+# Notes: docs/notes/producer-script.md.
+message: spec: producer.sh dispatches the producer and prints only its results (Tracer 2 T3b, backlog j4e)
+spec: SPEC-001-R212
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R211 |
+requires: traceability.md | SPEC-001-R211 | `test/cloud-session-setup.test.ts` | test |
+requires: README.md bash who-gets-the-keys/scripts/bootstrap/cloud-session-setup.sh
+move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
+move: traceability.md traceability.md
+move: README.md README.md
+move: scripts/bootstrap/producer.sh scripts/bootstrap/producer.sh
+move: test/producer-script.test.ts test/producer-script.test.ts
