@@ -15,7 +15,7 @@ Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code
 | Good scenario | `main`, always green |
 | Bad scenarios | 21 scenarios (B1 to B18, with B8 split into B8a and B8b, then B23 and B24), each failing at one named check with one expected line. 18 are patches against `main`; B9 replays an issue fixture, B11 is an AWS call and B24 is a task file alone |
 | Source of record | Talk deck "Who Gets the Keys? Trust and Authority in Software Factories" (AI Native DevCon 2026), pinned at `specs/source-of-record/slides.txt` |
-| Status | All 15 checks and 18 local scenarios pass on `main`. The repo is public, and the attest job has signed builds since 2026-11-02. No deploy has reached AWS yet: the first waits for the `sandbox` reviewer. The sandbox-account scenarios (B11, B14) have not been recorded |
+| Status | All 15 checks and 18 local scenarios pass on `main`. The repo is public, and the attest job has signed builds since 2026-11-02. Each deploy to the AWS sandbox runs from `main` after the `sandbox` reviewer approves it; deploys have run since 2026-11-07. The sandbox-account scenarios (B11, B14) have not been recorded |
 
 Coding agents now change code faster than anyone can read the diffs. The talk argues that human review after the code exists was never the control, so the deployment pipeline has to hold the keys. This repo runs that argument end to end. Claude Code wrote a small export service. A pipeline of 15 checks guards it, and 21 deliberately bad changes show each control holding, from a test that asserts nothing to a poisoned GitHub issue. It is for engineering, platform and security leads deciding how far to trust agent-written code, and for anyone who saw the talk and wants to see the practices run.
 
@@ -129,7 +129,7 @@ The deck's speaker notes name example tools for each practice. Where this repo u
 |---|---|---|---|
 | SAST, SCA, secrets | [Semgrep](https://semgrep.dev/docs/) or [CodeQL](https://codeql.github.com/); [OSV-Scanner](https://github.com/google/osv-scanner), [Trivy](https://github.com/aquasecurity/trivy) or [Snyk](https://snyk.io/); [gitleaks](https://github.com/gitleaks/gitleaks) or [TruffleHog](https://github.com/trufflesecurity/trufflehog) | [Semgrep](https://semgrep.dev/docs/), [OSV-Scanner](https://github.com/google/osv-scanner), [gitleaks](https://github.com/gitleaks/gitleaks) | The first tool the deck names for each |
 | Mutation and property tests | [Stryker](https://stryker-mutator.io/) or [PIT](https://pitest.org/); [fast-check](https://fast-check.dev/) or [Hypothesis](https://hypothesis.readthedocs.io/) | [Stryker](https://stryker-mutator.io/), [fast-check](https://fast-check.dev/) | TypeScript repo |
-| Runner egress control | [StepSecurity Harden-Runner](https://github.com/step-security/harden-runner) | Anthropic [`srt`](https://github.com/anthropics/sandbox-runtime) and [Claude Code sandbox settings](https://code.claude.com/docs/en/sandboxing), both from `.github/egress/allowlist.json` | Harden-Runner block mode needs a paid plan for private repos (D04) |
+| Runner egress control | [StepSecurity Harden-Runner](https://github.com/step-security/harden-runner) | Anthropic [`srt`](https://github.com/anthropics/sandbox-runtime) and [Claude Code sandbox settings](https://code.claude.com/docs/en/sandboxing), both from `.github/egress/allowlist.json` | Chosen while the repo was private, when Harden-Runner block mode needed a paid plan (D04). The repo is public now, and StepSecurity's free Community Tier, for public repositories only, lists block mode with an allow list on GitHub-hosted runners ([docs](https://docs.stepsecurity.io/harden-runner), checked 2026-11-08). The repo has not switched |
 | Codified policy checks | [Open Policy Agent](https://www.openpolicyagent.org/) with [Conftest](https://www.conftest.dev/), or [Cedar](https://www.cedarpolicy.com/) | `scripts/checks.ts`, one function per check | One language for repo code; each check prints one failure line |
 | Specs and acceptance criteria | [Tessl](https://tessl.io/), [GitHub Spec Kit](https://github.com/github/spec-kit) or [Kiro](https://kiro.dev/); [Cucumber](https://cucumber.io/) | EARS-style tables in `specs/`; [Vitest](https://vitest.dev/) tests titled by requirement ID | The trace check verifies both directions without another toolchain |
 | Spec and pipeline approval | [CODEOWNERS](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners), [rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets), [GitHub Environments](https://docs.github.com/en/actions/managing-workflow-runs-and-deployments/managing-deployments/managing-environments-for-deployment) required reviewers | Approver-signed commits, checked by the signatures check for `specs/`, `approvers.txt` and every path in `specs/protected-paths.txt` | Trunk-based with no pull requests, so approval is a signature the pipeline verifies |
@@ -167,39 +167,15 @@ The deck's speaker notes name example tools for each practice. Where this repo u
 
 `scripts/bootstrap/land.sh proposals/<batch> [--stop-before-main]` moves the files that the batch's `LAND.txt` lists and shows the diff. It asks for your review, one security-key tap and then, in GitHub, your approval of the sandbox deploy. In between, it pushes the commit to `candidate/land-<batch>`, waits for that run, pushes the same SHA to `main` and deletes the candidate branch. If a run fails, fix it in a new commit on top; never amend. `--stop-before-main` stops after the candidate run and prints the `--to-main` command that finishes the landing.
 
-`proposals/land/` holds `land.sh` itself, so land it by hand once. Stop if the first block prints anything, and read all of `land.sh` in the second block's diff:
-
-```bash
-git pull -q --ff-only origin main && git status --short
-```
-
-```bash
-git mv -f proposals/land/scripts/bootstrap/land.sh scripts/bootstrap/land.sh
-git mv -f proposals/land/test/land.test.ts test/land.test.ts
-git mv -f proposals/land/traceability.md traceability.md
-git rm -q proposals/land/LAND.txt
-git diff --cached --no-renames --stat
-git diff --cached --no-renames -- scripts/bootstrap/land.sh test/land.test.ts traceability.md
-```
-
-If the stat lists only these files, sign with one tap and finish through the script:
-
-```bash
-git commit -S -m "spec: one-command landing for staged batches" --trailer "Spec: SPEC-001-R41"
-git -c gpg.ssh.allowedSignersFile=approvers.txt verify-commit HEAD && git push origin HEAD:refs/heads/candidate/land-script && scripts/bootstrap/land.sh --to-main "$(git rev-parse HEAD)" candidate/land-script
-```
-
-A runner producer delivery is unsigned and touches only unprotected paths, but its branch has no counted checks: the publish job pushes it with the `GITHUB_TOKEN`, which starts no run. Once `proposals/t3-delivery-landing/` has landed, `scripts/bootstrap/land.sh --delivery candidate/<task>` shows the delivery and, on a yes, pushes the same commit to `candidate/<task>-owner`, waits for that run and moves `main` (SPEC-001-R210). The publish job prints the command.
-
-The queue, in order: `proposals/land/` by hand, as above. Then `proposals/deploy-tip/`, one `land.sh` run, because Phase 1's manifest requires it. Then `proposals/phase-1/` with `--stop-before-main`, following "Phase 1 owner steps" in decision 0002, because its end-to-end test runs a deploy-mode receipt probe between the candidate run and `main`. Then later batches, one `land.sh` run each.
+A runner producer delivery is unsigned and touches only unprotected paths, but its branch has no counted checks: the publish job pushes it with the `GITHUB_TOKEN`, which starts no run. `scripts/bootstrap/land.sh --delivery candidate/<task>` shows the delivery and, on a yes, pushes the same commit to `candidate/<task>-owner`, waits for that run and moves `main` (SPEC-001-R210). The publish job prints the command.
 
 ## AWS setup
 
 The sandbox must be a member account of your AWS Organization, not its management account. SCPs do not affect the management account, so B11's SCP denial would not hold there. AWS also advises against running workloads in it.
 
-`scripts/bootstrap/aws-setup.sh` does the whole AWS setup as one command. It is staged in `proposals/aws-setup/` until you land it with `scripts/bootstrap/land.sh proposals/aws-setup`, which is independent of the queue above. It needs admin CLI profiles for the sandbox account and the management account. It also needs [AWS CLI](https://aws.amazon.com/cli/) v2 with `create-bucket --bucket-namespace`, [Terraform](https://developer.hashicorp.com/terraform) 1.11 or later, [Node.js](https://nodejs.org/) 24.11 or later, zip, [OpenSSL](https://www.openssl.org/), [jq](https://jqlang.org/) and a signed-in [gh](https://cli.github.com/).
+`scripts/bootstrap/aws-setup.sh` does the whole AWS setup as one command. It needs admin CLI profiles for the sandbox account and the management account. It also needs [AWS CLI](https://aws.amazon.com/cli/) v2 with `create-bucket --bucket-namespace`, [Terraform](https://developer.hashicorp.com/terraform) 1.11 or later, [Node.js](https://nodejs.org/) 24.11 or later, zip, [OpenSSL](https://www.openssl.org/), [jq](https://jqlang.org/) and a signed-in [gh](https://cli.github.com/).
 
-When `land.sh` says to approve the sandbox deploy in `main`'s run, leave it waiting. In a second terminal at the same checkout, run `aws-setup.sh` as below: `HEAD` and `origin/main` are already the landed commit. Then approve the deploy of `main`'s tip. That ends `land.sh`'s watch, and it deletes its candidate branch.
+Run it from a clean checkout of `main`: it refuses to start if the working tree has changes or `HEAD` is not `origin/main`. `SANDBOX_ACCOUNT_ID` can also come from your shell profile, so the account number never has to appear in a command you paste:
 
 ```bash
 SANDBOX_ACCOUNT_ID=111122223333 SANDBOX_PROFILE=sandbox MANAGEMENT_PROFILE=management ALERT_EMAIL=you@example.com scripts/bootstrap/aws-setup.sh
