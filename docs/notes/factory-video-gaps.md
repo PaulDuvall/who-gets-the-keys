@@ -39,6 +39,8 @@ Every rank below is a recommendation. The order puts first the answers that unbl
 | 11 | 0006 #10 to #16 and #26, the security account | C23 | The drift monitor | Eight answers and a new AWS account |
 | 12 | 0005 approval and release rows: "Where the line sits between one and two approvers", "How a second signature is carried", "How the release signature is carried", "Who counts as a spec's author", "Whether a dispatched run's dispatcher may sign its release"; 0006 #23 | C02, C15 | Two-person approval and release signatures | Last because none of it can work until a second person holds an approver security key, and 0005 Phase III also needs phases 4 and 7 |
 
+Answered on 2026-11-08, recorded in decision 0008: rank 3 (Kokoro runs as a separate program) and rank 4 (SPEC-001-R3 reads every `requirements.in`). The owner also decided that the claims job is not a check of record: a built claim that loses its evidence fails the job visibly without blocking `main`.
+
 ## Not yet verified
 
 - That run 42440088413 on `9f887da` was the first build. It is as reported; this note did not open the run.

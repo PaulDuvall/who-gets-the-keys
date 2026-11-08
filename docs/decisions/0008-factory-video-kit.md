@@ -75,6 +75,18 @@ Landing that commit starts the workflow's first build, because it touches the wo
 | Kokoro runs in-process | (a) Keep: `narrate.py` imports `kokoro_onnx`, which loads phonemizer and espeak-ng. (b) Run it only as a separate program from a venv under `build/`, as SPEC-002-R8 does for Piper, so no repository file imports it. (c) Use the walkthrough's Piper voice and add no dependency | (b) if R8's rule should hold for every voice. Licences, my reading at medium confidence: phonemizer and espeak-ng are GPL-3.0, kokoro-onnx is MIT |
 | Should the allowlist check read Python requirements too? | (a) No: the line in `allowed-deps.txt` records approval. (b) Amend SPEC-001-R3 to read every `requirements.in` | (b) makes the approval a check, not a convention |
 
+## Owner decisions, 2026-11-08
+
+| Question | Answer | Follow-up |
+|---|---|---|
+| Kokoro runs in-process | (b) Run it only as a separate program from a venv under `build/`, as SPEC-002-R8 does for Piper, so no repository file imports it | Backlog `who-gets-the-keys-k9s` |
+| Should the allowlist check read Python requirements too? | (b) Amend SPEC-001-R3 to read every `requirements.in` | Backlog `who-gets-the-keys-r3p` |
+| What counts as a built claim | Evidence, not signature: the requirement is signed, a passing test names it (`it.fails` does not count), and, for a claim about a control, its scenario held in `scenarios.yml` on that commit. A signed requirement alone overstates: SPEC-014-R7 was signed on `main` at `c7c6b4d` with only expected-fail tests | Backlog `who-gets-the-keys-a4v` |
+| An as-built video | Yes, beside the target video, rendered from the same scene and ledger. Unbuilt parts are greyed, not removed; a partly built part has a coloured outline, a muted fill and a "partly" tag | `who-gets-the-keys-a4v` |
+| Unbuilt narration lines in the as-built video | Muted, with the caption kept and prefixed "Planned:", so no voice is re-rendered when a status changes | `who-gets-the-keys-a4v` |
+| The deck | Uses the target video only. The as-built video lives in the README and the Actions artifacts | none |
+| A built claim that loses its evidence | Fails the claims job visibly on `main`; it does not block `main`, and an agent fixes it forward. So the claims job is not a check of record. Scenario evidence could not block `main` anyway: scenarios run after a commit lands | `who-gets-the-keys-a4v` |
+
 ## Consequences
 
 - The kit's earlier copy, its workflow and its release are removed once this repository's workflow has run green.
