@@ -9,6 +9,8 @@ import {
 } from "../scripts/checks.ts";
 
 const CHECKS = join(process.cwd(), "scripts/checks.ts");
+// Tests that run git and node in a temporary repository get more than vitest's default 5 s.
+const SLOW = 30_000;
 const EXAMPLE = "---\nrequirements: [SPEC-014-R7]\nproduces: [src/export.ts, test/export.acceptance.test.ts]\n---\nAdd R7.\n";
 const PROTECTED_LIST = [".github/", "scripts/checks.ts", "scripts/ci/", "video/narration/", "CLAUDE.md"];
 const task = (front: string, body = "Do it.\n") => `---\n${front}\n---\n${body}`;
@@ -134,7 +136,7 @@ describe("SPEC-001 task files and scope (Tracer 2, T3a)", () => {
       const later = repo.commit("add a task after the base", {});
       expect(() => readTask("TASK-LOCAL", repo.base, repo.dir)).toThrow(new CheckFailure("task", "TASK-LOCAL not found"));
       expect(readTask("TASK-LOCAL", later, repo.dir).produces).toEqual(["src/a.ts"]);
-    });
+    }, SLOW);
 
     it("SPEC-001-R65 fails a task that cites a requirement no file under specs/ defines at the base, naming the first in file order", () => {
       expect([...requirementIdsAt(repo.base, repo.dir)].sort()).toEqual(["SPEC-014-R1", "SPEC-014-R2", "SPEC-099-R1"]);
@@ -145,7 +147,7 @@ describe("SPEC-001 task files and scope (Tracer 2, T3a)", () => {
       });
       expect(() => readTask("TASK-U", at, repo.dir)).toThrow(new CheckFailure("task", "TASK-U cites unapproved SPEC-014-R9"));
       expect(readTask("TASK-N", at, repo.dir).requirements).toEqual(["SPEC-099-R1", "SPEC-014-R1"]);
-    });
+    }, SLOW);
 
     it("SPEC-001-R68 the task check checks each task the range's Task trailers name, and passes when none does", () => {
       repo.fresh();
@@ -158,7 +160,7 @@ describe("SPEC-001 task files and scope (Tracer 2, T3a)", () => {
       repo.fresh();
       repo.commit("bad id\n\nTask: task-1", {});
       expect([repo.run("task"), repo.run("scope")]).toEqual([[1, "CHECK task FAILED: invalid task id\n"], [1, "CHECK task FAILED: invalid task id\n"]]);
-    });
+    }, SLOW);
 
     it("SPEC-001-R68 takes the merge base with refs/remotes/origin/main before refs/heads/main, or a base given, and fails closed without one", () => {
       repo.fresh();
@@ -176,7 +178,7 @@ describe("SPEC-001 task files and scope (Tracer 2, T3a)", () => {
       repo.git("branch", "-q", "-m", "trunk", "main");
       repo.git("checkout", "-q", "main");
       expect([rangeCommits(repo.base, repo.dir), repo.run("task"), repo.run("scope")]).toEqual([[], [0, ""], [0, ""]]);
-    });
+    }, SLOW);
 
     it("SPEC-001-R66 fails mixed Task trailers and a Spec trailer outside the task's requirements", () => {
       repo.fresh();
@@ -193,7 +195,7 @@ describe("SPEC-001 task files and scope (Tracer 2, T3a)", () => {
       repo.fresh();
       repo.commit("odd\n\nTask: TASK-T\nSpec: x\u001b[2J", { "src/a.ts": "1\n" });
       expect(repo.run("scope")).toEqual([1, 'CHECK scope FAILED: Spec "x\\u001b[2J" not in TASK-T\n']);
-    });
+    }, SLOW);
 
     it("SPEC-001-R67 fails the first path in byte order that is reserved, protected at the base or outside produces, renames split", () => {
       const cases: [Record<string, string>, string][] = [
@@ -219,7 +221,7 @@ describe("SPEC-001 task files and scope (Tracer 2, T3a)", () => {
       repo.commit("delete a protected file\n\nTask: TASK-T");
       expect(repo.run("scope")).toEqual([1, "CHECK scope FAILED: scripts/checks.ts\n"]);
       expect([byteOrder("～", "\u{1F600}"), ["\u{1F600}", "～"].sort(byteOrder)]).toEqual([-1, ["～", "\u{1F600}"]]);
-    });
+    }, SLOW);
 
     it("SPEC-001-R67 fails a symlink or gitlink inside produces with its mode, and prints a path with a control character as a JSON string", () => {
       repo.fresh();
@@ -240,7 +242,7 @@ describe("SPEC-001 task files and scope (Tracer 2, T3a)", () => {
       expect(scopeFailure([{ path: "test/x", mode: "120000" }, { path: "src/b.ts", mode: "100644" }], ["src/a.ts", "test/"], [])).toBe("src/b.ts");
       expect(scopeFailure([{ path: "test/x", mode: "000000" }, { path: "src/a.ts", mode: "100644" }], ["src/a.ts", "test/"], [])).toBeUndefined();
       expect(scopeFailure([{ path: "src/\u{1F600}.ts", mode: "100644" }, { path: "src/\uFF5E.ts", mode: "100644" }], ["test/"], [])).toBe("src/\uFF5E.ts");
-    });
+    }, SLOW);
   });
 
   it("SPEC-001-R68 runs the task and then the scope check as the checks job's last steps, after npm run checks, outside the ordered fifteen", () => {

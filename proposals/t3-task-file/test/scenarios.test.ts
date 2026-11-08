@@ -87,7 +87,7 @@ describe("SPEC-001 scenarios", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 
   it.each([["SPEC-001-R72", "B23"], ["SPEC-001-R73", "B24"]])("%s: %s fails with its expected line when the harness runs it in its mode on a checkout of main", (_req, id) => {
     const s = byId.get(id) as Scenario;
@@ -99,7 +99,7 @@ describe("SPEC-001 scenarios", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 
   it("SPEC-001-R28 B9 replays every injected action the requirement names", () => {
     const replay = readFileSync("scenarios/b9-replay.sh", "utf8");
