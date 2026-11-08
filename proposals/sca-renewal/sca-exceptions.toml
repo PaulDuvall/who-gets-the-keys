@@ -1,7 +1,7 @@
 [[IgnoredVulns]]
 id = "GHSA-mrhx-c7xc-m3w5"
 ignoreUntil = 2026-12-08T00:00:00Z
-reason = "zod 3.25.76, fixed only in 4.6.6 (OSV record modified 2026-10-23). Pulled in only by @anthropic-ai/sandbox-runtime 0.0.79, and every release through 0.0.81, the latest on npm on 2026-11-08, requires zod ^3.25.0. sandbox-runtime imports only zod/v3, while the advisory's handleArrayResult lives in zod/v4/core, so the flagged code is not on its path. It validates the B9 replay's srt settings, generated from .github/egress/allowlist.json. Not in the Lambda artifact. Re-checked 2026-11-08; expires in 30 days."
+reason = "zod 3.25.76, fixed only in 4.6.6 (OSV record modified 2026-10-23). Pulled in only by @anthropic-ai/sandbox-runtime 0.0.79, and every release through 0.0.81, the latest on npm on 2026-11-08, requires zod ^3.25.0. Its zod/v3 ZodArray has the same unbounded issue collection, and 4.6.6 fixed only zod/v4, so the risk is real but its input is not: sandbox-runtime runs only in the B9 replay (scenarios.yml) and parses only srt settings generated there from the repo's .github/egress/allowlist.json. Not in the Lambda artifact. Re-checked 2026-11-08; expires in 30 days."
 
 [[IgnoredVulns]]
 id = "GHSA-84m7-p3x7-pcfv"
@@ -11,7 +11,7 @@ reason = "mcp 1.29.0 in scripts/ci/requirements.txt, fixed in 1.30.0. semgrep 1.
 [[IgnoredVulns]]
 id = "GHSA-xcq7-p3pf-p88h"
 ignoreUntil = 2026-12-08T00:00:00Z
-reason = "opentelemetry-api 1.37.0 in scripts/ci/requirements.txt, fixed in 1.45.1. semgrep 1.181.0 through 1.184.0, the latest on PyPI on 2026-11-08, require opentelemetry-api~=1.37.0 and opentelemetry-sdk~=1.37.0. The advisory is in TraceState.from_header, which parses an inbound tracestate header; semgrep scan serves no HTTP. CI toolchain only, not in the Lambda artifact. Re-checked 2026-11-08; expires in 30 days."
+reason = "opentelemetry-api 1.37.0 in scripts/ci/requirements.txt, fixed in 1.45.1. semgrep 1.181.0 through 1.184.0, the latest on PyPI on 2026-11-08, require opentelemetry-api~=1.37.0, opentelemetry-sdk~=1.37.0 and opentelemetry-exporter-otlp-proto-http~=1.37.0. The advisory is in TraceState.from_header, which parses an inbound tracestate header; semgrep scan serves no HTTP. CI toolchain only, not in the Lambda artifact. Re-checked 2026-11-08; expires in 30 days."
 
 [[IgnoredVulns]]
 id = "GHSA-g3hv-75wg-m249"

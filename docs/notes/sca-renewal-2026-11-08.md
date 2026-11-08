@@ -27,7 +27,7 @@ Registry data read on 2026-11-08 from the JSON APIs behind each page.
 Pages:
 
 - https://pypi.org/project/semgrep/ (JSON: https://pypi.org/pypi/semgrep/json), read 2026-11-08: latest 1.184.0
-- https://pypi.org/project/mcp/, read 2026-11-08: latest 2.3.0; the only 1.x release after 1.29.0 is 1.30.0
+- https://pypi.org/project/mcp/, read 2026-11-08: latest 2.3.0; 1.29.1 exists and is still affected, so the only fixed 1.x release is 1.30.0
 - https://pypi.org/project/opentelemetry-api/, read 2026-11-08: latest 1.45.2
 - https://www.npmjs.com/package/@anthropic-ai/sandbox-runtime, read 2026-11-08: latest 0.0.81
 - https://www.npmjs.com/package/eslint, https://www.npmjs.com/package/@eslint/config-array, https://www.npmjs.com/package/@stryker-mutator/core, https://www.npmjs.com/package/typescript-eslint and https://www.npmjs.com/package/@typescript-eslint/typescript-estree, read 2026-11-08
@@ -38,21 +38,21 @@ Pages:
 
 | Advisory | Re-checked against the advisory text | Change from main's reason |
 |---|---|---|
-| GHSA-mrhx-c7xc-m3w5 | The flaw is in `handleArrayResult` of `$ZodArray`. In zod 3.25.76 that function exists only in `zod/v4/core/schemas.js`. `@anthropic-ai/sandbox-runtime` imports only `zod/v3` (`dist/sandbox/sandbox-config.js`), so the flagged code is not on its path. It runs only in the B9 replay (`scenarios.yml`, `srt --settings`) | Adds the `zod/v3` finding and names the B9 replay |
+| GHSA-mrhx-c7xc-m3w5 | The advisory names `handleArrayResult` in zod 4's `$ZodArray`, but OSV marks every release before 4.6.6, and zod 3's `ZodArray._parse` (`zod/v3/types.js`) has the same flaw: after a failed `maxLength` it still parses every element and keeps every issue. 4.6.6 fixed only `zod/v4`. `@anthropic-ai/sandbox-runtime` imports `zod/v3` (`dist/sandbox/sandbox-config.js`), so the flaw is on its path. Its input is not an attacker's: it runs only in the B9 replay (`scenarios.yml`, `srt --settings`) and parses settings generated from `.github/egress/allowlist.json` | Names the B9 replay as the only user and the repo-generated input as the mitigation |
 | The four mcp advisories | Server sessions, server bearer auth, client `$ref` fetching, client redirects. `semgrep scan` starts no MCP server or client | semgrep range now "1.181.0 through 1.184.0" |
-| GHSA-xcq7-p3pf-p88h | `TraceState.from_header` on an inbound header. `semgrep scan` serves no HTTP | Names the function, and the sdk pin that also blocks an api upgrade |
+| GHSA-xcq7-p3pf-p88h | `TraceState.from_header` on an inbound header. `semgrep scan` serves no HTTP | Names the function, and the sdk and exporter pins that also block an api upgrade |
 | GHSA-g3hv-75wg-m249 | Needs an attacker-controlled pattern and `optimizationLevel` 2 or more. The tools match patterns from repo config files | Adds the newer releases of each dependent |
 
 ## Upgrades the owner could run instead
 
-None is reachable inside the dependents' declared ranges, so the batch renews. Two fixes are reachable only by overriding a dependent's range. Neither is staged: the agent may not install dependencies or regenerate a lockfile, so neither is tested.
+None is reachable inside the dependents' declared ranges, so the batch renews. Two version bumps are reachable only by overriding a dependent's range. Neither is staged: the agent may not install dependencies or regenerate a lockfile, so neither is tested, and the zod one would not fix the flaw.
 
 | Fix | Commands, from a clean checkout of `main` | Risk | Recommendation |
 |---|---|---|---|
-| zod 4.6.7 for sandbox-runtime only | see below | zod 4.6.7 ships a `./v3` export, which is all sandbox-runtime imports (inference from the package's `exports` and the import). It is outside sandbox-runtime's `^3.25.0`, and only the B9 replay, which runs after landing, exercises it | Worth a trial as its own batch after this renewal lands: it removes one exception |
+| zod 4.6.7 for sandbox-runtime only | see below | It hides the advisory without fixing it. sandbox-runtime imports `zod/v3`, and zod 4.6.7 still ships that code unchanged (the independent review diffed both tarballs' `ZodArray`). OSV would stop reporting a flaw sandbox-runtime still runs | Not recommended. Wait for a sandbox-runtime release on zod 4's own API, or for a zod 3 fix |
 | minimatch 11.0.5 for everyone | `npm pkg set overrides.minimatch=11.0.5`, then the same lockfile command | A major version under four packages that declare 10.x, plus one new transitive package. Lint, Stryker and the typecheck could break in ways only a full run shows | Not recommended. Wait for eslint or Stryker to move |
 
-The zod trial, in order:
+For the record only, not recommended, the zod override would be:
 
 ```bash
 npm pkg set 'overrides.@anthropic-ai/sandbox-runtime.zod=4.6.7'
@@ -70,11 +70,24 @@ npm ci --ignore-scripts
 npm run checks
 ```
 
-`package.json` and `package-lock.json` are protected, so the result is a signed batch that also drops GHSA-mrhx-c7xc-m3w5 from `specs/sca-exceptions.toml`. The syntax of the first command was checked on a copy of `package.json`: it writes `"overrides": {"qs": "6.16.1", "@anthropic-ai/sandbox-runtime": {"zod": "4.6.7"}}`.
+The syntax of the first command was checked on a copy of `package.json`: it writes `"overrides": {"qs": "6.16.1", "@anthropic-ai/sandbox-runtime": {"zod": "4.6.7"}}`.
 
-For the Python advisories, `uv pip compile --override` could force mcp 1.30.0 under semgrep, but semgrep pins it exactly, and moving opentelemetry-api means moving opentelemetry-sdk and two instrumentation packages that semgrep also pins. Not recommended.
+For the Python advisories, `uv pip compile --override` could force mcp 1.30.0 under semgrep, but semgrep pins it exactly, and moving opentelemetry-api means moving opentelemetry-sdk, opentelemetry-exporter-otlp-proto-http and two instrumentation packages that semgrep also pins. Not recommended.
 
 ## Open, for the owner
 
-- Renew for another 30 days, as staged, or try the zod override first? Recommendation: land the renewal now; the deadline is 2026-11-22.
+- Renew for another 30 days, as staged, or upgrade first? Recommendation: land the renewal now; the deadline is 2026-11-22, and no real fix exists yet.
+- All 7 now expire at the same moment, so the four 2026-11-30 entries gain only 8 days. Recommendation: accept it; one review date is simpler.
 - Should the sca check warn, without failing, when an exception expires within 7 days? That would be a new SPEC-001 requirement. Recommendation: yes, after T3b; this is the second renewal by hand.
+
+## Review, 2026-11-08
+
+An independent review found nothing critical or medium, one high and four low. Each is fixed or recorded here.
+
+| Severity | Finding | Done |
+|---|---|---|
+| High | The first draft said the zod flaw was not on sandbox-runtime's path, because the advisory's function is in `zod/v4/core`. zod 3's `ZodArray` has the same flaw, and zod 4.6.6 fixed only v4, so the override the draft suggested would hide the advisory, not fix it | Confirmed in `node_modules/zod/v3/types.js`: after a failed `maxLength`, `_parse` maps every element. The reason now rests on the input, which the repo generates; the override is marked not recommended |
+| Low | mcp 1.29.1 exists | "the only fixed 1.x release is 1.30.0" |
+| Low | semgrep also pins `opentelemetry-exporter-otlp-proto-http~=1.37.0` | Named in the reason and the notes |
+| Low | The `requires:` line proved only that one 2026-11-22 entry is on `main`; an eighth exception landed first would be dropped silently, though the sca check would then fail | A second `requires:` for a 2026-11-30 entry, and a LAND.txt comment to answer no if the diff removes another ID |
+| Low | All 7 expire at once | Recorded as an owner question above |

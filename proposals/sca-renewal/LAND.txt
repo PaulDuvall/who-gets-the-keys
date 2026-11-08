@@ -7,4 +7,6 @@ message: spec: renew the sca exceptions to 2026-12-08, after re-checking each fi
 spec: SPEC-001-R10
 # main still holds the exceptions this batch renews.
 requires: specs/sca-exceptions.toml ignoreUntil = 2026-11-22T00:00:00Z
+requires: specs/sca-exceptions.toml ignoreUntil = 2026-11-30T00:00:00Z
+# The copy holds exactly main's 7 IDs. If another exception lands first, land.sh's diff shows it removed: answer no.
 move: sca-exceptions.toml specs/sca-exceptions.toml
