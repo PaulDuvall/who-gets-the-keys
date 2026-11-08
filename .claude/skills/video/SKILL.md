@@ -5,7 +5,7 @@ description: Rebuild and check the walkthrough page and narrated video from vide
 
 # Walkthrough video
 
-Adapted from the `explainer-video` skill in an earlier private repository at `469f0fda93535e0b4a40fe61d22d6e122064d309`. SPEC-002 holds the requirements; `docs/decisions/0001-walkthrough-video.md` holds the decisions.
+SPEC-002 holds the requirements; `docs/decisions/0001-walkthrough-video.md` holds the decisions.
 
 ## 1. Build from a clean tree
 
