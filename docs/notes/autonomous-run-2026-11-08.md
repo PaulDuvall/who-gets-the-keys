@@ -179,6 +179,8 @@ git push origin --delete claude/epic-dijkstra-7xi2um claude/hopeful-sagan-ae220j
 git ls-remote origin claude/epic-dijkstra-7xi2um claude/hopeful-sagan-ae220j
 ```
 
+14. No owner action: after step 12 has landed, the agent refactors the five test files that each build a temporary repository and a stub `gh` into one shared fixture (backlog `who-gets-the-keys-f7t`), as one unsigned agent commit on a candidate branch. The owner moves it to `main` with `land.sh --to-main`, like any agent commit. Measured on a simulated landing: the batches add 2,158 lines of code and tests, about 160 of them in repeated blocks, so the expected saving is 60 to 100 lines.
+
 ### 3. Questions for you, each with a recommendation
 
 | # | Question | Recommendation |
