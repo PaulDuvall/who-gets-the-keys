@@ -1,0 +1,12 @@
+# Decision 0007: the software-factory video kit moved here from PaulDuvall/paulmduvallcom. The kit landed unsigned in
+# factory-video/; these two protected files make GitHub Actions build it. factory-video.yml builds on a push to main that
+# touches factory-video/ or the workflow, uploads one artifact, and its prune job deletes every earlier factory-video
+# artifact, so only the newest is kept. Its build job has contents: read only; its prune job actions: write only.
+# protected-paths.txt adds factory-video/narration/, the voice's hash pins, beside video/narration/. SPEC-001-R12 reads
+# that list. Landing this commit starts the first build, because it touches the workflow. No AWS change.
+message: ci: build the factory video in GitHub Actions, and protect its narration pins
+spec: SPEC-001-R12
+requires: specs/protected-paths.txt video/narration/
+requires: factory-video/narration/requirements.txt kokoro-onnx==0.6.1
+move: github-workflows/factory-video.yml .github/workflows/factory-video.yml
+move: protected-paths.txt specs/protected-paths.txt

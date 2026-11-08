@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Who Gets the Keys? Poster</title>
+<style>
+  @page { size: 2400px 1350px; margin: 0; }
+  html, body { margin: 0; background: #f4f1ea; }
+  svg { display: block; width: 100vw; height: auto; max-height: 100vh; margin: 0 auto; }
+  html.render svg { width: 2400px; height: 1350px; max-height: none; }
+  @media print { svg { width: 2400px; height: 1350px; max-height: none; } }
+</style>
+</head>
+<body>
+<svg id="poster" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1350" width="2400" height="1350"></svg>
+<script src="scene.js"></script>
+<script>
+/*
+ * Static, full-detail poster of the software factory. Same components as
+ * slide.html. The slide scales scene space up to fill its frame; the poster draws
+ * scene space 1:1 (x 50..2025) under the upstream and watchtower rows the slide
+ * no longer shows. It keeps the detail the slide cut: the full can/cannot lists,
+ * OWASP IDs, the nine-row receipt, the BEFORE inset, incidents and takeaways.
+ */
+(function () {
+  'use strict';
+  const { C, L, text, rect, card, icon, measure, makeItem } = Scene;
+
+  // ------------------------------------------------- frozen scene state
+  const S = Scene.idleState();
+  const X = L.stationX;
+  // Every token on the conveyor is an agent run (bot badge). The issue stops at the wall.
+  S.items = [
+    makeItem({ id: '#4823', x: X(0), checks: 0 }),
+    makeItem({ id: '#4821 fix', x: X(1), checks: 1 }),
+    makeItem({ id: '#4822', x: X(2), checks: 2 }),
+    makeItem({ id: '#4820', x: X(3), checks: 3 }),
+    makeItem({ id: '#4819', x: X(4), checks: 3, sealed: true, kind: 'promoted' }),
+  ];
+  S.issue = makeItem({ id: '#4821', x: L.wall.x, y: L.wall.stopY, kind: 'issue', scale: 0.8, stamp: 'NO RUN' });
+  S.stations[1].chips = [1, 1, 0, 0, 0];
+  S.stations[2].chips = [1, 1, 1, 1, 1];
+  S.stations[3].chips = [1, 1, 1, 0, 0];
+  S.panel = {
+    id: '#4822',
+    values: Scene.RECEIPTS['#4822'],
+    ticks: Scene.PANEL_ROWS.map(() => 1),
+    status: 'VERIFIED: key turns',
+    statusKind: 'verified',
+  };
+
+  // ------------------------------------------------------ header band
+  function header() {
+    let s = text(50, 76, 'Who Gets the Keys?', { size: 52, bold: true });
+    s += text(50, 114, 'Trust and Authority in Software Factories', { size: 26, fill: C.muted });
+    s += text(2350, 46, 'Paul Duvall  ·  AI Native DevCon 2026', { size: 18, fill: C.muted, anchor: 'end' });
+    s += text(2350, 130, 'Receipt values (16/16, 91%) and IDs are illustrative.', { size: 15, italic: true, fill: C.muted, anchor: 'end' });
+    return s;
+  }
+
+  // ------------------------------------------- right column (x 2050..2350)
+  // The full can/cannot lists from slide 9 of the talk track.
+  function authorityPanel() {
+    const b = { x: 2050, y: 340, w: 300, h: 360 };
+    let s = card(b.x, b.y, b.w, b.h, { name: 'authority' });
+    s += text(b.x + 18, 372, 'Authorship is not authority', { size: 18, bold: true });
+    s += text(b.x + 18, 404, 'The agent can', { size: 16, bold: true, fill: C.red });
+    Scene.CAN_FULL.forEach((t, i) => {
+      const y = 425 + 20 * i;
+      if (i < Scene.CAN_FULL.length - 1) s += icon('check', b.x + 24, y - 5, 12, C.ink, { sw: 3 });
+      s += text(b.x + 36, y, t, { size: 15 });
+    });
+    s += text(b.x + 18, 558, 'The agent cannot directly', { size: 16, bold: true });
+    Scene.CANNOT_FULL.forEach((t, i) => {
+      const y = 579 + 20 * i;
+      s += icon('x', b.x + 24, y - 5, 12, C.red, { sw: 3 });
+      s += text(b.x + 36, y, t, { size: 15 });
+    });
+    s += text(b.x + 18, 688, 'OWASP LLM03 excessive agency', { size: 14, bold: true, fill: C.red });
+    return s;
+  }
+
+  function before() {
+    const b = { x: 2050, y: 735, w: 300, h: 375 };
+    let s = card(b.x, b.y, b.w, b.h, { name: 'before', fill: '#fbfaf6' });
+    s += rect(b.x + 16, b.y - 13, 104, 26, { card: 'before-tab', rx: 6, fill: C.ink, stroke: C.ink, sw: 2 });
+    s += text(b.x + 68, b.y + 6, 'BEFORE', { size: 16, bold: true, fill: C.white, anchor: 'middle', ls: 2 });
+    // The change request a human used to skim.
+    const p = { x: 2066, y: 757, w: 268, h: 222 };
+    s += rect(p.x, p.y, p.w, p.h, { card: 'change-request', rx: 6, fill: C.paper, stroke: C.border, sw: 1.5 });
+    s += icon('clipboard', p.x + 18, 781, 20, C.muted);
+    s += text(p.x + 34, 787, 'Change request', { size: 18, bold: true });
+    s += text(p.x + 34, 810, 'CHG-0427', { size: 18, bold: true });
+    [
+      ['Summary', 'Update export service'],
+      ['Risk', 'Medium'],
+      ['Tested', 'Yes, in staging'],
+      ['Rollback', 'See attached'],
+    ].forEach(([k, v], i) => {
+      const y = 842 + 22 * i;
+      s += text(p.x + 14, y, k, { size: 16, fill: C.muted });
+      s += text(p.x + 92, y, v, { size: 16 });
+    });
+    s += `<g transform="translate(${p.x + 134} 945) rotate(-6)">` +
+      rect(-88, -21, 176, 42, { rx: 6, stroke: C.red, sw: 3.5 }) +
+      text(0, 9, 'APPROVED', { size: 24, bold: true, fill: C.red, anchor: 'middle', ls: 3 }) +
+      '</g>';
+    s += text(p.x, 1012, 'Evidence used to be paperwork', { size: 17, bold: true });
+    s += text(p.x, 1034, 'a human skimmed.', { size: 17, bold: true });
+    s += text(p.x, 1068, 'Now the evidence is', { size: 15, bold: true, fill: C.red });
+    s += text(p.x, 1088, 'the control itself.', { size: 15, bold: true, fill: C.red });
+    return s;
+  }
+
+  // ------------------------------------------------------ bottom band
+  function takeaways() {
+    const items = [
+      ['1', 'Check', 'Make controls machine-checkable. Stop treating', 'downstream review as a control.'],
+      ['2', 'Trace', 'Verify intent, not only behavior. Trace every', 'change back to what the customer wanted.'],
+      ['3', 'Prove', 'Add agent-specific checks to the ones you run.', 'Let the evidence authorize every deploy.'],
+    ];
+    const titleW = Math.max(...items.map((it) => measure(it[1], 22, true)));
+    let s = '';
+    items.forEach(([n, title, a, b], i) => {
+      const x = 50 + 780 * i;
+      s += `<circle cx="${x + 14}" cy="1233" r="14" fill="${C.red}"/>`;
+      s += text(x + 14, 1239, n, { size: 16, bold: true, fill: C.white, anchor: 'middle' });
+      s += text(x + 38, 1240, title, { size: 22, bold: true });
+      const bx = x + 38 + titleW + 14;
+      s += text(bx, 1240, a, { size: 17 });
+      s += text(bx, 1262, b, { size: 17 });
+    });
+    return s;
+  }
+
+  // Verified 2026-11-05 against AWS-2025-015, Wiz and StepSecurity (s1ngularity) and Snyk (Clinejection).
+  function incidents() {
+    const head = 'INCIDENTS: UNTRUSTED CONTEXT, PRIVILEGED ACTION';
+    let s = text(50, 1283, head, { size: 14, bold: true, fill: C.red, ls: 1 });
+    const hw = measure(head, 14, true, 1);
+    s += Scene.line(50 + hw + 14, 1278, 2350, 1278, { color: C.border, width: 1.5 });
+    const list = [
+      ['Clinejection', '(Cline, Feb 2026)', 'Triage agent shared a CI cache with the release job.', 'A missed token rotation let cline@2.3.0 publish.'],
+      ['Amazon Q Developer', '(2025)', 'A destructive prompt shipped in extension v1.84.0.', 'A syntax error kept it from running (AWS-2025-015).'],
+      ['Nx "s1ngularity"', '(Aug 2025)', 'A CI workflow injection leaked the npm publish token.', 'The malware drove local AI CLIs to hunt for secrets.'],
+    ];
+    list.forEach(([name, when, a, c], i) => {
+      const x = 50 + 780 * i;
+      s += text(x, 1304, name, { size: 17, bold: true, fill: C.red });
+      s += text(x + measure(name, 17, true) + 8, 1304, when, { size: 15, fill: C.muted });
+      s += text(x, 1322, a, { size: 15 });
+      s += text(x, 1340, c, { size: 15 });
+    });
+    return s;
+  }
+
+  // Under "No evidence, no deploy." (scene space is 1:1 on the poster).
+  function closing() {
+    const x = L.noEvidenceX;
+    return (
+      text(x, 1132, 'Not the agent.', { size: 26, bold: true }) +
+      text(x, 1164, 'Not the human.', { size: 26, bold: true }) +
+      text(x, 1196, 'The pipeline.', { size: 26, bold: true, fill: C.red })
+    );
+  }
+
+  const over = header() + authorityPanel() + before() + takeaways() + incidents() + closing();
+  const svg = document.getElementById('poster');
+  svg.innerHTML = Scene.drawScene(S, { poster: true, over });
+  if (window.__RENDER_MODE__) document.documentElement.classList.add('render');
+})();
+</script>
+</body>
+</html>

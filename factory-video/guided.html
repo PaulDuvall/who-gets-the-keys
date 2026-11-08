@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Software factory: guided</title>
+<style>
+  html, body { margin: 0; background: #f4f1ea; }
+  svg { display: block; width: 100vw; height: auto; max-height: 100vh; margin: 0 auto; }
+  html.render svg { width: 2400px; height: 1125px; max-height: none; }
+  /* Captions sit in their own strip below the picture, so they never cover the scene. In render
+     mode the frame is 2400x1350 (16:9): 1125 of scene and 225 of captions. */
+  #caption { box-sizing: border-box; display: flex; align-items: center; justify-content: center; text-align: center;
+    background: #141311; color: #ffffff; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; margin: 0 auto; }
+  /* Text stays within the middle 75% of the width, so a player that crops the sides keeps it. */
+  html.render #caption { width: 2400px; height: 225px; padding: 0 300px; font-size: 46px; line-height: 1.32; }
+  html:not(.render) #caption { width: 100vw; min-height: 9vw; padding: 0 6vw; font-size: 1.9vw; line-height: 1.32; }
+  #caption span { transition: none; }
+</style>
+</head>
+<body>
+<svg id="stage" xmlns="http://www.w3.org/2000/svg" viewBox="0 135 2400 1125" width="2400" height="1125"></svg>
+<div id="caption"><span></span></div>
+<script src="scene.js"></script>
+<script src="narration.js"></script>
+<script>window.__EMBED_LOOP__ = true;</script>
+<script src="loop.js"></script>
+<script>
+/*
+ * guided.html: one guided pass through the factory, for video (factory-guided.mp4).
+ *
+ * The 18 s loop runs three lanes at once: a signed spec on the conveyor, an untrusted
+ * issue, and telemetry. A camera that frames one lane hides the others, so this plays
+ * the loop three times in a row. The loop is periodic, so the passes join with no jump.
+ * Each pass follows one story:
+ *
+ *   pass 1   T-0042: a human signs SPEC-118, the agent's patch, the checks of record,
+ *            promote out of reach, the receipt, the key, Production
+ *   pass 2   issue #4821: NO RUN at the wall, a human turns it into a spec, it queues as
+ *            T-0043, and T-0043's receipt reads "untrusted issue"
+ *   pass 3   telemetry: the alarm becomes task T-0044, a trusted signal with no human; then the
+ *            security account that watches the pipeline and Production for drift
+ *
+ * Two tracks drive the loop. The speed track slows each beat (0.7-0.9x) and fast-forwards
+ * through the parts no shot follows (2-4x, in overview). The camera zooms by changing the
+ * SVG viewBox, so text stays vector-sharp and is never smaller than in the loop (zoom >= 1).
+ * The video starts and ends on the same overview frame: loop time 0, which is also 54.
+ *
+ * Narration (narration.js) sets the pace: each shot lasts at least its line's length plus
+ * LEAD before it and TAIL after it, and its speed slows to fit. The line is also the shot's
+ * caption, drawn in a strip below the picture. build.sh renders the voice with narrate.py and
+ * mixes it at each shot's voiceStart.
+ *
+ * render(g) is a pure function of g, in seconds of video.
+ */
+(function () {
+  'use strict';
+  const { seg, ease, clamp01, pointOnPath } = Scene;
+  const loop = window.FactoryLoop;
+  const LOOP = loop.LOOP;
+  const VIEW = { x: 0, y: 135, w: 2400, h: 1125 };
+  const MOVE = 0.9; // seconds the camera takes to reach a shot's framing
+  const SMOOTH = 0.5; // seconds over which a speed change ramps
+
+  // Shot framings: a box in scene space that must be fully in frame, and a zoom.
+  const C = Scene.L.content;
+  const CAM = {
+    overview: { box: [C.x1, C.y1, C.x2, C.y2], z: 1 },
+    intake: { box: [20, 278, 990, 470], z: 1.8 },
+    agent: { box: [390, 380, 900, 830], z: 1.7 },
+    // The whole PIPELINE container: its checks, promote and Deploy are one thing.
+    checks: { box: [905, 340, 1700, 870], z: 1.6 },
+    verify: { box: [1040, 380, 2025, 1200], z: 1.18 },
+    issue: { box: [40, 820, 1010, 1150], z: 1.7 },
+    // Edge to edge from the Untrusted card to just short of the receipt, so no text is cut.
+    tray: { box: [12, 900, 1028, 1150], z: 2.0 },
+    // A tracking shot: the frame follows the signed rev-2 spec back to the intake.
+    route: { follow: (t) => pointOnPath(Scene.L.rev2Route, ease(seg(t, 7.4, 8.8))), r: 70, z: 1.5 },
+    telemetryBand: { box: [60, 600, 1900, 920], z: 1.1 },
+    telemetryCard: { box: [60, 420, 620, 760], z: 1.8 },
+    // The security account, its watch lines, and the tops of Deploy and Production.
+    monitor: { box: [1440, 340, 2025, 560], z: 1.8 },
+  };
+
+  // T is story time: loop time across the three passes, 0 to 54.
+  const SHOTS = [
+    { hold: 2.0, T: 0, cam: 'overview', beat: 'The factory, running' },
+    { T: [0, 2.3], speed: 0.8, cam: 'intake', beat: 'A human signs SPEC-118: key, then touch' },
+    { T: [2.3, 5.2], speed: 0.8, cam: 'agent', beat: 'The agent returns a patch; in-run checks retry it' },
+    { T: [5.2, 9.0], speed: 0.9, cam: 'checks', beat: 'The pipeline runs the checks of record, without the agent' },
+    { T: [9.0, 12.4], speed: 0.8, cam: 'verify', beat: 'Promoted out of reach; the receipt verifies; the key turns' },
+    { T: [12.4, 21.0], speed: 3, cam: 'overview', beat: 'The factory keeps running' },
+    { T: [21.0, 23.9], speed: 0.8, cam: 'issue', beat: 'Untrusted issue #4821 stops at the wall: NO RUN' },
+    { T: [23.9, 25.4], speed: 0.7, cam: 'tray', beat: 'A human turns the issue into a signed spec' },
+    { T: [25.4, 27.6], speed: 0.8, cam: 'route', beat: 'SPEC-118 rev 2 queues as T-0043' },
+    { T: [27.6, 31.2], speed: 2, cam: 'overview', beat: 'T-0043 runs the same checks' },
+    { T: [31.2, 33.5], speed: 0.8, cam: 'verify', beat: 'T-0043 receipt: untrusted issue' },
+    { T: [33.5, 48.0], speed: 4, cam: 'overview', beat: 'The factory keeps running' },
+    { T: [48.0, 49.3], speed: 0.6, cam: 'telemetryBand', beat: 'Telemetry returns, redacted and read-only' },
+    { T: [49.3, 51.0], speed: 0.7, cam: 'telemetryCard', beat: 'The alarm becomes task T-0044: a trusted signal, no human' },
+    { T: [51.0, 52.5], speed: 0.6, cam: 'monitor', beat: 'A separate security account watches for drift; the pipeline cannot touch it' },
+    { T: [52.5, 54.0], speed: 1, cam: 'overview', beat: 'Back to the whole factory' },
+    { hold: 2.5, T: 54, cam: 'overview', beat: 'The whole factory' },
+  ];
+  const LEAD = 0.4; // seconds from a shot's start to its line's first word
+  const TAIL = 0.5; // seconds of quiet after the line before the next shot
+  const NARRATION = window.NARRATION || [];
+  if (NARRATION.length !== SHOTS.length || NARRATION.some((n, i) => n.cam !== SHOTS[i].cam)) {
+    throw new Error(`narration.js has ${NARRATION.length} entries; they must match the ${SHOTS.length} shots, camera for camera`);
+  }
+  let g = 0;
+  SHOTS.forEach((s, i) => {
+    const [a, b] = s.hold ? [s.T, s.T] : s.T;
+    const n = NARRATION[i];
+    const base = s.hold ? s.hold : (b - a) / s.speed;
+    const dur = n.text ? Math.max(base, LEAD + n.seconds + TAIL) : base;
+    if (s.hold) s.hold = dur;
+    else s.speed = (b - a) / dur;
+    s.Ta = a;
+    s.Tb = b;
+    s.g0 = g;
+    s.voiceStart = g + LEAD;
+    s.text = n.text;
+    s.seconds = n.seconds;
+    g += dur;
+    s.g1 = g;
+  });
+  const DURATION = Math.round(g * 1000) / 1000;
+
+  // Speed track: T as a function of g, piecewise linear, then box-filtered so each speed
+  // change ramps over SMOOTH seconds. Tabulated at 1 ms; the holds at both ends keep
+  // T(0) = 0 and T(DURATION) = 54 exact.
+  const STEP = 0.001;
+  const N = Math.ceil(DURATION / STEP) + 1;
+  const rawT = (x) => {
+    if (x <= 0) return SHOTS[0].Ta;
+    for (const s of SHOTS) if (x < s.g1) return s.hold ? s.Ta : s.Ta + (x - s.g0) * s.speed;
+    return SHOTS[SHOTS.length - 1].Tb;
+  };
+  const half = Math.round(SMOOTH / 2 / STEP);
+  const raw = new Float64Array(N + 2 * half);
+  for (let i = 0; i < raw.length; i++) raw[i] = rawT((i - half) * STEP);
+  const prefix = new Float64Array(raw.length + 1);
+  for (let i = 0; i < raw.length; i++) prefix[i + 1] = prefix[i] + raw[i];
+  const table = new Float64Array(N);
+  for (let i = 0; i < N; i++) table[i] = (prefix[i + 2 * half + 1] - prefix[i]) / (2 * half + 1);
+  function storyTime(x) {
+    const p = Math.min(N - 1, Math.max(0, x / STEP));
+    const i = Math.floor(p);
+    const j = Math.min(N - 1, i + 1);
+    return table[i] + (table[j] - table[i]) * (p - i);
+  }
+
+  // Camera: a viewBox per shot, clamped to the slide's view. Zoom and centre ease between shots.
+  const T0 = Scene.slideTransform();
+  const toView = ([x1, y1, x2, y2]) => [x1 * T0.k + T0.x, y1 * T0.k + T0.y, x2 * T0.k + T0.x, y2 * T0.k + T0.y];
+  function frame(name, T) {
+    const c = CAM[name];
+    let box = c.box;
+    if (c.follow) {
+      const [px, py] = c.follow(((T % LOOP) + LOOP) % LOOP);
+      // Clamped to the content: the route runs along its left edge.
+      box = [Math.max(C.x1, px - c.r), Math.max(C.y1, py - c.r), Math.min(C.x2, px + c.r), Math.min(C.y2, py + c.r)];
+    }
+    const [x1, y1, x2, y2] = toView(box);
+    const w = VIEW.w / c.z;
+    const h = VIEW.h / c.z;
+    const x = Math.min(VIEW.x + VIEW.w - w, Math.max(VIEW.x, (x1 + x2) / 2 - w / 2));
+    const y = Math.min(VIEW.y + VIEW.h - h, Math.max(VIEW.y, (y1 + y2) / 2 - h / 2));
+    return { cx: x + w / 2, cy: y + h / 2, w, z: c.z, box: [x1, y1, x2, y2] };
+  }
+  function shotAt(x) {
+    for (let i = 0; i < SHOTS.length; i++) if (x < SHOTS[i].g1) return i;
+    return SHOTS.length - 1;
+  }
+  function camera(x) {
+    const i = shotAt(x);
+    const s = SHOTS[i];
+    const T = storyTime(x);
+    const to = frame(s.cam, T);
+    const from = frame(i > 0 ? SHOTS[i - 1].cam : s.cam, T);
+    const move = Math.min(MOVE, 0.6 * (s.g1 - s.g0));
+    const u = ease(clamp01((x - s.g0) / move));
+    const w = Math.exp(Math.log(from.w) + (Math.log(to.w) - Math.log(from.w)) * u);
+    const h = (w * VIEW.h) / VIEW.w;
+    let cx = from.cx + (to.cx - from.cx) * u;
+    let cy = from.cy + (to.cy - from.cy) * u;
+    cx = Math.min(VIEW.x + VIEW.w - w / 2, Math.max(VIEW.x + w / 2, cx));
+    cy = Math.min(VIEW.y + VIEW.h - h / 2, Math.max(VIEW.y + h / 2, cy));
+    return { i, vb: [cx - w / 2, cy - h / 2, w, h], z: VIEW.w / w, settled: u >= 1, box: to.box };
+  }
+
+  const q6 = (x) => Math.round(x * 1e6) / 1e6;
+  const svg = document.getElementById('stage');
+  window.DURATION_SECONDS = DURATION;
+  window.GUIDED_SHOTS = SHOTS.map((s) => ({ beat: s.beat, cam: s.cam, g0: s.g0, g1: s.g1, T: [s.Ta, s.Tb], speed: s.speed || 0, text: s.text, seconds: s.seconds, voiceStart: s.voiceStart }));
+  window.GUIDED_TIMING = { lead: LEAD, tail: TAIL };
+  window.FRAME_SIZE = { width: 2400, height: 1350 }; // render.js sets this viewport: scene plus captions
+  const caption = document.querySelector('#caption span');
+  window.render = function render(x) {
+    const gx = q6(Math.min(DURATION, Math.max(0, x)));
+    const c = camera(gx);
+    svg.innerHTML = loop.draw(storyTime(gx));
+    svg.setAttribute('viewBox', c.vb.map((v) => v.toFixed(3)).join(' '));
+    // The shot's line, faded in and out over 0.2 s at the shot's edges.
+    const s = SHOTS[c.i];
+    caption.textContent = s.text;
+    caption.style.opacity = s.text ? Math.min(1, (gx - s.g0) / 0.2, (s.g1 - gx) / 0.2).toFixed(3) : '0';
+  };
+  window.__debug = function debug(x) {
+    const gx = q6(Math.min(DURATION, Math.max(0, x)));
+    const c = camera(gx);
+    const T = storyTime(gx);
+    const [bx1, by1, bx2, by2] = c.box;
+    const [vx, vy, vw, vh] = c.vb;
+    const inView = bx1 >= vx - 0.5 && by1 >= vy - 0.5 && bx2 <= vx + vw + 0.5 && by2 <= vy + vh + 0.5;
+    return { g: gx, T, loopT: ((T % LOOP) + LOOP) % LOOP, shot: c.i, beat: SHOTS[c.i].beat, cam: SHOTS[c.i].cam, z: c.z, vb: c.vb, settled: c.settled, focusInView: inView };
+  };
+
+  if (window.__RENDER_MODE__) {
+    document.documentElement.classList.add('render');
+    window.render(0);
+  } else {
+    // Preview: ?g=12.5 freezes a frame; otherwise play the guided pass on repeat.
+    const q = new URLSearchParams(location.search).get('g');
+    if (q !== null) window.render(parseFloat(q));
+    else {
+      let t0 = null;
+      const tick = (now) => {
+        if (t0 === null) t0 = now;
+        window.render(((now - t0) / 1000) % DURATION);
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+  }
+})();
+</script>
+</body>
+</html>
