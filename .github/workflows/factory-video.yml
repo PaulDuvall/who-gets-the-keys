@@ -1,9 +1,12 @@
 # Builds the software-factory slide assets in factory-video/ (decision 0008): the 18 s loop as a
 # GIF and a 3-minute MP4, the narrated guided video with and without burned-in captions, its
 # captions file, the poster, and the claims report: which on-screen claims the repository has built.
-# The build job reads the repository and nothing else: no secrets, no AWS, no caches. Its output
-# is one artifact. The prune job then deletes every earlier factory-video artifact, so only the
-# newest build is kept. Nothing is committed and no release is made, so no job needs contents: write.
+# The claims job checks the ledger alone, with no browser and no voice, on every push to main that
+# can move a claim: a signed spec, a decision, a proposal or the backlog. It uploads the report as
+# factory-claims-<short SHA>-<UTC time>. The build job runs only when the kit or this workflow
+# changed, or on demand. No job reads a secret, uses AWS or a cache. The prune job keeps only the
+# newest artifact of each kind. Nothing is committed and no release is made, so no job needs
+# contents: write.
 name: factory-video
 
 on:
@@ -13,13 +16,65 @@ on:
     paths:
       - "factory-video/**"
       - ".github/workflows/factory-video.yml"
+      - "specs/**"
+      - "docs/decisions/**"
+      - "proposals/**"
+      - ".tasks/backlog.jsonl"
 
 permissions: {}
 cache-mode: none
 
 jobs:
+  claims:
+    name: check the claims ledger
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: factory-claims-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+    outputs:
+      video: ${{ steps.paths.outputs.video }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      # verify.mjs imports Playwright only for the browser checks, so this needs no npm install.
+      - name: Check that every on-screen claim cites evidence that exists
+        run: node factory-video/verify.mjs --only claims
+      - name: Decide whether the video itself needs a rebuild
+        id: paths
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          video=true
+          if [ "$EVENT" = push ] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            git diff --quiet "$BEFORE" "$GITHUB_SHA" -- factory-video .github/workflows/factory-video.yml && video=false
+          fi
+          echo "video=${video}" >> "$GITHUB_OUTPUT"
+          echo "Rebuild the video: ${video}"
+      - name: Name the artifact factory-claims-<short SHA>-<UTC time>
+        id: stamp
+        run: echo "name=factory-claims-${GITHUB_SHA::7}-$(date -u +%Y%m%dT%H%MZ)" >> "$GITHUB_OUTPUT"
+      - name: Upload the claims report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.stamp.outputs.name }}
+          path: factory-video/out/claims-report.md
+          if-no-files-found: error
+          retention-days: 30
+
   build:
     name: build and check the factory video
+    needs: claims
+    if: needs.claims.outputs.video == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     concurrency:
@@ -99,9 +154,9 @@ jobs:
           retention-days: 30
 
   prune:
-    name: keep only the newest factory video
-    needs: build
-    if: needs.build.result == 'success'
+    name: keep only the newest factory video and claims report
+    needs: [claims, build]
+    if: always() && needs.claims.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     concurrency:
@@ -110,18 +165,24 @@ jobs:
     permissions:
       actions: write # deletes earlier factory-video artifacts; nothing else in this job
     steps:
-      - name: Delete every factory-video artifact except the newest
+      - name: Delete every factory-video and factory-claims artifact except the newest of each
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          BUILT: ${{ needs.build.result }}
         run: |
-          list="$(gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
-            --jq '.artifacts[] | select((.name | startswith("factory-video-")) and (.expired | not)) | "\(.created_at) \(.id) \(.name)"' | sort -r)"
-          keep="$(printf '%s\n' "$list" | awk 'NF {print $2; exit}')"
-          [ -n "$keep" ] || { echo "No factory-video artifact found; nothing deleted."; exit 0; }
-          printf '%s\n' "$list" | while read -r created id name; do
-            { [ -z "$id" ] || [ "$id" = "$keep" ]; } && continue
-            gh api -X DELETE "repos/$REPO/actions/artifacts/$id"
-            echo "Deleted ${name} (${created})"
+          prefixes="factory-claims-"
+          [ "$BUILT" = success ] && prefixes="factory-video- factory-claims-"
+          for prefix in $prefixes; do
+            list="$(gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
+              --jq '.artifacts[] | select(.expired | not) | "\(.created_at) \(.id) \(.name)"' |
+              awk -v p="$prefix" 'index($3, p) == 1' | sort -r)"
+            keep="$(printf '%s\n' "$list" | awk 'NF {print $2; exit}')"
+            [ -n "$keep" ] || { echo "No ${prefix} artifact found; nothing deleted."; continue; }
+            printf '%s\n' "$list" | while read -r created id name; do
+              { [ -z "$id" ] || [ "$id" = "$keep" ]; } && continue
+              gh api -X DELETE "repos/$REPO/actions/artifacts/$id"
+              echo "Deleted ${name} (${created})"
+            done
+            echo "Kept ${prefix} artifact ${keep}."
           done
-          echo "Kept artifact ${keep}."
