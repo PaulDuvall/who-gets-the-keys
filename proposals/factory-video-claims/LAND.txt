@@ -1,0 +1,13 @@
+# Keep the factory video's claims ledger current (decision 0008). A claims job checks
+# factory-video/claims.json on every push to main that can move a claim: specs/, docs/decisions/,
+# proposals/, .tasks/backlog.jsonl or the kit. It runs node factory-video/verify.mjs --only claims with
+# contents: read, no browser and no Kokoro, and uploads claims-report.md as factory-claims-<sha>-<time>.
+# The video build now runs only when the kit or this workflow changed, or on demand. The prune job keeps
+# the newest artifact of each kind; the claims prefix differs from factory-video- so the video's prune
+# never counts a report as a video. zizmor offline: no findings, the same 9 suppressed as on main.
+# Needs on main first: verify.mjs that imports Playwright only for browser checks (the second requires).
+message: ci: check the factory video's claims ledger on every push that can move a claim
+spec: SPEC-001-R4
+requires: .github/workflows/factory-video.yml name: keep only the newest factory video
+requires: factory-video/verify.mjs const BROWSER_CHECKS = [
+move: github-workflows/factory-video.yml .github/workflows/factory-video.yml

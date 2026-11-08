@@ -8,7 +8,7 @@
  *   node verify.mjs                 # every check
  *   node verify.mjs --only layout,labels
  *
- * Needs: playwright (Chromium), ffmpeg, ffprobe, pdfinfo, pdffonts.
+ * Needs: playwright (Chromium), ffmpeg, ffprobe, pdfinfo, pdffonts. `--only claims` needs none of them.
  */
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
@@ -16,7 +16,6 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { chromium } from './playwright.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(DIR, 'out');
@@ -869,13 +868,19 @@ function posterFileCheck() {
 }
 
 // ------------------------------------------------------------------- main
-const browser = await chromium.launch();
-try {
-  await slideChecks(browser);
-  await posterChecks(browser);
-  if (want('guided')) await guidedChecks(browser);
-} finally {
-  await browser.close();
+// Only these checks need Chromium. Playwright is imported only when one of them is wanted, so
+// `--only claims` runs with no packages installed (the claims job in factory-video.yml).
+const BROWSER_CHECKS = ['beats', 'determinism', 'errors', 'guided', 'labels', 'layout', 'loop', 'minfont', 'model', 'offline', 'posterlabels', 'posterlayout'];
+if (BROWSER_CHECKS.some((k) => want(k))) {
+  const { chromium } = await import('./playwright.mjs');
+  const browser = await chromium.launch();
+  try {
+    await slideChecks(browser);
+    await posterChecks(browser);
+    if (want('guided')) await guidedChecks(browser);
+  } finally {
+    await browser.close();
+  }
 }
 if (want('offline') || want('errors')) renderLogCheck();
 if (want('gif')) gifCheck();
