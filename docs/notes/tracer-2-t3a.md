@@ -1,6 +1,6 @@
 # Tracer 2, slice T3a: a signed task file, and the task and scope checks
 
-Status: staged in `proposals/t3-task-file/`, 2026-11-08, on top of `7d262bc` (`candidate/factory-video-ledger`: `main` at `9f887da` plus two commits that touch none of the batch's destinations), with the fixes of an independent review. Not landed.
+Status: landed 2026-11-08 as `5c862de`, approver-signed, with `Spec:` trailers R64 to R68, R72, R73, R83, R87, R107 and R208. Candidate run 104 and `main` run 105 passed; the owner approved the deploy. It was staged on `7d262bc` with the fixes of an independent review. The claims job passed on the landing commit, because the batch moved T3a's IDs to built in `factory-video/claims.json`.
 
 T2's producer takes a free-text `prompt` input "until slice T3". T3a replaces it with an approver-signed task file, `tasks/<ID>.task.md`, and adds two checks that hold a candidate's commits to that file. It is the first half of the T3 row in `docs/notes/tracer-2.md`: "a signed task file under a protected `tasks/` path, a thin scope check". The receipt lines INTENT, TASK, AUTHOR and MODEL (decision 0004's R69 to R71) and `scripts/bootstrap/cloud-session-setup.sh` are not in this batch.
 

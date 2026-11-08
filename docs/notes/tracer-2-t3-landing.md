@@ -1,6 +1,6 @@
 # Tracer 2: landing producer deliveries by the owner's push
 
-Status: staged in `proposals/t3-delivery-landing/`, 2026-11-07. Not landed. The first signed try, `e5ed597`, failed its candidate run's trace check and was dropped; see "First landing attempt".
+Status: landed 2026-11-08 as `c708a0e` (`main` run 88, deploy approved). The first signed try, `e5ed597`, failed its candidate run's trace check and was dropped; see "First landing attempt". No producer delivery has landed with `--delivery` yet.
 
 ## Decision
 
