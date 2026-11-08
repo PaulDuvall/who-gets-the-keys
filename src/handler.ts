@@ -30,6 +30,7 @@ function parse(event: ExportEvent): { columns: string[]; rows: Row[] } | undefin
   const request = readJson(event.isBase64Encoded === true ? Buffer.from(body, "base64").toString("utf8") : body);
   const { columns, rows } = (request ?? {}) as { columns?: unknown; rows?: unknown };
   if (!Array.isArray(columns) || columns.length === 0 || !columns.every((c) => typeof c === "string")) return undefined;
+  if (new Set(columns as string[]).size !== (columns as string[]).length) return undefined;
   if (!Array.isArray(rows) || !rows.every((r) => typeof r === "object" && r !== null)) return undefined;
   return { columns: columns as string[], rows: rows as Row[] };
 }
@@ -38,6 +39,7 @@ function parse(event: ExportEvent): { columns: string[]; rows: Row[] } | undefin
  * Lambda handler for export requests: 400 on a malformed request, 413 over the row limit, else 200 with CSV.
  * @requirement SPEC-014-R4
  * @requirement SPEC-014-R5
+ * @requirement SPEC-014-R7
  */
 export async function handler(event: ExportEvent): Promise<ExportResponse> {
   const request = parse(event);

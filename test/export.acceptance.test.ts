@@ -65,9 +65,7 @@ describe("SPEC-014 export service", () => {
     expect(await handler(request(body, true))).toEqual(expected);
   });
 
-  // Written before SPEC-014-R7 is implemented: it.fails passes while the assertion fails. The delivery that implements
-  // R7 changes it.fails.each to it.each and nothing else here.
-  it.fails.each([
+  it.each([
     ["the same column twice", request({ columns: ["a", "a"], rows: [] })],
     ["a repeat that is not next to its first use", request({ columns: ["a", "b", "a"], rows: [{ a: 1, b: 2 }] })],
     ["a repeat written with a JSON escape", { body: '{"columns":["a","\\u0061"],"rows":[]}' }],
