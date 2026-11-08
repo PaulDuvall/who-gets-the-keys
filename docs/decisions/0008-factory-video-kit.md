@@ -3,13 +3,13 @@
 - Status: Proposed
 - Date: 2026-11-08
 - Requirements: none of its own. The kit is talk material, outside the export service, like the walkthrough kit in decision 0001. Its claims ledger cites requirements in `specs/`, drafts in decisions 0004 to 0006, and backlog items
-- Moves: `talks/who-gets-the-keys/video/factory/` and `.github/workflows/factory-assets.yml` from PaulDuvall/paulmduvallcom, as of its `main` at `32279b9` (revision 19 of the scene)
+- Moves: the factory video kit, at revision 19 of the scene, and the workflow that built it, into this repository
 - Needs an approver's signature for: the batch `proposals/factory-video/`, landed with `scripts/bootstrap/land.sh proposals/factory-video`
 - Staged on: `main` at `c708a0e`. `claude/hopeful-sagan-ae220j` also changes `specs/protected-paths.txt`, so whichever of the two lands second restages its copy
 
 ## Context
 
-The talk's software-factory scene is an SVG animation with a narrated, captioned guided video, a GIF for the deck and a poster. It was built in PaulDuvall/paulmduvallcom by a workflow that deleted and recreated one GitHub release on every build, so only the newest files were kept. That workflow needed `contents: write` to manage the release and its tag.
+The talk's software-factory scene is an SVG animation with a narrated, captioned guided video, a GIF for the deck and a poster. It was built outside this repository, by a workflow that deleted and recreated one GitHub release on every build, so only the newest files were kept. That workflow needed `contents: write` to manage the release and its tag.
 
 The scene depicts this repository: decisions 0004 to 0006 and the specs they draft. Building it here keeps the picture next to the code it describes.
 
@@ -77,7 +77,7 @@ Landing that commit starts the workflow's first build, because it touches the wo
 
 ## Consequences
 
-- PaulDuvall/paulmduvallcom's copy, its `factory-assets.yml` and its `factory-latest` release are removed once this repository's workflow has run green.
+- The kit's earlier copy, its workflow and its release are removed once this repository's workflow has run green.
 - The scene's checks (`factory-video/verify.mjs`, 36 with the claims ledger) run inside the build job, not in `npm run checks`, as the walkthrough's do.
 - The kit's files face this repository's pipeline checks: secrets, lint, SAST and SCA.
 

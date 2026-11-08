@@ -4,7 +4,7 @@ Which claims the talk's factory video makes, and what in this repository covers 
 
 | Item | Value |
 |---|---|
-| Video | The factory video, revision 18. It is built from PaulDuvall/paulmduvallcom at commit `c77f95c`, folder `talks/who-gets-the-keys/video/factory/`, and published on the `factory-latest` release |
+| Video | The factory video, revision 18, built before it moved into `factory-video/` (decision 0008) |
 | Claims | V01 to V19, as the owner's brief of 2026-11-06 describes the video. The video itself was not watched, so its wording is not yet verified (decision 0006, "Not yet verified") |
 | Repository | `main` at `c7b91a5`, where every line number below is. Re-read on 2026-11-06 at `e54cdc0`, `6aa9297` and `689bb30`, which is `origin/main`. Those commits move `land.sh`, land D25's OIDC change in `infra/` and stage the deploy-tip batch. They change no claim below |
 | Date | 2026-11-06 |

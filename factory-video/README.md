@@ -1,6 +1,6 @@
 # Software factory slide animation
 
-The "software factory" scene for *Who Gets the Keys? Trust and Authority in Software Factories* (AI Native DevCon 2026). It moved here from PaulDuvall/paulmduvallcom on 2026-11-08 ([decision 0008](../docs/decisions/0008-factory-video-kit.md)), so the picture sits next to the specs it shows.
+The "software factory" scene for *Who Gets the Keys? Trust and Authority in Software Factories* (AI Native DevCon 2026). It has been built here since 2026-11-08 ([decision 0008](../docs/decisions/0008-factory-video-kit.md)), so the picture sits next to the specs it shows.
 
 **Watch it:** download the newest build from the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain), as [Outputs](#outputs) describes. `factory-guided.mp4` is the narrated version.
 
@@ -187,7 +187,7 @@ It also checks the labels, the 12 story beats (with a PNG of each in `probe/`), 
 
 Revision 20, moved to who-gets-the-keys (decision 0008):
 
-- **Built here, kept once.** The `factory-video` workflow builds the kit on a push to `main` that touches it, and uploads one artifact. A separate job deletes the earlier ones. That replaces paulmduvallcom's release, which was deleted and recreated each build and needed `contents: write`.
+- **Built here, kept once.** The `factory-video` workflow builds the kit on a push to `main` that touches it, and uploads one artifact. A separate job deletes the earlier ones. That replaces a GitHub release that was deleted and recreated on each build and needed `contents: write`.
 - **No new dependency.** Playwright comes from `video/record`'s pinned package through `playwright.mjs`. The voice's pins moved to `narration/`, which joins the protected paths.
 - **The video is the target, and the ledger is the check.** `claims.json` and its check report, per claim, what is built, planned or open. At this revision: 11 built, 6 partly built, 6 planned, 1 open (DAST) and 2 illustrative.
 - **Dependencies pinned and protected.** `narration/requirements.in` names `kokoro-onnx==0.6.1`; the batch adds it to `allowed-deps.txt` and protects `narration/`, `package.json` and `package-lock.json` under this folder.
@@ -236,7 +236,7 @@ Revision 14, issues checked against the specs:
 
 Revision 13, a more natural voice:
 
-- **Kokoro instead of Piper.** Piper's `en_US-ljspeech-medium` was the ceiling of its engine. Kokoro is newer and more expressive, and `render_audio.py` already uses it for the talk track. Its licence clears decision 0001's bar: Apache-licensed weights, trained on permissive or public-domain audio.
+- **Kokoro instead of Piper.** Piper's `en_US-ljspeech-medium` was the ceiling of its engine. Kokoro is newer and more expressive, and the talk track's narration already uses it. Its licence clears decision 0001's bar: Apache-licensed weights, trained on permissive or public-domain audio.
 - **`af_heart`, not `am_michael`.** Kokoro grades its voices: `af_heart` is the only A; `am_michael`, the talk track's voice, is C+, the best male voice. Switching is one line (`VOICE` in `narrate.py`), then `narrate.py update`.
 - **Speed 0.9, about 167 words a minute.** At 1.0 Kokoro reads the script at 179. The 237 words take 85.8 s, and the guided video is 104.3 s.
 - **Unread issues just wait.** The issue line read "That is the only way it becomes work", which sounded as if an engineer must read every issue. Under decision 0004 issues never start a run, and no human reads or strips one first (deviation D27). It now reads "An issue becomes work only if an engineer writes a spec from it and signs it. Unread issues just wait."

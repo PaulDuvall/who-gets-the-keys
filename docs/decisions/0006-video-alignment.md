@@ -6,7 +6,7 @@
 - Builds on: decision 0002 (proposed): the receipt (Phase 1, staged in `proposals/phase-1/`) and the signer repository (Phase 3). Decision 0004 (proposed): task files (R64), checks outside the ordered fifteen (R68) and the pre-check from `main` (R109). Decision 0005 (proposed): approval tiers (R111 to R117), ORIGIN (R119), the release check (R120 to R122) and the alarm-to-spec mapping (R125)
 - Supersedes in part: decision 0005: R119's rule that every run no alarm started holds `internal` alone. A run whose task names `prompted_by` also shows the issue that prompted it (R161, G4). R121's pass rule, which becomes "the first tag that meets R120 to R122 and R165". The "Release signatures by tier" row "What the human does", and the "Receipt" example lines (see What changes). Decision 0004: R64's list of front matter keys, which gains `prompted_by` (R160). Decision 0002: slice 1's R45 and R55, staged in `proposals/phase-1/`. The predicate gains a validator record and the receipt a VALIDATOR line (R149, R153)
 - Amends, once approved: signed SPEC-001-R8, only under owner decision 16 (a) (the iac check also covers `infra/security`). Signed SPEC-001-R41 keeps its text. R151 widens it, because the ruleset also requires `validator`
-- Source: the owner's brief of 2026-11-06, derived from the factory video, revision 18. The video is built from PaulDuvall/paulmduvallcom at commit `c77f95c`, folder `talks/who-gets-the-keys/video/factory/`, published on the `factory-latest` release. It is compared with this repository's `main` at `c7b91a5`, and line numbers below are at that commit. It was re-read on 2026-11-06 at `e54cdc0`, `6aa9297` and `689bb30`, which is `origin/main`. `6aa9297` lands D25's OIDC change in `infra/` and removes its staged copies from `proposals/`. `689bb30` stages the deploy-tip batch
+- Source: the owner's brief of 2026-11-06, derived from the factory video, revision 18. The video was then built outside this repository; since 2026-11-08 it is built in `factory-video/` (decision 0008). It is compared with this repository's `main` at `c7b91a5`, and line numbers below are at that commit. It was re-read on 2026-11-06 at `e54cdc0`, `6aa9297` and `689bb30`, which is `origin/main`. `6aa9297` lands D25's OIDC change in `infra/` and removes its staged copies from `proposals/`. `689bb30` stages the deploy-tip batch
 
 ## Context
 
@@ -621,7 +621,7 @@ Each row is a place where this repository proposes that the video change. "Or ch
 
 | Item | How to settle it |
 |---|---|
-| The video's text here comes from the brief's description of revision 18, not from the video | Compare with the video built from `c77f95c` before W01 |
+| The video's text here comes from the brief's description of revision 18, not from the video | Compare with the video itself before W01 |
 | Whether Bedrock serves the model `validator.md` names, and its inference profile ID | W15: one call in the owner's account |
 | Whether structured outputs work on the chosen endpoint | W15 |
 | Whether `-U0` keys stay stable for renames, mode changes and binary files, which the scratch test did not cover | W15: a test per case |
