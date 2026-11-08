@@ -10,7 +10,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 type Permissions = string | Record<string, string> | undefined;
 interface Step { name?: string; uses?: string; run?: string }
 interface Job { name?: string; if?: string; needs?: string | string[]; environment?: string; permissions?: Permissions; steps?: Step[] }
-interface Workflow { on: { push?: { branches?: string[] }; workflow_dispatch?: { inputs?: unknown } | null }; permissions?: Permissions; jobs: Record<string, Job> }
+interface Workflow { on: { push?: { branches?: string[] } }; permissions?: Permissions; jobs: Record<string, Job> }
 interface Rule { type: string; parameters?: { strict_required_status_checks_policy: boolean; required_status_checks: { context: string; integration_id: number }[] } }
 interface Ruleset { name: string; bypass_actors: unknown[]; enforcement: string; conditions: { ref_name: { include: string[] } }; rules: Rule[] }
 
@@ -98,25 +98,11 @@ describe("SPEC-001 checks before main", () => {
     expect(withEnvironment).toEqual(["deploy"]);
   });
 
-  it("SPEC-001-R209 takes a workflow_dispatch with no inputs, and fails checks, never skips it, for a dispatch on any ref but candidate/", () => {
-    expect(Object.keys(pipeline.on).sort()).toEqual(["push", "workflow_dispatch"]);
-    expect(pipeline.on.workflow_dispatch?.inputs).toBeUndefined();
+  it("SPEC-001-R40 is triggered only by a push to main or candidate/**, and no condition can skip checks or let a job skip it", () => {
+    expect(Object.keys(pipeline.on)).toEqual(["push"]);
+    expect(pipeline.on.push?.branches).toEqual(["main", "candidate/**"]);
     const checks = pipeline.jobs["checks"];
     expect([checks?.if, checks?.needs]).toEqual([undefined, undefined]);
-    const guard = checks?.steps?.[0];
-    expect([guard?.uses, guard?.name]).toEqual([undefined, "Fail a dispatched run on any ref but candidate/** (SPEC-001-R209)"]);
-    const runGuard = (event: string, ref: string) =>
-      spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", guard?.run ?? "exit 9"], {
-        encoding: "utf8", env: { PATH: process.env["PATH"] ?? "", GITHUB_EVENT_NAME: event, GITHUB_REF: ref },
-      });
-    const refused = "CHECK dispatch FAILED: pipeline.yml runs a dispatched run only on a candidate/ branch\n";
-    for (const ref of ["refs/heads/main", "refs/heads/candidate/", "refs/tags/candidate/x", "refs/heads/feature/candidate/x"]) {
-      const r = runGuard("workflow_dispatch", ref);
-      expect([ref, r.status, r.stdout]).toEqual([ref, 1, refused]);
-    }
-    expect(runGuard("workflow_dispatch", "refs/heads/candidate/TASK-1").status).toBe(0);
-    expect(runGuard("push", "refs/heads/main").status).toBe(0);
-    expect(runGuard("push", "refs/heads/candidate/x").status).toBe(0);
     // Every other job needs checks, directly or through build, so a skipped checks job skips them all.
     const needs = (id: string): string[] => { const n = pipeline.jobs[id]?.needs; return n === undefined ? [] : Array.isArray(n) ? n : [n]; };
     const reachesChecks = (id: string): boolean => needs(id).some((n) => n === "checks" || reachesChecks(n));

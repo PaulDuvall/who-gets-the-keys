@@ -70,9 +70,9 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     });
     expect(inputs["egress_probe"]?.default).toBe(false);
     expect(Object.fromEntries(Object.entries(jobs).map(([id, j]) => [id, j.if]))).toEqual({
-      install: guard, agent: guard, publish: `${guard} && !inputs.egress_probe`, dispatch: `${guard} && !inputs.egress_probe`,
+      install: guard, agent: guard, publish: `${guard} && !inputs.egress_probe`,
     });
-    expect([job("agent").needs, job("publish").needs, job("dispatch").needs]).toEqual(["install", "agent", "publish"]);
+    expect([job("agent").needs, job("publish").needs]).toEqual(["install", "agent"]);
   });
 
   it("SPEC-001-R83 checks every input in the first step, with the patterns producer.ts uses, before any step uses one", () => {
@@ -462,6 +462,7 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
       at('[ "$scope" = "scope ok" ] || { echo "CHECK producer FAILED: scope not confirmed"; exit 1; }'),
       at('node ../trusted/scripts/ci/producer.ts message "$RUNNER_TEMP/message.txt"'), at("git -c user.name="),
       at('git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" push origin "HEAD:refs/heads/candidate/${TASK}"'),
+      at('echo "scripts/bootstrap/land.sh --delivery candidate/${TASK}"'),
     ];
     expect(order.every((i, n) => i >= 0 && (n === 0 || i > (order[n - 1] ?? -1)))).toBe(true);
     expect(push.run).not.toMatch(/--force|\s-f\s|\+HEAD/);
@@ -579,15 +580,10 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     }
   });
 
-  it("SPEC-001-R209 starts pipeline.yml on the candidate branch from a job that holds only actions: write and checks out nothing", () => {
-    const dispatch = job("dispatch");
-    expect(dispatch.permissions).toEqual({ actions: "write" });
-    expect(dispatch.steps.map((s) => s.uses)).toEqual([undefined]);
-    const run = dispatch.steps[0]?.run ?? "";
-    expect(run).toContain('gh workflow run pipeline.yml --repo "$REPO" --ref "$BRANCH"');
-    expect(dispatch.steps[0]?.env?.["BRANCH"]).toBe("${{ needs.publish.outputs.branch }}");
-    expect(dispatch.steps[0]?.env?.["BRANCH_PATTERN"]).toBe(`^candidate/${TASK_ID.source.slice(1)}`);
-    expect(job("publish").outputs?.["branch"]).toBe("${{ steps.push.outputs.branch }}");
+  it("SPEC-001-R209 starts no workflow run: no job holds actions: write or runs gh workflow run", () => {
+    expect(Object.entries(jobs).filter(([, j]) => typeof j.permissions === "object" && j.permissions["actions"] !== undefined).map(([id]) => id)).toEqual([]);
+    expect(Object.values(jobs).flatMap((j) => j.steps).filter((s) => /\bgh\s+workflow\s+run\b/.test(s.run ?? "")).map((s) => s.name)).toEqual([]);
+    expect(Object.keys(jobs)).toEqual(["install", "agent", "publish"]);
   });
 
   it("SPEC-001-R41 producer.yml defines no job named checks and grants neither checks: write nor statuses: write", () => {
@@ -595,6 +591,6 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     const granted = Object.values(jobs).map((j) => j.permissions).filter((p) => typeof p === "object" && (p["checks"] !== undefined || p["statuses"] !== undefined));
     expect(granted).toEqual([]);
     const writes = Object.fromEntries(Object.entries(jobs).map(([id, j]) => [id, Object.entries(typeof j.permissions === "object" ? j.permissions : {}).filter(([, v]) => v === "write").map(([k]) => k)]));
-    expect(writes).toEqual({ install: [], agent: ["id-token"], publish: ["contents"], dispatch: ["actions"] });
+    expect(writes).toEqual({ install: [], agent: ["id-token"], publish: ["contents"] });
   });
 });

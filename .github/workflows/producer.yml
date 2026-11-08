@@ -1,6 +1,7 @@
-# The runner producer (Tracer 2, slice T2; SPEC-001-R83, R85 to R89, R207 to R209). Only the owner starts it.
+# The runner producer (Tracer 2, slice T2; SPEC-001-R83, R85 to R89, R207, R208). Only the owner starts it.
 # install fetches the dependencies; agent runs Claude Code headless on Bedrock with model access only, in its sandbox,
-# and returns a patch; publish, with no agent, pushes it to candidate/<task>; dispatch starts pipeline.yml there.
+# and returns a patch; publish, with no agent, pushes it to candidate/<task>. That push starts no run, so the owner
+# lands it with scripts/bootstrap/land.sh --delivery, whose push run reports the checks main counts (SPEC-001-R210).
 # No job holds both the agent and a write token. Until slice T3, the prompt input stands in for a signed task file.
 name: producer
 
@@ -287,8 +288,6 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write # push candidate/<task>; this job runs no agent
-    outputs:
-      branch: ${{ steps.push.outputs.branch }}
     steps:
       # trusted runs scripts/ci/producer.ts; work takes the patch. Nothing from the patch runs.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -329,26 +328,5 @@ jobs:
           auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           echo "::add-mask::${auth}"
           git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" push origin "HEAD:refs/heads/candidate/${TASK}"
-          echo "branch=candidate/${TASK}" >> "$GITHUB_OUTPUT"
-          echo "Pushed $(git rev-parse HEAD) to candidate/${TASK}."
-
-  dispatch:
-    name: start the pipeline on the candidate branch
-    needs: publish
-    if: github.ref == 'refs/heads/main' && github.actor_id == '1619259' && github.triggering_actor == github.actor && !inputs.egress_probe
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      actions: write # dispatch pipeline.yml on the candidate branch
-    steps:
-      - name: Start pipeline.yml on the branch, because a push made with GITHUB_TOKEN starts no run (SPEC-001-R209)
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          BRANCH: ${{ needs.publish.outputs.branch }}
-          BRANCH_PATTERN: "^candidate/TASK-[A-Z0-9-]{1,32}$"
-        run: |
-          [[ "$BRANCH" =~ $BRANCH_PATTERN ]] || { echo "CHECK producer FAILED: branch"; exit 1; }
-          gh workflow run pipeline.yml --repo "$REPO" --ref "$BRANCH"
-          echo "Started pipeline.yml on ${BRANCH}. To find its run:"
-          echo "gh run list --repo ${REPO} --workflow pipeline.yml --branch ${BRANCH} --limit 1"
+          echo "Pushed $(git rev-parse HEAD) to candidate/${TASK}. That push starts no run. To land it (SPEC-001-R210):"
+          echo "scripts/bootstrap/land.sh --delivery candidate/${TASK}"

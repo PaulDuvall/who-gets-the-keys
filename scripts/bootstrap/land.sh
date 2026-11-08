@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Lands one staged batch of protected files as one approver-signed commit, through a candidate branch (SPEC-001-R41).
+# Lands one staged batch of protected files as one approver-signed commit, through a candidate branch (SPEC-001-R41),
+# or one runner producer delivery, unsigned, through the owner's own push (SPEC-001-R210).
 # Runs on macOS's bash 3.2 and on Linux: no mapfile, no associative arrays, no case-changing expansions, and every
 # array is either known to be non-empty or read by index under a counter.
 set -euo pipefail
@@ -7,6 +8,7 @@ set -euo pipefail
 usage() {
   echo "usage: scripts/bootstrap/land.sh <batch dir> [--stop-before-main]"
   echo "       scripts/bootstrap/land.sh --to-main <sha> <candidate branch>"
+  echo "       scripts/bootstrap/land.sh --delivery candidate/<task>"
   echo "  Lands one staged batch, for example proposals/phase-1, as one signed commit. It reads <batch dir>/LAND.txt,"
   echo "  moves each file into place, shows the diff and asks before signing. Then it pushes that commit to"
   echo "  candidate/land-<batch name>, waits for its pipeline run, pushes the same commit to main and deletes the"
@@ -14,6 +16,9 @@ usage() {
   echo "  --stop-before-main  stop once the candidate run passes, and print the --to-main command that finishes"
   echo "  --to-main           finish a stopped landing: check the candidate run, push that commit to main, watch"
   echo "                      main's run, then delete the candidate branch"
+  echo "  --delivery          land a runner producer delivery: show it, and on a yes push the same commit to"
+  echo "                      candidate/<task>-owner, whose push run reports the checks main counts, then finish as"
+  echo "                      --to-main does. The producer's own push starts no run (SPEC-001-R210)"
   echo "  LAND.txt is plain ASCII data, one \"key: value\" per line. Blank lines and lines that start with # are skipped."
   echo "  message: <commit subject>              exactly one"
   echo "  spec: <requirement ID>                 one or more; each becomes a Spec: trailer"
@@ -103,15 +108,37 @@ find_run() {
   return 1
 }
 
-# finish_main <sha> <candidate branch>: moves main to that exact commit, watches main's run, deletes the candidate branch.
+# delete_if_at <branch> <sha>: deletes the branch on origin only while it still holds that commit, so a commit pushed to
+# it meanwhile is kept, and says what happened.
+delete_if_at() {
+  local branch="$1" sha="$2" tip
+  tip="$(git ls-remote origin "refs/heads/${branch}" 2>/dev/null | cut -f1 || true)"
+  if [ "$tip" = "$sha" ] && git push -q origin --delete "$branch"; then
+    say "Deleted ${branch}."
+  elif [ -n "$tip" ] && [ "$tip" != "$sha" ]; then
+    say "Kept ${branch}: it now holds ${tip:0:12}, not $(git rev-parse --short "$sha"), so a commit was pushed to it since." \
+      "Check that commit, then delete the branch with:" "git push origin --delete ${branch}"
+  else
+    say "Could not delete ${branch}. If it is still there, delete it with:" "git push origin --delete ${branch}"
+  fi
+}
+
+# finish_main <sha> <candidate branch> [<other branch>]: moves main to that exact commit, deletes <other branch> if
+# given, watches main's run, then deletes the candidate branch.
 finish_main() {
-  local sha="$1" branch="$2" short run="" status=0 tip
+  local sha="$1" branch="$2" other="${3:-}" short run="" status=0
   short="$(git rev-parse --short "$sha")"
   if ! git push origin "${sha}:refs/heads/main"; then
+    if [ -n "$other" ]; then
+      fail "main refused ${short}, so nothing changed on main, in this clone or on ${branch} and ${other}." \
+        "If main has moved since the producer made ${short}, delete both branches, then dispatch the task again:" \
+        "git push origin --delete ${branch} ${other}"
+    fi
     fail "main refused ${short}, so nothing changed on main and ${branch} is still there." \
       "If main has moved since this commit was made, land the batch again from the new main. First drop this attempt:" \
       "$(drop_commands "$branch")"
   fi
+  [ -z "$other" ] || delete_if_at "$other" "$sha"
   say "" "main is at ${short}." \
     "The deploy to the sandbox now waits for your approval in GitHub: approve the sandbox deployment in main's run."
   if run="$(find_run main "$sha")"; then
@@ -124,16 +151,7 @@ finish_main() {
       "gh run list --workflow pipeline.yml --branch main"
     status=2
   fi
-  # Delete the candidate branch only while it still holds this commit, so a commit pushed to it meanwhile is kept.
-  tip="$(git ls-remote origin "refs/heads/${branch}" 2>/dev/null | cut -f1 || true)"
-  if [ "$tip" = "$sha" ] && git push -q origin --delete "$branch"; then
-    say "Deleted ${branch}."
-  elif [ -n "$tip" ] && [ "$tip" != "$sha" ]; then
-    say "Kept ${branch}: it now holds ${tip:0:12}, not ${short}, so a commit was pushed to it since." \
-      "Check that commit, then delete the branch with:" "git push origin --delete ${branch}"
-  else
-    say "Could not delete ${branch}. If it is still there, delete it with:" "git push origin --delete ${branch}"
-  fi
+  delete_if_at "$branch" "$sha"
   case "$status" in
     1)
       say "main's run did not pass. The commit is on main, so fix the problem in a new commit on top." \
@@ -146,10 +164,29 @@ finish_main() {
 }
 
 # watch_candidate <branch> <sha>: waits for the candidate run and watches it; on failure says how to go on and exits.
+# In delivery mode (delivery_branch set) the way on is the same --delivery command, or a new dispatch, never a commit
+# on top: the delivery is the producer's patch.
 watch_candidate() {
   local branch="$1" sha="$2" short run
   short="$(git rev-parse --short "$sha")"
   say "Waiting for the pipeline run on ${branch} for ${short}."
+  if [ -n "$delivery_branch" ]; then
+    if ! run="$(find_run "$branch" "$sha")"; then
+      fail "No pipeline run on ${branch} for ${short} after 5 minutes. main has not moved." \
+        "To wait for it again, run the same command:" "scripts/bootstrap/land.sh --delivery ${delivery_branch}"
+    fi
+    say "Pipeline run ${run} on ${branch}. If you stop watching, finish later with the same command:" \
+      "scripts/bootstrap/land.sh --delivery ${delivery_branch}"
+    if ! gh run watch "$run" --exit-status; then
+      fail "" "The pipeline run ${run} on ${branch} failed, so main has not moved." \
+        "The delivery is the producer's patch, so do not fix it with a commit on top. To see why it failed:" \
+        "gh run view ${run} --log-failed" \
+        "Then delete both branches and dispatch the task again with a corrected prompt:" \
+        "git push origin --delete ${branch} ${delivery_branch}"
+    fi
+    candidate_run="$run"
+    return 0
+  fi
   if ! run="$(find_run "$branch" "$sha")"; then
     fail "No pipeline run on ${branch} for ${short} after 5 minutes. main has not moved." \
       "When the run has passed, finish with:" "scripts/bootstrap/land.sh --to-main ${sha} ${branch}"
@@ -193,6 +230,11 @@ case "${1:-}" in
     sha="$2"
     branch="$3"
     ;;
+  --delivery)
+    [ $# -eq 2 ] || usage_error
+    mode=delivery
+    branch="$2"
+    ;;
   ""|-*) usage_error ;;
   *)
     mode=land
@@ -207,6 +249,7 @@ esac
 
 need_tools
 candidate_run=""
+delivery_branch=""
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/land.XXXXXX")"
 moved=0
@@ -247,6 +290,54 @@ if [ "$mode" = to-main ]; then
   fi
   watch_candidate "$branch" "$sha"
   finish_main "$sha" "$branch"
+  exit 0
+fi
+
+# Delivery mode: the publish job pushed candidate/<task> with the GITHUB_TOKEN, which starts no run, and checks from a
+# workflow_dispatch run do not count for main's ruleset. The owner's push of the same commit starts a push run that
+# does (SPEC-001-R210). Everything is checked before anything is pushed.
+if [ "$mode" = delivery ]; then
+  task="${branch#candidate/}"
+  id="${task#TASK-}"
+  case "$branch:$id" in
+    candidate/TASK-*:*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-]*) bad=1 ;;
+    candidate/TASK-?*:?*) bad=0 ;;
+    *) bad=1 ;;
+  esac
+  [ "$bad" = 0 ] && [ "${#id}" -le 32 ] || fail "${branch} is not a producer branch: it must be candidate/TASK- then 1 to 32 of A-Z, 0-9 and -."
+  owner_branch="${branch}-owner"
+  git fetch -q origin
+  sha="$(git ls-remote origin "refs/heads/${branch}" | cut -f1)"
+  [ -n "$sha" ] || fail "${branch} is not on origin. The producer's publish job prints the branch it pushed."
+  git cat-file -e "${sha}^{commit}" 2>/dev/null || fail "This clone does not have ${sha}. Run git fetch origin, then try again."
+  short="$(git rev-parse --short "$sha")"
+  [ "$(git rev-parse refs/remotes/origin/main)" != "$sha" ] || fail "main is already at ${short}. Delete the producer branch with:" \
+    "git push origin --delete ${branch}"
+  if ! git merge-base --is-ancestor refs/remotes/origin/main "$sha"; then
+    fail "main has moved since the producer made ${short}, so main cannot move to it." \
+      "Dispatch the task again from the new main. First delete this delivery:" "git push origin --delete ${branch}"
+  fi
+  tasks="$(git log -1 --format='%(trailers:key=Task,valueonly,separator=%x2C)' "$sha")"
+  [ "$tasks" = "$task" ] || fail "${short} has the Task trailer \"${tasks}\", not \"${task}\", so it is not this task's delivery. Nothing was pushed."
+  held="$(git ls-remote origin "refs/heads/${owner_branch}" | cut -f1)"
+  if [ -n "$held" ] && [ "$held" != "$sha" ]; then
+    fail "${owner_branch} already holds ${held:0:12}, not ${short}. Check it, then delete it with:" \
+      "git push origin --delete ${owner_branch}"
+  fi
+  say "Producer delivery ${short} on ${branch}:" ""
+  git --no-pager log -1 --format='%B' "$sha" | shown
+  git --no-pager show --stat --no-renames --format= "$sha" | shown
+  say ""
+  if ask "Show the full diff in a pager?"; then
+    git show --no-renames --format= "$sha" || true
+  fi
+  ask "Push ${short} to ${owner_branch}, so its checks count for main, and then move main to it?" || fail "You chose not to land it. Nothing was pushed."
+  if [ -z "$held" ] && ! git push -q origin "${sha}:refs/heads/${owner_branch}"; then
+    fail "The push to ${owner_branch} failed, so nothing changed. Run the same command again."
+  fi
+  delivery_branch="$branch"
+  watch_candidate "$owner_branch" "$sha"
+  finish_main "$sha" "$owner_branch" "$branch"
   exit 0
 fi
 

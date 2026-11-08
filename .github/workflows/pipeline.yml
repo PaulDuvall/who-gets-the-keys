@@ -1,13 +1,12 @@
 # The only path to the sandbox (SPEC-001). checks → build → attest → receipt → deploy.
 # No caches in attest or deploy. The deploy role trusts only this file, in environment sandbox.
-# workflow_dispatch exists for producer.yml, whose GITHUB_TOKEN push starts no run. A dispatched run on any ref but
-# candidate/** fails checks in its first step, never skips it: a skipped required check counts as passed (SPEC-001-R209).
+# Pushes only (SPEC-001-R40). The checks job has no job-level condition, and every other job needs it: GitHub reports a
+# job that a condition skips as a success, which satisfies a required check.
 name: pipeline
 
 on:
   push:
     branches: [main, "candidate/**"]
-  workflow_dispatch:
 
 permissions: {}
 cache-mode: none
@@ -23,12 +22,6 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Fail a dispatched run on any ref but candidate/** (SPEC-001-R209)
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [[ "$GITHUB_REF" != refs/heads/candidate/?* ]]; then
-            echo "CHECK dispatch FAILED: pipeline.yml runs a dispatched run only on a candidate/ branch"
-            exit 1
-          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
