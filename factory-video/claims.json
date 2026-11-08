@@ -27,7 +27,7 @@
       "id": "C03",
       "claim": "The agent can write anything but ship nothing: it holds no keys and cannot commit, push to main, tag or sign",
       "labels": ["AGENT SANDBOX", "The agent can write anything.", "It can't ship anything."],
-      "built": ["SPEC-001-R39", "SPEC-001-R85", "SPEC-001-R88", "SPEC-001-R89", "SPEC-001-R208"]
+      "built": ["SPEC-001-R12", "SPEC-001-R85", "SPEC-001-R88", "SPEC-001-R89", "SPEC-001-R208"]
     },
     {
       "id": "C04",
@@ -36,13 +36,15 @@
       "labels": ["cloud session one run per task"],
       "narration": [2],
       "built": ["SPEC-001-R83", "SPEC-001-R85"],
-      "planned": ["SPEC-001-R108"]
+      "planned": ["SPEC-001-R66"],
+      "open": ["who-gets-the-keys-j5t"]
     },
     {
       "id": "C05",
       "claim": "Inside the session, a hook flags a test that asserts nothing, and the agent fixes it",
+      "note": "Built as a project hook: .claude/settings.json runs hook.mjs expect-expect after each Edit or Write. No requirement names the hook, and the runner producer turns hooks off (SPEC-001-R87)",
       "labels": ["In-run checks", "Empty tests"],
-      "built": ["SPEC-001-R19", { "file": ".claude/hooks/hook.mjs", "contains": "vitest/expect-expect" }]
+      "built": [{ "file": ".claude/settings.json", "contains": "hook.mjs expect-expect" }, { "file": ".claude/hooks/hook.mjs", "contains": "vitest/expect-expect" }]
     },
     {
       "id": "C06",
@@ -78,7 +80,7 @@
       "note": "Built for runner producer patches; the task-scoped pipeline check is planned",
       "labels": ["Scope"],
       "built": ["SPEC-001-R208"],
-      "planned": ["SPEC-001-R67"]
+      "planned": ["SPEC-001-R67", "SPEC-001-R68", "SPEC-001-R72"]
     },
     {
       "id": "C11",
@@ -90,7 +92,7 @@
       "id": "C12",
       "claim": "Scoped AI checks can fail a change, never pass one, and a failure sticks to the change",
       "labels": ["Validator", "checks of record · AI can only fail"],
-      "planned": ["SPEC-001-R144", "SPEC-001-R146", "SPEC-001-R147", "SPEC-001-R148", "SPEC-001-R152"]
+      "planned": ["SPEC-001-R144", "SPEC-001-R145", "SPEC-001-R146", "SPEC-001-R147", "SPEC-001-R148", "SPEC-001-R149", "SPEC-001-R152"]
     },
     {
       "id": "C13",
@@ -103,13 +105,13 @@
       "id": "C14",
       "claim": "Only the pipeline signs the evidence and holds the deploy key",
       "labels": ["pipeline signs the evidence, holds the key", "signed by"],
-      "built": ["SPEC-001-R48", "SPEC-001-R17", "SPEC-001-R50", "SPEC-001-R56"]
+      "built": ["SPEC-001-R48", "SPEC-001-R28", "SPEC-001-R50", "SPEC-001-R56"]
     },
     {
       "id": "C15",
       "claim": "Where the tier requires it, an engineer who did not write the spec checks staging, then signs the release",
       "labels": ["signs the release, by tier"],
-      "planned": ["SPEC-001-R120", "SPEC-001-R124", "SPEC-001-R136", "SPEC-001-R165"]
+      "planned": ["SPEC-001-R120", "SPEC-001-R122", "SPEC-001-R136", "SPEC-001-R165"]
     },
     {
       "id": "C16",
@@ -130,22 +132,22 @@
       "labels": ["Engineer checks it against the specs"],
       "narration": [7, 8],
       "built": ["SPEC-001-R12", "SPEC-001-R83"],
-      "planned": ["SPEC-001-R64", "SPEC-001-R125", "SPEC-001-R126"]
+      "planned": ["SPEC-001-R64", "SPEC-001-R65", "SPEC-001-R66", "SPEC-001-R125", "SPEC-001-R126"]
     },
     {
       "id": "C19",
       "claim": "An issue's free text is a quarantined notes field that no agent receives",
       "labels": ["notes: quarantined"],
-      "planned": ["SPEC-001-R162", "SPEC-001-R163", "SPEC-001-R127"]
+      "planned": ["SPEC-001-R162", "SPEC-001-R163"]
     },
     {
       "id": "C20",
       "claim": "The receipt records where a change began and traces it from intent to deploy",
-      "note": "Built as SPEC-001-R55's seven lines (COMMIT, FILES, AGENT, MODEL, SPEC, SIGNED, VERIFIED); the video's rows and the ORIGIN line are planned",
+      "note": "Built as SPEC-001-R55's seven lines (COMMIT, FILES, AGENT, MODEL, SPEC, SIGNED, VERIFIED), with MODEL always 'not recorded'. INTENT, TASK and AUTHOR are planned for Tracer 2 slice T3; FACTORY, the checks, DEPLOY, ORIGIN and TRIGGER come later",
       "labels": ["RECEIPT", "factory", "intent", "task", "author", "checks", "deploy"],
       "narration": [10],
       "built": ["SPEC-001-R55", "SPEC-001-R45"],
-      "planned": ["SPEC-001-R118", "SPEC-001-R119", "SPEC-001-R161"]
+      "planned": ["SPEC-001-R46", "SPEC-001-R63", "SPEC-001-R69", "SPEC-001-R70", "SPEC-001-R71", "SPEC-001-R79", "SPEC-001-R98", "SPEC-001-R118", "SPEC-001-R119", "SPEC-001-R161"]
     },
     {
       "id": "C21",
@@ -158,7 +160,7 @@
       "id": "C22",
       "claim": "Only an alarm named in the signed policy can start an approved task",
       "narration": [13],
-      "planned": ["SPEC-001-R125", "SPEC-001-R126", "SPEC-001-R128"]
+      "planned": ["SPEC-001-R125", "SPEC-001-R126"]
     },
     {
       "id": "C23",
