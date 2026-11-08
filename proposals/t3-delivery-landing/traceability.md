@@ -67,6 +67,7 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R190 | `test/checks.test.ts`, `test/checks-before-main.test.ts` | deploy-tip | — |
 | SPEC-001-R207 | `test/producer.test.ts` | test | — |
 | SPEC-001-R208 | `test/producer.test.ts` | test | — |
+| SPEC-001-R209 | `test/producer.test.ts` | test | — |
 | SPEC-001-R210 | `test/land-delivery.test.ts` | test | — |
 | SPEC-002-R1 | `test/video.test.ts` | test | — |
 | SPEC-002-R2 | `test/video.test.ts` | test | — |

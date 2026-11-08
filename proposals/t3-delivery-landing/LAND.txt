@@ -1,15 +1,18 @@
 # Owner decision of 2026-11-07, option (a) of backlog item who-gets-the-keys-nlq: a runner producer delivery lands by
 # the owner's own push. GitHub does not count checks from a workflow_dispatch run for a branch ruleset ("Troubleshooting
 # required status checks"; docs/verification.md, "Tracer 2: checks from a dispatched run"), so R209's dispatch job could
-# never make a delivery landable. This withdraws R209: producer.yml loses its dispatch job and with it actions: write,
-# and pipeline.yml loses its workflow_dispatch trigger and the guard step. R40 takes over R209's rule that no condition
-# can skip checks. R208's publish job prints the landing command. R210 adds land.sh --delivery: it shows the delivery,
-# and on a yes pushes the same commit to candidate/<task>-owner, waits for that push run, then moves main.
+# never make a delivery landable. R209 now forbids the dispatch: producer.yml loses its dispatch job and with it
+# actions: write, and pipeline.yml loses its workflow_dispatch trigger and the guard step. R209 is amended, not
+# withdrawn: the first try, e5ed597, failed the trace check, because 4812f27's Spec trailer names R209. R40 takes
+# over R209's rule that no condition can skip checks. R208's publish job prints the landing command. R210 adds
+# land.sh --delivery: it shows the delivery, and on a yes pushes the same commit to candidate/<task>-owner, waits for
+# that push run, then moves main.
 # No AWS change. Order: the preflight in docs/notes/tracer-2-t3-landing.md, then land.sh, then main's deploy, which
 # changes no Lambda. The copies were staged on top of d8b9262, so land.sh should print no "Changed since by" warning.
-message: spec: land producer deliveries by the owner's push, and withdraw R209
+message: spec: land producer deliveries by the owner's push, and stop dispatching pipeline.yml
 spec: SPEC-001-R40
 spec: SPEC-001-R208
+spec: SPEC-001-R209
 spec: SPEC-001-R210
 requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R209 |
 requires: .github/workflows/producer.yml dispatch starts pipeline.yml there.

@@ -580,6 +580,12 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     }
   });
 
+  it("SPEC-001-R209 starts no workflow run: no job holds actions: write or runs gh workflow run", () => {
+    expect(Object.entries(jobs).filter(([, j]) => typeof j.permissions === "object" && j.permissions["actions"] !== undefined).map(([id]) => id)).toEqual([]);
+    expect(Object.values(jobs).flatMap((j) => j.steps).filter((s) => /\bgh\s+workflow\s+run\b/.test(s.run ?? "")).map((s) => s.name)).toEqual([]);
+    expect(Object.keys(jobs)).toEqual(["install", "agent", "publish"]);
+  });
+
   it("SPEC-001-R41 producer.yml defines no job named checks and grants neither checks: write nor statuses: write", () => {
     expect(Object.entries(jobs).filter(([id, j]) => (j.name ?? id).trim().toLowerCase() === "checks" || (j.name ?? "").includes("${{"))).toEqual([]);
     const granted = Object.values(jobs).map((j) => j.permissions).filter((p) => typeof p === "object" && (p["checks"] !== undefined || p["statuses"] !== undefined));
