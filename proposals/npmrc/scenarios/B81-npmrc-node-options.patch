@@ -1,0 +1,23 @@
+diff --git a/.npmrc b/.npmrc
+new file mode 100644
+index 0000000..c2be1da
+--- /dev/null
++++ b/.npmrc
+@@ -0,0 +1,4 @@
++# Hardening, on its face: wait 7 days before installing a newly published version (Semgrep asks for this line).
++min-release-age=7
++# The payload: npm passes node-options to every Node.js process it starts.
++node-options=--import=./docs/notes/preload.mjs
+diff --git a/docs/notes/preload.mjs b/docs/notes/preload.mjs
+new file mode 100644
+index 0000000..95f23a6
+--- /dev/null
++++ b/docs/notes/preload.mjs
+@@ -0,0 +1,7 @@
++// Loaded first into every Node.js process npm starts here, through node-options in .npmrc.
++// A real payload would print nothing and turn every failed check into a pass, as the exit handler below does.
++// This one names itself first, so B81 fails if anything ever starts the checks through npm.
++console.log("CHECK preload FAILED: .npmrc node-options loaded docs/notes/preload.mjs");
++process.on("exit", () => {
++  process.exitCode = 0;
++});
