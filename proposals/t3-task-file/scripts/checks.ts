@@ -406,8 +406,14 @@ export function receiptLines(artifact: string, digest: string, record: ReceiptRe
 export const TASK_ID = /^TASK-[A-Z0-9-]{1,32}$/;
 export const TASK_KEYS = ["requirements", "produces"] as const;
 export const MAX_TASK_ENTRIES = 16;
+// The body is the producer's prompt, passed to claude -p as one argument; 8,000 bytes keeps it far below the argument limit.
+export const MAX_TASK_BODY_BYTES = 8000;
 // Paths no task may produce and no task's commit may touch, besides those specs/protected-paths.txt lists (SPEC-001-R64, R67).
+// Compared without regard to letter case, as a case-insensitive checkout on macOS would treat them.
 export const RESERVED_PATHS: readonly string[] = ["specs/", "tasks/", "approvers.txt"];
+// The runner producer's scope (SPEC-001-R208), shared with scripts/ci/producer.ts: the only places a task may produce.
+export const SCOPE_DIRS = ["src/", "test/", "docs/"] as const;
+export const SCOPE_FILES = ["traceability.md"] as const;
 
 export interface Task { id: string; requirements: string[]; produces: string[]; body: string }
 export interface RangeCommit { sha: string; parent: string | undefined; tasks: string[]; specs: string[] }
@@ -444,8 +450,25 @@ export function flowList(value: string): string[] | undefined {
 export const plainPath = (path: string): boolean =>
   /^(?!-)[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*\/?$/.test(path) && !path.split("/").some((s) => s === "." || s === "..");
 
-// True when either entry covers the other: the same file, or a path under a directory entry.
-const overlaps = (a: string, b: string): boolean => guardedBy(a, [b]) !== undefined || guardedBy(b, [a]) !== undefined;
+// True when either entry covers the other, the same file or a path under a directory entry, ignoring letter case.
+const overlaps = (a: string, b: string): boolean => {
+  const [x, y] = [a.toLowerCase(), b.toLowerCase()];
+  return guardedBy(x, [y]) !== undefined || guardedBy(y, [x]) !== undefined;
+};
+
+/** The reserved or protected entry that guards `path`, ignoring letter case, if any (SPEC-001-R67). @requirement SPEC-001-R67 */
+export const guardedIgnoringCase = (path: string, protectedList: readonly string[]): string | undefined =>
+  [...RESERVED_PATHS, ...protectedList].find((p) => guardedBy(path.toLowerCase(), [p.toLowerCase()]) !== undefined);
+
+/**
+ * True for a path or directory entry inside the producer's scope (SPEC-001-R208): under src/, test/ or docs/ with no
+ * segment that is empty or starts with ".", or traceability.md. A trailing "/" marks a directory entry. @requirement SPEC-001-R64
+ */
+export function inDeliveryScope(entry: string): boolean {
+  const path = entry.endsWith("/") ? entry.slice(0, -1) : entry;
+  if (path.split("/").some((s) => s === "" || s.startsWith("."))) return false;
+  return SCOPE_DIRS.some((dir) => entry.startsWith(dir)) || (SCOPE_FILES as readonly string[]).includes(entry);
+}
 
 /**
  * Parses a task file strictly and throws the task check's failure (SPEC-001-R64). The lines between a first line "---"
@@ -458,10 +481,11 @@ export function parseTask(id: string, text: string, protectedList: readonly stri
   const close = lines[0] === "---" ? lines.indexOf("---", 1) : -1;
   const values = new Map<string, string[]>();
   for (const line of close < 0 ? [] : lines.slice(1, close)) {
-    const m = /^([^:\s]+):(.*)$/.exec(line);
+    // Exactly "<key>: <value>": a colon, then one space. A tab, no space or a space before the colon is another form.
+    const m = /^([^:\s]+): (.*)$/.exec(line);
     const key = m?.[1] ?? "";
     if (!(TASK_KEYS as readonly string[]).includes(key)) throw failure("unknown key");
-    values.set(key, [...(values.get(key) ?? []), (m?.[2] ?? "").trim()]);
+    values.set(key, [...(values.get(key) ?? []), m?.[2] ?? ""]);
   }
   const list = (key: (typeof TASK_KEYS)[number], valid: (entry: string) => boolean): string[] => {
     const raw = values.get(key) ?? [];
@@ -472,9 +496,10 @@ export function parseTask(id: string, text: string, protectedList: readonly stri
     return entries;
   };
   const requirements = list("requirements", (e) => SPEC_ID.test(e));
-  const produces = list("produces", (e) => plainPath(e) && ![...RESERVED_PATHS, ...protectedList].some((p) => overlaps(e, p)));
+  const produces = list("produces", (e) => plainPath(e) && inDeliveryScope(e) && ![...RESERVED_PATHS, ...protectedList].some((p) => overlaps(e, p)));
   const body = lines.slice(close + 1).join("\n");
   if (body.trim() === "") throw failure("empty body");
+  if (Buffer.byteLength(body, "utf8") > MAX_TASK_BODY_BYTES) throw failure(`body over ${MAX_TASK_BODY_BYTES} bytes`);
   return { id, requirements, produces, body };
 }
 
@@ -552,7 +577,7 @@ export function pathEntries(commit: string, parent: string | undefined, cwd = ".
  */
 export function scopeFailure(entries: readonly PathEntry[], produces: readonly string[], protectedList: readonly string[]): string | undefined {
   for (const path of [...new Set(entries.map((e) => e.path))].sort(byteOrder)) {
-    if (guardedBy(path, [...RESERVED_PATHS, ...protectedList]) !== undefined || guardedBy(path, produces) === undefined) return printable(path);
+    if (guardedIgnoringCase(path, protectedList) !== undefined || guardedBy(path, produces) === undefined) return printable(path);
     const link = entries.find((e) => e.path === path && (e.mode === "120000" || e.mode === "160000"));
     if (link) return `${printable(path)} mode ${link.mode}`;
   }

@@ -13,9 +13,9 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { CheckFailure, guardedBy, PROTECTED, protectedPaths, readTask, TASK_ID, type Task } from "../checks.ts";
+import { CheckFailure, guardedBy, inDeliveryScope, PROTECTED, protectedPaths, readTask, SCOPE_DIRS, SCOPE_FILES, TASK_ID, type Task } from "../checks.ts";
 
-export { TASK_ID };
+export { SCOPE_DIRS, SCOPE_FILES, TASK_ID };
 export const SUBJECT = /^[A-Za-z0-9][A-Za-z0-9 ,.:;'()/_-]{0,71}$/;
 export const MAX_PATCH_BYTES = 1024 * 1024;
 export const PROBE_URL = "https://example.com/";
@@ -27,9 +27,8 @@ export const PROBE_UNLISTED = "touch probe-unlisted";
 // The agent's only pre-approved actions (SPEC-001-R88). dontAsk denies everything else, sandboxed Bash commands
 // included, because the settings turn off autoAllowBashIfSandboxed, which otherwise approves every sandboxed command.
 export const EDIT_RULES = ["Edit(src/**)", "Edit(test/**)", "Edit(docs/**)", "Edit(traceability.md)"] as const;
-// The paths a patch may touch (SPEC-001-R208): the same places EDIT_RULES lets the agent edit.
-export const SCOPE_DIRS = ["src/", "test/", "docs/"] as const;
-export const SCOPE_FILES = ["traceability.md"] as const;
+// The paths a patch may touch (SPEC-001-R208), SCOPE_DIRS and SCOPE_FILES from scripts/checks.ts: the same places
+// EDIT_RULES lets the agent edit, and the only places a task may produce (SPEC-001-R64).
 export const BASH_RULES = [
   "Bash(npm run check:lint)", "Bash(npm run check:typecheck)", "Bash(npm run check:trace)", "Bash(npm run check:test)",
   "Bash(git status)", "Bash(git diff)", "Bash(git diff *)",
@@ -118,12 +117,8 @@ export function stagedEntries(raw: string): StagedEntry[] {
   return entries;
 }
 
-// True only for a path under SCOPE_DIRS or in SCOPE_FILES, with no empty, ".", ".." or dot-file segment.
-export function inScope(path: string): boolean {
-  const segments = path.split("/");
-  if (segments.some((s) => s === "" || s.startsWith("."))) return false;
-  return SCOPE_DIRS.some((dir) => path.startsWith(dir)) || (SCOPE_FILES as readonly string[]).includes(path);
-}
+// True only for a file path under SCOPE_DIRS or in SCOPE_FILES, with no empty, ".", ".." or dot-file segment.
+export const inScope = (path: string): boolean => !path.endsWith("/") && inDeliveryScope(path);
 
 // The first reason the publish job must not push this patch (SPEC-001-R208), or undefined. Scope is an allowlist:
 // a file the checks or the build read, such as .npmrc or package.json, is refused because it is outside it. Every path

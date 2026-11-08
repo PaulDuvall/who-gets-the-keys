@@ -1,6 +1,6 @@
 # Tracer 2, slice T3a: a signed task file, and the task and scope checks
 
-Status: staged in `proposals/t3-task-file/`, 2026-11-08, on top of `main` at `9f887da`. Not landed.
+Status: staged in `proposals/t3-task-file/`, 2026-11-08, on top of `7d262bc` (`candidate/factory-video-ledger`: `main` at `9f887da` plus two commits that touch none of the batch's destinations), with the fixes of an independent review. Not landed.
 
 T2's producer takes a free-text `prompt` input "until slice T3". T3a replaces it with an approver-signed task file, `tasks/<ID>.task.md`, and adds two checks that hold a candidate's commits to that file. It is the first half of the T3 row in `docs/notes/tracer-2.md`: "a signed task file under a protected `tasks/` path, a thin scope check". The receipt lines INTENT, TASK, AUTHOR and MODEL (decision 0004's R69 to R71) and `scripts/bootstrap/cloud-session-setup.sh` are not in this batch.
 
@@ -14,7 +14,7 @@ produces: [src/export.ts, test/export.acceptance.test.ts]
 Reject an export request whose columns name the same column twice with a 400, per SPEC-014-R7.
 ```
 
-Exactly two keys, each a YAML flow list on one line of 1 to 16 entries. `requirements` holds requirement IDs that a file under `specs/` defines at the base commit. `produces` holds the paths the delivery may add, change or delete; an entry ending in `/` covers everything under it, as in `specs/protected-paths.txt`, and no entry may cover or lie under `specs/`, `tasks/`, `approvers.txt` or a protected path. The rest of the file is the instruction. `scripts/checks.ts` parses it with a small strict parser, `parseTask`, and no YAML package: anything that is not one of these two lines fails.
+Exactly two keys, each written `<key>: <value>` with one space after the colon, and each value a YAML flow list on one line of 1 to 16 entries. `requirements` holds requirement IDs that a file under `specs/` defines at the base commit. `produces` holds the paths the delivery may add, change or delete; an entry ending in `/` covers everything under it, as in `specs/protected-paths.txt`. Every entry lies within the producer's scope, under `src/`, `test/` or `docs/` with no dot-file segment, or `traceability.md`, and none may cover or lie under `specs/`, `tasks/`, `approvers.txt` or a protected path, compared without regard to letter case. The rest of the file is the instruction, 1 to 8,000 bytes: the producer passes it to `claude -p` as one argument. `scripts/checks.ts` parses it with a small strict parser, `parseTask`, and no YAML package: anything that is not one of these two lines fails.
 
 ## What the batch changes
 
@@ -43,7 +43,7 @@ Requirement IDs: only decision 0004's draft IDs are used, R64 to R68, R72, R73 a
 
 | ID | Lines |
 |---|---|
-| R64 | `CHECK task FAILED: invalid task id`, `<ID> not found`, `<ID> unknown key`, `<ID> invalid requirements`, `<ID> invalid produces`, `<ID> empty body` |
+| R64 | `CHECK task FAILED: invalid task id`, `<ID> not found`, `<ID> unknown key`, `<ID> invalid requirements`, `<ID> invalid produces`, `<ID> empty body`, `<ID> body over 8000 bytes` |
 | R65 | `CHECK task FAILED: <ID> cites unapproved <requirement ID>` |
 | R66 | `CHECK scope FAILED: mixed Task trailers`, `Spec <requirement ID> not in <task ID>`, or the task check's line |
 | R67 | `CHECK scope FAILED: <path>`, `<path> mode 120000`, `<path> mode 160000` |
@@ -58,8 +58,8 @@ Requirement IDs: only decision 0004's draft IDs are used, R64 to R68, R72, R73 a
 |---|---|
 | The real scenario harness, `node scenarios/run.ts B23` and `B24`, in a scratch worktree with the moves applied and committed | `CHECK scope FAILED: src/handler.ts` and `CHECK task FAILED: TASK-B24 cites unapproved SPEC-014-R99`, both `pass`. These are the `expect` values in `scenarios.yaml` |
 | `node scripts/checks.ts task` and `scope` on that scratch commit, whose range from `origin/main` carries no `Task:` trailer | Both pass, silently |
-| `test/task-scope.test.ts`, `test/producer.test.ts`, `test/scenarios.test.ts`, `test/video.test.ts` under a stand-in for `vitest` and `yaml` written for this check, not the real ones | 13, 24, 26 and 23 passed. `checks.test.ts`, `checks-before-main.test.ts`, `receipt.test.ts`, `export.acceptance.test.ts` and `aws-setup.test.ts` give the same results as on `main` under the same stand-in |
-| 17 deliberate defects, one at a time: sort order, duplicate entries, ref preference, mixed trailers, R65, reserved paths, link modes, stray Spec, reading the working tree, empty body, the tasked-commit filter, `outside task`, the producer's task source, one Spec trailer only, the harness's stop after a failing task check, the Task trailer, the video's task file | Each made at least one of those tests fail |
+| `test/task-scope.test.ts`, `test/producer.test.ts`, `test/scenarios.test.ts`, `test/video.test.ts` under a stand-in for `vitest` and `yaml` written for this check, not the real ones | 18, 24, 26 and 23 passed. `checks.test.ts`, `checks-before-main.test.ts`, `receipt.test.ts`, `export.acceptance.test.ts` and `aws-setup.test.ts` give the same results as on `main` under the same stand-in |
+| 17 deliberate defects, one at a time: sort order, duplicate entries, ref preference, mixed trailers, R65, reserved paths, link modes, stray Spec, reading the working tree, empty body, the tasked-commit filter, `outside task`, the producer's task source, one Spec trailer only, the harness's stop after a failing task check, the Task trailer, the video's task file | Each made at least one of those tests fail. So did undoing each review fix below, one at a time |
 | `tsc --noEmit` with TypeScript 6.0.2 from `/opt/node-tools`, `@types/node` 26 and type stubs for `vitest`, `yaml` and the ESLint packages | No error in any changed file; the same stub-caused errors in seven unchanged test files as on `main`. `--noUnusedLocals` finds nothing new |
 | A trace check simulation: (a) Spec trailers against the moved specs, (b) every requirement ID against every test name the stand-in lists, (c) `@requirement` tags | (b) all 87 IDs named. (a) flags only the shallow clone's boundary commit, as on `main`. (c) clean |
 | A full tour built by `buildTour` from the moved `practices.yaml`, `scenarios.yaml` and `explanations.yaml` | 29 steps; B24 under P02, B23 under P24 |
@@ -71,11 +71,30 @@ Requirement IDs: only decision 0004's draft IDs are used, R64 to R68, R72, R73 a
 
 Not run: the real `vitest`, `tsc` with the lockfile's `@types/node` 24, and ESLint with the project's config, because this session may not run `npm ci`; nor under macOS's bash 3.2. The preflight below runs all of them. The PostToolUse ESLint hook reported a false failure on each staged test file: ESLint is not installed here (`ENOENT`).
 
+## Review fixes, 2026-11-08
+
+An independent review of the batch found no critical or high defect. These four low findings are fixed, each with a test whose title names the requirement.
+
+| Finding | Fix | Test |
+|---|---|---|
+| L1. The parser took `requirements:[...]` and `produces:<tab>[...]` | A front matter line is the key, a colon, exactly one space and the value; any other form is `<ID> unknown key` (R64) | "SPEC-001-R64 takes only a colon and one space between key and value, and fails any other form as unknown key" |
+| L3. With the 8,000-byte prompt bound gone, a signed body over about 128 KiB would make `claude -p "$(cat ...)"` fail with "Argument list too long" after credentials were issued | The body is 1 to 8,000 bytes in UTF-8, else `<ID> body over 8000 bytes` (R64). The producer's install step prints the same line, before `npm ci` | "SPEC-001-R64 fails a body over 8,000 bytes, counted in UTF-8, as body over 8000 bytes"; the R83 install-step test |
+| L4. The task check took `produces: [.npmrc]`, `[.gitattributes]` or `[scripts/receipt.ts]`, which the publish scope refuses, and a tasked commit could then edit `.npmrc` through the scope check | Every `produces` entry lies within the producer's scope, `SCOPE_DIRS` and `SCOPE_FILES`, now in `scripts/checks.ts` and re-exported by `scripts/ci/producer.ts` (R64) | "SPEC-001-R64 fails a produces entry outside the producer's scope: ..."; an `.npmrc` case in the R67 test |
+| L5. Reserved and protected paths matched case-sensitively, so `TASKS/` or `Specs/` passed, which a case-insensitive Mac checkout writes into `tasks/` or `specs/` | The task check and the scope check compare them without regard to letter case (R64, R67) | "SPEC-001-R64 compares produces entries with reserved and protected paths without regard to letter case"; "SPEC-001-R67 fails a reserved or protected path whatever its letter case, ..." |
+
+## Known limits, not changed
+
+| Finding | Limit |
+|---|---|
+| M1 | Under the thin R66, a commit escapes the scope check by omitting the `Task:` trailer, or by naming a broader signed task. The signatures check still guards protected paths. The full R66 is the owner decision "Whether interactive sessions may still deliver code", rank 6 in `docs/notes/factory-video-gaps.md` |
+| L2 | A base commit with no `specs/protected-paths.txt` gives an empty protected list, as the signatures check also reads it. No base at or after the current `main` lacks the file |
+| L6 | The bytes 0x1d to 0x1f inside a trailer value split `rangeCommits`' fields wrongly. A commit can only mislead it about its own trailers, which gives no bypass beyond M1 |
+
 ## Decisions for the owner
 
 | Decision | Options | Staged |
 |---|---|---|
-| Thin or full scope rule (0004's R66) | (a) Thin: the scope check judges only commits that carry a `Task:` trailer. (b) Full: every commit that is neither approver-signed nor touching only `docs/` and `proposals/` must carry exactly one `Task:` trailer, else `missing Task trailer` | (a). Under (a) a commit escapes scope by omitting the trailer; the producer always adds one, and the signatures check still guards protected paths. (b) also ends unsigned code commits from cloud sessions, 0004's "drafting only" recommendation, so it belongs with that decision. Revisit after T4 |
+| Thin or full scope rule (0004's R66; review finding M1) | (a) Thin: the scope check judges only commits that carry a `Task:` trailer. (b) Full: every commit that is neither approver-signed nor touching only `docs/` and `proposals/` must carry exactly one `Task:` trailer, else `missing Task trailer` | (a). Under (a) a commit escapes scope by omitting the trailer; the producer always adds one, and the signatures check still guards protected paths. (b) also ends unsigned code commits from cloud sessions, 0004's "drafting only" recommendation, so it belongs with that decision. Revisit after T4 |
 | Task file keys | (a) `requirements` and `produces` only. (b) Also 0004's `budget`, `verify` and `needs` | (a). `budget` and `verify` mean nothing until the driver loop (0004's R90) runs checks between attempts. Adding a key later is a signed amendment to R64 |
 | The range's base | (a) Merge base with `main` as the checkout fetched it. (b) A commit named in a signed policy | (a), with `no merge base` failing closed. On a push to `main` the range is empty, so both checks pass there |
 | Task trailers that differ | The task check checks each task named; the scope check fails `mixed Task trailers` | As staged. A candidate carries one task |

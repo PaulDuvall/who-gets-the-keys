@@ -129,6 +129,12 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
       gitIn(dir, "commit", "-q", "-m", "unapproved");
       writeFileSync(join(dir, "tasks/TASK-T3-1.task.md"), taskFile(".github/workflows/x.yml"));
       expect([task("TASK-T3-3").stdout, task("TASK-T3-1").status]).toEqual(["CHECK task FAILED: TASK-T3-3 cites unapproved SPEC-014-R99\n", 0]);
+      // A body that long would make claude -p fail with "Argument list too long" after the credentials were issued.
+      writeFileSync(join(dir, "tasks/TASK-T3-4.task.md"), taskFile("src/export.ts", "SPEC-014-R7", `${"x".repeat(8001)}\n`));
+      writeFileSync(join(dir, "tasks/TASK-T3-5.task.md"), taskFile(".npmrc"));
+      gitIn(dir, "add", "-A");
+      gitIn(dir, "commit", "-q", "-m", "too long, and outside the producer's scope");
+      expect([task("TASK-T3-4").stdout, task("TASK-T3-5").stdout]).toEqual(["CHECK task FAILED: TASK-T3-4 body over 8000 bytes\n", "CHECK task FAILED: TASK-T3-5 invalid produces\n"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -574,7 +580,7 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
   it("SPEC-001-R208 the scope command reads the protected paths and the task's produces from HEAD, not from the patched tree", () => {
     const { dir } = repoWith({
       ...SPEC_FILE, "specs/protected-paths.txt": "# list\n.github/\nscripts/ci/\n", "docs/a.md": "a\n",
-      "tasks/TASK-1.task.md": taskFile("docs/, .npmrc"), "tasks/TASK-2.task.md": taskFile("src/c.ts"),
+      "tasks/TASK-1.task.md": taskFile("docs/"), "tasks/TASK-2.task.md": taskFile("src/c.ts"),
     });
     const temp = tempDir("producer-scope-");
     try {

@@ -5,7 +5,8 @@ import { dirname, join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import {
-  CheckFailure, ORDER, byteOrder, flowList, parseTask, pathEntries, plainPath, rangeBase, rangeCommits, readTask, requirementIdsAt, scopeFailure, TASK_ID,
+  CheckFailure, ORDER, byteOrder, flowList, guardedIgnoringCase, inDeliveryScope, parseTask, pathEntries, plainPath, rangeBase, rangeCommits, readTask,
+  requirementIdsAt, scopeFailure, TASK_ID,
 } from "../scripts/checks.ts";
 
 const CHECKS = join(process.cwd(), "scripts/checks.ts");
@@ -85,13 +86,23 @@ describe("SPEC-001 task files and scope (Tracer 2, T3a)", () => {
     expect(failure(task("produces: [specs/x.md]\nextra: 1"))).toBe("TASK-1 unknown key");
   });
 
+  it("SPEC-001-R64 takes only a colon and one space between key and value, and fails any other form as unknown key", () => {
+    for (const line of ["requirements:[SPEC-014-R7]", "requirements:\t[SPEC-014-R7]", "requirements:", "requirements :[SPEC-014-R7]", "\trequirements: [SPEC-014-R7]"]) {
+      expect([line, failure(task(`${line}\nproduces: [src/a.ts]`))]).toEqual([line, "TASK-1 unknown key"]);
+    }
+    expect(failure(task("requirements: [SPEC-014-R7]\nproduces:[src/a.ts]"))).toBe("TASK-1 unknown key");
+    expect(failure(task("requirements:  [SPEC-014-R7]\nproduces: [src/a.ts]"))).toBe("TASK-1 invalid requirements");
+    expect(failure(task("requirements: [SPEC-014-R7] \nproduces: [src/a.ts]"))).toBe("TASK-1 invalid requirements");
+    expect(failure(task("requirements: [SPEC-014-R7]\nproduces: [src/a.ts]"))).toBeUndefined();
+  });
+
   it("SPEC-001-R64 fails a missing, repeated or malformed requirements list as invalid requirements, judged before produces", () => {
     const sixteen = Array.from({ length: 16 }, (_, i) => `SPEC-014-R${i + 1}`);
     expect(parseTask("TASK-1", task(`requirements: [${sixteen.join(", ")}]\nproduces: [src/a.ts]`)).requirements).toHaveLength(16);
     const cases = [
       "produces: [src/a.ts]", "requirements: []\nproduces: [src/a.ts]", `requirements: [${sixteen.join(", ")}, SPEC-014-R17]\nproduces: [src/a.ts]`,
       "requirements: [SPEC-014-R7, SPEC-014-R7]\nproduces: [src/a.ts]", "requirements: [R7]\nproduces: [src/a.ts]", "requirements: ['SPEC-014-R7']\nproduces: [src/a.ts]",
-      "requirements: SPEC-014-R7\nproduces: [src/a.ts]", "requirements:\nproduces: [src/a.ts]", "requirements: [SPEC-014-R7]\nrequirements: [SPEC-014-R8]\nproduces: [src/a.ts]",
+      "requirements: SPEC-014-R7\nproduces: [src/a.ts]", "requirements: \nproduces: [src/a.ts]", "requirements: [SPEC-014-R7]\nrequirements: [SPEC-014-R8]\nproduces: [src/a.ts]",
       "requirements: [SPEC-14-R7]\nproduces: [src/a.ts]", "requirements: [SPEC-014-R7]\nproduces: [specs/x.md]",
     ];
     for (const front of cases.slice(0, -1)) expect([front, failure(task(front))]).toEqual([front, "TASK-1 invalid requirements"]);
@@ -109,16 +120,35 @@ describe("SPEC-001 task files and scope (Tracer 2, T3a)", () => {
     for (const entry of bad) expect([entry, failure(task(`requirements: [SPEC-014-R7]\nproduces: [${entry}]`))]).toEqual([entry, "TASK-1 invalid produces"]);
     const seventeen = Array.from({ length: 17 }, (_, i) => `src/f${i}.ts`).join(", ");
     expect(failure(task(`requirements: [SPEC-014-R7]\nproduces: [${seventeen}]`))).toBe("TASK-1 invalid produces");
-    for (const entry of ["scripts/receipt.ts", "video/kit.ts", "specs", "src/", "traceability.md"]) {
+    for (const entry of ["src/", "src/lib/", "test/x.test.ts", "docs/notes/", "traceability.md"]) {
       expect([entry, failure(task(`requirements: [SPEC-014-R7]\nproduces: [${entry}]`))]).toEqual([entry, undefined]);
     }
-    expect(failure(task("requirements: [SPEC-014-R7]\nproduces: [scripts/receipt.ts]"), [...PROTECTED_LIST, "scripts/receipt.ts"])).toBe("TASK-1 invalid produces");
+  });
+
+  it("SPEC-001-R64 fails a produces entry outside the producer's scope: not under src/, test/ or docs/, a dot-file segment, or not traceability.md", () => {
+    const outside = [".npmrc", ".gitattributes", "scripts/receipt.ts", "video/kit.ts", "README.md", "specs", "src", "docs/.npmrc", "test/.hidden/", "srcx/a.ts", "traceability.md.bak"];
+    for (const entry of outside) expect([entry, failure(task(`requirements: [SPEC-014-R7]\nproduces: [${entry}]`), [])]).toEqual([entry, "TASK-1 invalid produces"]);
+    expect([inDeliveryScope("src/"), inDeliveryScope("docs/a.md"), inDeliveryScope("traceability.md"), inDeliveryScope("src"), inDeliveryScope("docs//a")]).toEqual([true, true, true, false, false]);
+  });
+
+  it("SPEC-001-R64 compares produces entries with reserved and protected paths without regard to letter case", () => {
+    expect(failure(task("requirements: [SPEC-014-R7]\nproduces: [docs/]"), ["DOCS/Secret.md"])).toBe("TASK-1 invalid produces");
+    expect(failure(task("requirements: [SPEC-014-R7]\nproduces: [docs/secret.md]"), ["Docs/"])).toBe("TASK-1 invalid produces");
+    expect(failure(task("requirements: [SPEC-014-R7]\nproduces: [docs/a.md]"), ["DOCS/b.md"])).toBeUndefined();
   });
 
   it("SPEC-001-R64 fails a body of white space only as empty body", () => {
     for (const body of ["", "\n", "  \n\t\n"]) expect(failure(task("requirements: [SPEC-014-R7]\nproduces: [src/a.ts]", body))).toBe("TASK-1 empty body");
     expect(failure("---\nrequirements: [SPEC-014-R7]\nproduces: [src/a.ts]\n---")).toBe("TASK-1 empty body");
     expect(parseTask("TASK-1", task("requirements: [SPEC-014-R7]\nproduces: [src/a.ts]", "Line one.\n---\nLine two.\n")).body).toBe("Line one.\n---\nLine two.\n");
+  });
+
+  it("SPEC-001-R64 fails a body over 8,000 bytes, counted in UTF-8, as body over 8000 bytes", () => {
+    const front = "requirements: [SPEC-014-R7]\nproduces: [src/a.ts]";
+    expect(parseTask("TASK-1", task(front, `${"x".repeat(7999)}\n`)).body).toHaveLength(8000);
+    expect(failure(task(front, `${"x".repeat(8000)}\n`))).toBe("TASK-1 body over 8000 bytes");
+    expect(failure(task(front, `${"\u00e9".repeat(4000)}\n`))).toBe("TASK-1 body over 8000 bytes");
+    expect(failure(task(front, " ".repeat(9000)))).toBe("TASK-1 empty body");
   });
 
   describe("on a temporary repository", () => {
@@ -205,6 +235,7 @@ describe("SPEC-001 task files and scope (Tracer 2, T3a)", () => {
         [{ "approvers.txt": "x\n" }, "approvers.txt"],
         [{ ".github/workflows/x.yml": "on: push\n", "zzz.md": "x\n" }, ".github/workflows/x.yml"],
         [{ "scripts/checks.ts": "// changed\n" }, "scripts/checks.ts"],
+        [{ ".npmrc": "node-options=--import=./test/x.mjs\n", "test/x.mjs": "x\n" }, ".npmrc"],
       ];
       for (const [files, path] of cases) {
         repo.fresh();
@@ -242,6 +273,22 @@ describe("SPEC-001 task files and scope (Tracer 2, T3a)", () => {
       expect(scopeFailure([{ path: "test/x", mode: "120000" }, { path: "src/b.ts", mode: "100644" }], ["src/a.ts", "test/"], [])).toBe("src/b.ts");
       expect(scopeFailure([{ path: "test/x", mode: "000000" }, { path: "src/a.ts", mode: "100644" }], ["src/a.ts", "test/"], [])).toBeUndefined();
       expect(scopeFailure([{ path: "src/\u{1F600}.ts", mode: "100644" }, { path: "src/\uFF5E.ts", mode: "100644" }], ["test/"], [])).toBe("src/\uFF5E.ts");
+    }, SLOW);
+
+    it("SPEC-001-R67 fails a reserved or protected path whatever its letter case, as a case-insensitive checkout would write it", () => {
+      const file = (path: string) => ({ path, mode: "100644" });
+      expect(scopeFailure([file("TASKS/x.task.md")], ["TASKS/"], [])).toBe("TASKS/x.task.md");
+      expect(scopeFailure([file("Specs/SPEC-014-x.md")], ["Specs/"], [])).toBe("Specs/SPEC-014-x.md");
+      expect(scopeFailure([file("Approvers.TXT")], ["Approvers.TXT"], [])).toBe("Approvers.TXT");
+      expect(scopeFailure([file("docs/A.md")], ["docs/"], ["DOCS/a.md"])).toBe("docs/A.md");
+      expect(scopeFailure([file("docs/b.md")], ["docs/"], ["DOCS/a.md"])).toBeUndefined();
+      expect([guardedIgnoringCase(".GitHub/workflows/x.yml", [".github/"]), guardedIgnoringCase("src/a.ts", [".github/"])]).toEqual([".github/", undefined]);
+      // Through the index alone, so a case-insensitive file system cannot fold TASKS/ into the existing tasks/.
+      repo.fresh();
+      const blob = execFileSync("git", ["hash-object", "-w", "--stdin"], { cwd: repo.dir, input: "x\n", encoding: "utf8" }).trim();
+      repo.git("update-index", "--add", "--cacheinfo", `100644,${blob},TASKS/x.task.md`);
+      repo.commit("tasked\n\nTask: TASK-T", {}, false);
+      expect(repo.run("scope")).toEqual([1, "CHECK scope FAILED: TASKS/x.task.md\n"]);
     }, SLOW);
   });
 

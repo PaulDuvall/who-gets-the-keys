@@ -6,7 +6,8 @@
 # R83, R87 and R208 amended: producer.yml drops the spec and prompt inputs and reads the task file at github.sha.
 # specs/protected-paths.txt adds tasks/, so a task file needs an approver signature, and scripts/receipt.ts.
 # No AWS change. Order: the preflight in docs/notes/tracer-2-t3a.md, then land.sh, then main's deploy, which changes
-# no Lambda. The copies were staged on top of 9f887da, so land.sh should print no "Changed since by" warning.
+# no Lambda. The copies were staged on top of 7d262bc, main at 9f887da plus two commits that touch no destination
+# here, so land.sh should print no "Changed since by" warning.
 message: spec: task files, and the task and scope checks (Tracer 2, T3a)
 spec: SPEC-001-R64
 spec: SPEC-001-R65
