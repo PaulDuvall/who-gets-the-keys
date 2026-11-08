@@ -1,0 +1,350 @@
+# Single source for which slide practice is covered and how (Phase 10). Read by the slides check,
+# `npm run practices` (docs/practices.md) and the walkthrough video. Slides: 1 to 13 of the audience deck.
+source:
+  url: https://docs.google.com/presentation/d/19RnjfRhGtxNv-KKmLKdpjWcheoN15Vvs1eWpGXjuDbQ/
+  snapshot: specs/source-of-record/slides.txt
+  sha256: f78bb192ae51591962c75009192243bbcdcaa44da78a86287c90f02f35885aa1
+  exported: "2026-11-02T21:10:28Z"
+practices:
+  - id: P01
+    practice: Controls are machine-checkable; downstream review is not a control
+    area: GitHub Actions
+    slides: [1, 2, 13]
+    coverage: good-only
+    enforced_by: [check:secrets, check:allowlist, check:workflows, check:install, check:lint, check:typecheck, check:iac, check:sast, check:sca, check:trace, check:signatures, check:slides, check:ratchet, check:test, check:mutation]
+    files: [.github/workflows/pipeline.yml, scripts/checks.ts]
+  - id: P02
+    practice: Intent is a spec; specs change only through an approver-signed commit
+    area: Claude Code
+    slides: [3, 5, 8]
+    coverage: good+bad
+    enforced_by: [check:signatures, check:task, B4, B24]
+    files: [specs/SPEC-014-export-latency.md, approvers.txt]
+  - id: P03
+    practice: Every code change names the requirement it serves
+    area: testing
+    slides: [3, 13]
+    coverage: good+bad
+    enforced_by: [check:trace, B3]
+    files: [traceability.md, scripts/checks.ts]
+  - id: P04
+    practice: "Intent, spec to code: every requirement has a test"
+    area: testing
+    slides: [7, 13]
+    coverage: good+bad
+    enforced_by: [check:trace, B15]
+    files: [test/export.acceptance.test.ts]
+  - id: P05
+    practice: "Intent, code to spec: every capability has a requirement"
+    area: TypeScript/Node
+    slides: [7, 13]
+    coverage: good+bad
+    enforced_by: [check:trace, B16]
+    files: [src/export.ts, src/handler.ts]
+  - id: P06
+    practice: Secrets scanning, seconds before commit and minutes in the pipeline
+    area: Claude Code
+    slides: [4]
+    coverage: good+bad
+    enforced_by: [check:secrets, B5]
+    files: [.gitleaks.toml, .claude/hooks/hook.mjs]
+  - id: P07
+    practice: Static application security testing
+    area: TypeScript/Node
+    slides: [4]
+    coverage: good+bad
+    enforced_by: [check:sast, B12]
+    files: [.semgrepignore]
+  - id: P08
+    practice: Software composition analysis on every lockfile
+    area: TypeScript/Node
+    slides: [4]
+    coverage: good+bad
+    enforced_by: [check:sca, B13]
+    files: [package-lock.json]
+  - id: P09
+    practice: Dynamic application security testing
+    area: AWS
+    slides: [4]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: No deployed endpoint is tested; the export Lambda has no public URL in this repo
+  - id: P10
+    practice: Coverage is kept but is not evidence on its own
+    area: testing
+    slides: [7]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: Coverage is not reported; the mutation check is the bar
+  - id: P11
+    practice: Agent-written tests must assert something; a hook flags it in seconds
+    area: testing
+    slides: [5, 12]
+    coverage: good+bad
+    enforced_by: [check:lint, B1]
+    files: [eslint.config.js, .claude/hooks/hook.mjs]
+  - id: P12
+    practice: Mutation score, not coverage
+    area: testing
+    slides: [5, 7, 13]
+    coverage: good+bad
+    enforced_by: [check:mutation, B2]
+    files: [stryker.config.json]
+  - id: P13
+    practice: Property tests hold invariants across generated inputs
+    area: testing
+    slides: [5]
+    coverage: good-only
+    enforced_by: [check:test]
+    files: [test/export.property.test.ts]
+  - id: P14
+    practice: Mutate incrementally to stay in minutes
+    area: testing
+    slides: [4, 7]
+    coverage: good-only
+    enforced_by: [check:mutation]
+    files: [stryker.config.json]
+  - id: P15
+    practice: Untrusted context never drives privileged action; contain, do not detect
+    area: GitHub Actions
+    slides: [6, 9, 12]
+    coverage: good+bad
+    enforced_by: [B9]
+    files: [.github/workflows/issue-triage.yml, .github/egress/allowlist.json, scenarios/b9-replay.sh]
+  - id: P16
+    practice: Provenance and integrity checks on what the agent retrieves
+    area: Claude Code
+    slides: [6]
+    coverage: good+bad
+    enforced_by: [check:slides, check:signatures, B17]
+    files: [specs/source-of-record/slides.txt, practices.yaml]
+  - id: P17
+    practice: The agent reads telemetry redacted, read-only, with no standing prod credentials
+    area: AWS
+    slides: [6, 8, 12]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: No agent reads production telemetry in this repo
+  - id: P18
+    practice: Every new dependency is checked against an allowlist (slopsquatting)
+    area: TypeScript/Node
+    slides: [6, 12]
+    coverage: good+bad
+    enforced_by: [check:allowlist, B6]
+    files: [allowed-deps.txt]
+  - id: P19
+    practice: Dependencies come only from a vetted, pinned, hash-verified mirror
+    area: TypeScript/Node
+    slides: [6, 10]
+    coverage: partial
+    enforced_by: [check:install]
+    files: [package-lock.json]
+    reason: Lockfile integrity hashes pin every package; there is no private mirror
+  - id: P20
+    practice: Attestations are signed claims about each step; deploy verifies them first
+    area: GitHub Actions
+    slides: [7, 13]
+    coverage: good+bad
+    enforced_by: [check:attestation, B10]
+    files: [.github/workflows/pipeline.yml]
+  - id: P21
+    practice: "Provenance: commit, spec ID, agent, model version"
+    area: GitHub Actions
+    slides: [7, 13]
+    coverage: partial
+    enforced_by: []
+    files: [.github/workflows/pipeline.yml]
+    reason: The predicate records commit, spec IDs and agent; agent commits carry no model version (deviation D05)
+  - id: P22
+    practice: Independent validator in a separate context sees only the spec, never the builder's reasoning
+    area: Claude Code
+    slides: [5, 7, 13]
+    coverage: partial
+    enforced_by: []
+    files: [.claude/agents/validator.md]
+    reason: The validator subagent is advisory and outside the pipeline's checks
+  - id: P24
+    practice: The agent writes anything and ships nothing; nothing else can change prod
+    area: AWS
+    slides: [8, 10, 11]
+    coverage: good+bad
+    enforced_by: [check:scope, B11, B23]
+    files: [infra/sandbox/iam.tf, infra/org/main.tf]
+  - id: P25
+    practice: The agent cannot loosen its own guardrails
+    area: Claude Code
+    slides: [8, 11]
+    coverage: good+bad
+    enforced_by: [check:ratchet, B7]
+    files: [stryker.config.json]
+  - id: P26
+    practice: Irreversible actions need human approval the pipeline checks
+    area: Terraform
+    slides: [8, 10, 12]
+    coverage: good+bad
+    enforced_by: [check:irreversible, B14]
+    files: [infra/sandbox/main.tf]
+  - id: P27
+    practice: No cache shared between untrusted jobs and deploy
+    area: GitHub Actions
+    slides: [9, 10]
+    coverage: good+bad
+    enforced_by: [check:workflows, B8a]
+    files: [.github/workflows/pipeline.yml]
+  - id: P28
+    practice: "Pinned inputs: every action by full commit SHA"
+    area: GitHub Actions
+    slides: [10]
+    coverage: good+bad
+    enforced_by: [check:workflows, B8b]
+    files: [.github/workflows/pipeline.yml]
+  - id: P29
+    practice: "Pinned inputs: container images by hash"
+    area: GitHub Actions
+    slides: [10]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: No container images are used
+  - id: P30
+    practice: One deploy identity, short-lived and federated through OIDC
+    area: AWS
+    slides: [10]
+    coverage: good-only
+    enforced_by: [check:iac]
+    files: [infra/sandbox/iam.tf]
+  - id: P31
+    practice: "Prod drift: a change with no attested run or spec trace is redeployed and someone is notified"
+    area: AWS
+    slides: [11]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: No drift monitor exists in this repo
+  - id: P32
+    practice: "Pipeline drift: workflow or trust changes outside the approved path freeze deploys"
+    area: GitHub Actions
+    slides: [11]
+    coverage: partial
+    enforced_by: [check:workflows]
+    files: [.github/workflows/pipeline.yml]
+    reason: Bad workflow changes fail the pipeline that carries them; nothing freezes later deploys
+  - id: P33
+    practice: "Spec drift: acceptance criteria changed outside the approved path freeze deploys"
+    area: Claude Code
+    slides: [11]
+    coverage: partial
+    enforced_by: [check:signatures]
+    files: [scripts/checks.ts]
+    reason: "An unsigned spec change fails every later pipeline run, but a signed fix-forward does not lift the freeze: the signatures check reads all history, so only a history rewrite clears it"
+  - id: P34
+    practice: Break-glass is separate and alarmed; nothing redeploys over it
+    area: AWS
+    slides: [11]
+    coverage: partial
+    enforced_by: []
+    files: [infra/sandbox/iam.tf, infra/sandbox/main.tf]
+    reason: The role and its EventBridge alarm exist; access does not expire on its own
+  - id: P35
+    practice: Detection runs in a security account the pipeline cannot touch
+    area: AWS
+    slides: [11]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: Single sandbox account; no security account in this repo
+  - id: P36
+    practice: Every review after the code exists is a defect; measure cry wolf and miss wolf
+    area: GitHub Actions
+    slides: [12]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: No review routing or defect measurement in this repo
+  - id: P37
+    practice: Automated reasoning proves agent IAM and pipeline changes grant no new access
+    area: AWS
+    slides: [10]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: No policy-analysis check runs on IAM diffs
+  - id: P38
+    practice: A human's fix runs the same pipeline; no special path
+    area: GitHub Actions
+    slides: [12]
+    coverage: good-only
+    enforced_by: [check:signatures]
+    files: [.github/workflows/pipeline.yml]
+  - id: P39
+    practice: The drift monitor never changes prod itself, or it becomes a second principal
+    area: AWS
+    slides: [11]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: No drift monitor exists in this repo
+  - id: P40
+    practice: Circuit breakers tighten approval when revert numbers move
+    area: GitHub Actions
+    slides: [12]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: Reverts are not counted and approval does not change with them
+  - id: P43
+    practice: "The pipeline has an andon cord: anyone can stop the line when defects climb"
+    area: Claude Code
+    slides: [12]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: No defect or revert tracking; nothing can stop the line automatically
+  - id: P44
+    practice: Humans decide who else reviews security, privacy and architecture risks
+    area: GitHub Actions
+    slides: [5, 12]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: Signed spec approval covers intent only; no risk-based review routing
+  - id: P45
+    practice: Risk tiers set in the room route every change; an AI reviewer reads every diff and can only block or escalate
+    area: GitHub Actions
+    slides: [5, 12]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: No AI diff reviewer or risk tiers; only spec, approver and irreversible changes need a human
+  - id: P46
+    practice: Agent-written text leaves only through a schema or the pipeline; posting text is shipping
+    area: Claude Code
+    slides: [9, 12]
+    coverage: good+bad
+    enforced_by: [B9]
+    files: [.github/workflows/issue-triage.yml]
+  - id: P47
+    practice: The customer confirms executable acceptance criteria before any code exists
+    area: testing
+    slides: [7]
+    coverage: not-shown
+    enforced_by: []
+    files: []
+    reason: Specs are approver-signed; no customer confirmation or executable acceptance criteria are recorded
+  - id: P48
+    practice: Waivers name who can skip a failing check, for how long, with an expiry and a log
+    area: GitHub Actions
+    slides: [12]
+    coverage: good-only
+    enforced_by: [check:sca, check:signatures]
+    files: [specs/sca-exceptions.toml]
+  - id: P49
+    practice: The agent proposes pipeline and dependency changes; an approver signs every one
+    area: GitHub Actions
+    slides: [8]
+    coverage: good+bad
+    enforced_by: [check:signatures, B18]
+    files: [specs/protected-paths.txt, scripts/checks.ts]
