@@ -153,6 +153,7 @@ The deck's speaker notes name example tools for each practice. Where this repo u
 | `.github/workflows/` | `pipeline.yml`, `issue-triage.yml`, `scenarios.yml`, `video.yml` |
 | `infra/sandbox/`, `infra/org/` | Terraform for the workload and roles; the SCP |
 | `video/` | Walkthrough page template, orchestrator, recorder and narration pins |
+| `factory-video/` | The software-factory scene for the talk: guided video, loop, poster and the claims ledger. The videos are built by the `factory-video` workflow, not committed |
 | `.claude/` | Settings (deny rules, env, hooks), hook script, subagents, the video skill |
 | `CLAUDE.md` | Conventions and authority boundaries for Claude Code sessions |
 
@@ -237,10 +238,25 @@ fi
 
 It gives a session the Node.js version `package.json` pins (the image ships Node 22), the pinned check CLIs from `scripts/ci/install-tools.sh`, and `node_modules` from the lockfile with install scripts off. `/root/.local/bin` comes before `/opt/node22/bin` on the image's `PATH`. With it, a session can run `tsc`, ESLint, vitest and the other local checks, and the commit hook finds gitleaks. The agent installs nothing: `.claude/settings.json` still denies it `npm ci`, and the owner adds the `npm ci` line, which is why the agent never ran that line itself. The other lines were run twice in a session container on 2026-11-07: Node v24.22.2, npm 11.19.1, gitleaks 8.30.1, osv-scanner 2.7.0, Terraform 1.16.6, TFLint 0.64.0, Semgrep 1.181.0, zizmor 1.31.1. When `package.json`'s Node range or a pinned tool changes, update this script and the environment together.
 
+## Factory video
+
+`factory-video/` builds the "software factory" scene for the talk: a narrated, captioned guided video, an 18 s loop for the deck, and a poster. It shows the factory this repository is building toward, and `factory-video/claims.json` records, claim by claim, how much of it is built. The videos are not committed. The `factory-video` workflow builds them on a push to `main` that changes `factory-video/`, or when started by hand. It keeps only the newest build, as one artifact named `factory-video-<short SHA>-<UTC time>`, which expires 30 days after upload.
+
+| To get | Do |
+|---|---|
+| The newest videos in a browser | Open the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain). Open the newest run whose Artifacts section lists a `factory-video-…` artifact, and download it. Runs that only checked the claims list a `factory-claims-…` artifact instead. GitHub asks you to sign in to download |
+| The newest videos from a terminal | The command below, with the GitHub CLI signed in |
+| The one to watch | `factory-guided.mp4`: 118.8 s, 1920×1080, narrated and captioned. [factory-video/README.md](factory-video/README.md#outputs) lists the other files |
+
+```bash
+gh run download --repo PaulDuvall/who-gets-the-keys --pattern 'factory-video-*'
+```
+
 ## Docs
 
 | Doc | Contents |
 |---|---|
+| [factory-video/README.md](factory-video/README.md) | The software-factory scene: what each part shows, how it is built and checked, and where to download the videos |
 | [docs/verification.md](docs/verification.md) | Every version and syntax choice, with source URL and date |
 | [docs/deviations.md](docs/deviations.md) | Where the build departs from its prompt, the slides or the reference, and why |
 | [docs/slide-reconciliation.md](docs/slide-reconciliation.md) | Each practice the audience slides state, and what demonstrates it |

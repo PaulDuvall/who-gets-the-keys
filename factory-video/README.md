@@ -2,6 +2,8 @@
 
 The "software factory" scene for *Who Gets the Keys? Trust and Authority in Software Factories* (AI Native DevCon 2026). It moved here from PaulDuvall/paulmduvallcom on 2026-11-08 ([decision 0008](../docs/decisions/0008-factory-video-kit.md)), so the picture sits next to the specs it shows.
 
+**Watch it:** download the newest build from the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain), as [Outputs](#outputs) describes. `factory-guided.mp4` is the narrated version.
+
 The video shows what this repository should look like and do, not only what it does today. `claims.json` ties every on-screen label and narration line to a claim and cites how far the repository has got: built (requirements in `specs/`), planned (drafts in `docs/decisions/`) or open (backlog items). Each build checks the ledger and writes `out/claims-report.md`, so the video doubles as a check of the code against the target.
 
 The current loop shows the factory model of decision 0004, as evolved in the post-talk design notes (November 2026, a proposed decision 0005). One engineer signs a spec and two sign the factory. Where the policy tier requires it, an engineer who did not write the spec signs the release. The pipeline decides every change. Each place a human decides stays on screen for the whole loop, in blue, and nothing else is blue.
@@ -28,9 +30,23 @@ Google Slides cannot loop video, so the primary output for the deck is the loopi
 
 ## Outputs
 
-Generated files are never committed, so they never pile up in git history. `build.sh` writes them to `out/` on your machine. On every push to `main` that touches this folder, and on demand, the `factory-video` workflow (`.github/workflows/factory-video.yml`, proposed in the batch [`proposals/factory-video/`](../proposals/factory-video/LAND.txt) until an approver lands it with `scripts/bootstrap/land.sh proposals/factory-video`) builds and verifies them. It uploads them as one artifact, `factory-video-<short SHA>-<UTC time>`, then a separate job deletes every earlier `factory-video-` artifact. So only one copy of each file exists, and it expires after 30 days. The build job can only read the repository; the prune job can only delete artifacts. A failed check uploads nothing.
+Generated files are never committed, so they never pile up in git history. `build.sh` writes them to `out/` on your machine. On every push to `main` that touches this folder, and on demand, the `factory-video` workflow (`.github/workflows/factory-video.yml`, landed in `9f887da` on 2026-11-08) builds and verifies them. It uploads them as one artifact, `factory-video-<short SHA>-<UTC time>`, then a separate job deletes every earlier `factory-video-` artifact. So only one copy of each file exists, and it expires 30 days after upload. The build job can only read the repository; the prune job can only delete artifacts. A failed check uploads nothing, and the previous build stays.
 
-Download the newest from the latest successful `factory-video` run's Artifacts section, or with `gh run download --repo PaulDuvall/who-gets-the-keys --pattern 'factory-video-*'`.
+To download the newest build:
+
+| Where | How |
+|---|---|
+| Browser | Open the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain). Open the newest run whose Artifacts section lists a `factory-video-…` artifact, and download it; GitHub asks you to sign in. A push that changes only specs, decisions, proposals or the backlog runs the claims check alone, and its run lists a `factory-claims-…` artifact instead |
+| Terminal | The first command below, with the GitHub CLI signed in. It downloads the newest artifact whose name matches |
+| Nothing listed | No build has run in the last 30 days, so the artifact has expired. Start one with the second command, or with **Run workflow** on the runs page. Starting it needs write access |
+
+```bash
+gh run download --repo PaulDuvall/who-gets-the-keys --pattern 'factory-video-*'
+```
+
+```bash
+gh workflow run factory-video.yml --repo PaulDuvall/who-gets-the-keys --ref main
+```
 
 | File | What it is |
 |---|---|
