@@ -86,7 +86,7 @@ On a scratch worktree of the staging commit with every `move:` applied and commi
 | `producer.ts task` with `TASK=TASK-T4-DUP-COLUMNS` | `Task TASK-T4-DUP-COLUMNS checked` |
 | `node scenarios/run.ts` B15, B23, B24 and B1 (real harness) | All `pass`: `CHECK trace FAILED: SPEC-014-R98 has no test` (after secrets to sca passed), `CHECK scope FAILED: src/handler.ts`, `CHECK task FAILED: TASK-B24 cites unapproved SPEC-014-R99`, `CHECK lint FAILED: vitest/expect-expect` |
 | B2 and B4 through the harness | Not judged here: the signatures check fails first, because no SSH signature verifies without `ssh-keygen`. B4's patch applies, and its line depends on the signatures check only |
-| B2's patch applied, then `node scripts/checks.ts mutation` | On the batch before the review fixes: `CHECK mutation FAILED: below break threshold`, 70 of 75 killed (93.3%), against 95. Re-run on the fixed batch pending |
+| B2's patch applied, then `node scripts/checks.ts mutation` | `CHECK mutation FAILED: below break threshold`: 70 of 75 mutants killed (93.3%), against 95 |
 
 Two dry runs of the delivery, on top of that commit and never pushed. A follows the task body: one line in `parse`, `if (new Set(columns).size !== columns.length) return undefined;`. B puts the check in `handler` between the 400 and 413 lines, as the review's medium finding did. Both add the `@requirement` tag and flip the tests.
 
@@ -99,6 +99,7 @@ Two dry runs of the delivery, on top of that commit and never pushed. A follows 
 | Diff of the test file, `-U0` | Removes the two comment lines and `it.fails.each([`; adds `it.each([` | Same |
 | `node scripts/checks.ts mutation` | Pass: `src/handler.ts` 57 killed, 1 survived (98.28%); `src/export.ts` 20 killed | Not run |
 | `node scenarios/run.ts` B23 and B24 | Not run | Both `pass`, with their recorded lines |
+| B2's patch applied, then the mutation check | `CHECK mutation FAILED: below break threshold`: 72 of 78 killed (92.3%). R7's tests do not rescue B2's weakened R5 assertion | Not run |
 
 ## Decisions for the owner
 
