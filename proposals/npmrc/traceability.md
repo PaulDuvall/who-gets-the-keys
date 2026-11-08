@@ -74,8 +74,6 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R89 | `test/producer.test.ts` | test | — |
 | SPEC-001-R107 | `test/scenarios.test.ts` | harness | B23, B24 |
 | SPEC-001-R190 | `test/checks.test.ts`, `test/checks-before-main.test.ts` | deploy-tip | — |
-| SPEC-001-R215 | `test/checks.test.ts` | workflows | — |
-| SPEC-001-R216 | `test/scenarios.test.ts` | signatures | B81 |
 | SPEC-001-R207 | `test/producer.test.ts` | test | — |
 | SPEC-001-R208 | `test/producer.test.ts` | test | — |
 | SPEC-001-R209 | `test/producer.test.ts` | test | — |
@@ -84,6 +82,8 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R212 | `test/producer-script.test.ts` | test | — |
 | SPEC-001-R213 | `test/land-presign.test.ts`, `test/land.test.ts` | test | — |
 | SPEC-001-R214 | `test/hook.test.ts` | test | — |
+| SPEC-001-R215 | `test/checks.test.ts` | workflows | — |
+| SPEC-001-R216 | `test/scenarios.test.ts` | signatures | B81 |
 | SPEC-002-R1 | `test/video.test.ts` | test | — |
 | SPEC-002-R2 | `test/video.test.ts` | test | — |
 | SPEC-002-R3 | `test/video.test.ts` | test | — |

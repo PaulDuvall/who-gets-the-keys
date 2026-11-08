@@ -31,3 +31,5 @@ move: practices.yaml practices.yaml
 move: docs/practices.md docs/practices.md
 move: video/explanations.yaml video/explanations.yaml
 move: traceability.md traceability.md
+# Built on proposals/agent-rules/'s copy: also denies the agent's own edits to any .npmrc, as package.json's are.
+move: claude/settings.json .claude/settings.json

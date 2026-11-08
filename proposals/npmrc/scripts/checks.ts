@@ -80,13 +80,14 @@ export function pipelineCacheFinding(pipeline: string): boolean {
 
 // A package manager run in pipeline.yml reads settings the commit can set. npm hands a project .npmrc's node-options to
 // every Node.js process it starts and runs `npm run` and `npm exec` through its script-shell; the others have hooks of
-// their own. `npm ci --ignore-scripts` starts no process, so it is the one use allowed (SPEC-001-R215). Comments are
-// skipped. Each mention runs to the next shell separator, and any other mention fails closed.
+// their own. `npm ci --ignore-scripts` starts no process, so it is the one use allowed, with only --no-audit and --no-fund
+// beside it: npm lets a later flag, or a following `false`, turn scripts back on (SPEC-001-R215). Comments are skipped.
+// Each mention runs to the next shell separator, and any other mention fails closed.
 const PACKAGE_MANAGER = /(?<![\w.-])(npm|npx|pnpm|pnpx|yarn|corepack|bunx?)(?![\w.-])([^;&|()`\n]*)/g;
 export function pipelineNpmFinding(pipeline: string): boolean {
   return pipeline.split("\n").map((line) => line.replace(/(?:^|\s)#.*$/, "")).some((line) =>
     [...line.matchAll(PACKAGE_MANAGER)].some(([, tool, rest = ""]) =>
-      tool !== "npm" || !/^\s+ci(?:\s|$)/.test(rest) || !/(?:^|\s)--ignore-scripts(?:\s|$)/.test(rest)));
+      tool !== "npm" || !/^\s+ci(?:\s+--(?:ignore-scripts|no-audit|no-fund))+\s*$/.test(rest) || !/\s--ignore-scripts(?:\s|$)/.test(rest)));
 }
 
 export function requirementIds(specText: string): string[] {

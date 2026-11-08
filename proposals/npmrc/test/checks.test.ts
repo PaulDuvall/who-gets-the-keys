@@ -63,7 +63,8 @@ describe("SPEC-001 checks", () => {
     const step = (run: string) => `jobs:\n  build:\n    steps:\n      - run: ${run}\n`;
     const bad = ["npm run checks", "npm test", "npm ci", "npm ci --no-audit", "npm install --ignore-scripts", "npm exec --no -- node x.ts",
       "npx --no-install srt", "/usr/bin/npm run build", "npm ci --ignore-scripts && npm run build", "(cd x && npm run y)", "pnpm install", "pnpx x",
-      "yarn", "corepack enable", "bun x.ts", "bunx x"];
+      "yarn", "corepack enable", "bun x.ts", "bunx x", "npm ci --ignore-scripts --no-ignore-scripts", "npm ci --ignore-scripts false",
+      "npm ci --ignore-scripts --ignore-scripts=false", "npm ci --ignore-scripts --foreground-scripts"];
     expect(bad.filter((run) => !pipelineNpmFinding(step(run)))).toEqual([]);
     const good = ["node scripts/checks.ts", "npm ci --ignore-scripts --no-audit --no-fund", "npm ci --no-audit --ignore-scripts", "# npm run checks",
       "echo built # npm run build", "cat .npmrc", "npm_config_update_notifier=false node x.ts", "rebuild", "package-manager-cache: false"];

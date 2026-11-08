@@ -66,6 +66,7 @@ jobs:
         with:
           node-version-file: package.json
           package-manager-cache: false
+      # npm ci --ignore-scripts starts no process. The tsc line is package.json's build script, run without npm (SPEC-001-R215).
       - name: Build the Lambda artifact
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
