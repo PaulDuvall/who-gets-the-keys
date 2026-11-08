@@ -10,7 +10,7 @@ The claude.ai cloud environment's setup script was recorded only in the README (
 |---|---|
 | `scripts/bootstrap/cloud-session-setup.sh` | New, mode 755. The README's script, run from the repository root it finds from its own path. Same Node.js release, SHA-256, install prefix, links, `install-tools.sh` call and `npm ci` line. Differences: it prints one line of its own and installs nothing when the checksum fails; it removes its temporary directory on any exit; `NODE_PREFIX` and `BIN_DIR` override the install paths for the tests |
 | `specs/SPEC-001-delivery-pipeline.md` | New section "Cloud sessions" with SPEC-001-R211, after "Local sessions" |
-| `test/cloud-session-setup.test.ts` | Four R211 tests: `bash -n`; the pinned release and SHA-256 equal `docs/verification.md`'s row; the release is in `package.json`'s `engines` range; the order of the steps; and, with stub `curl`, `tar`, `npm` and `uv`, a download that does not match exits 1 after one `curl` call, with nothing created |
+| `test/cloud-session-setup.test.ts` | Five R211 tests: `bash -n`; the pinned release and SHA-256 equal `docs/verification.md`'s row; the README's only bash block in "Cloud session environment" is the one line in the script's header; the release is in `package.json`'s `engines` range; the order of the steps; and, with stub `curl`, `tar`, `npm` and `uv`, a download that does not match exits 1 after one `curl` call, leaving an earlier install's file in place and creating nothing |
 | `traceability.md` | Row SPEC-001-R211 |
 | `README.md` | "Cloud session environment" shows the one-line claude.ai script and points at the script instead of copying it |
 
@@ -30,3 +30,14 @@ The script runs as root from whatever branch a session checks out, so an agent b
 ## Not verified
 
 - The success path end to end: it downloads Node.js and installs tools, which the tests stub. A fresh session after landing checks it.
+
+## Review, 2026-11-08
+
+An independent review found nothing critical or high, one medium and three low. It checked the script line by line against the README's script on `main`, and, with stubs, the success path's order.
+
+| Severity | Finding | Done |
+|---|---|---|
+| Medium | R211's first sentence, that the claude.ai setup script "SHALL only run" the script, could not be tested: no check reads claude.ai | R211 now requires the README to give that one line, equal to the line in the script's header, and a test compares them. claude.ai's copy stays an owner step |
+| Low | The refused-download test did not create the install directory first, so moving `rm -rf "$prefix"` above the checksum would have passed | The test creates `node/marker` first and checks it survives |
+| Low | A missing `sha256sum` was reported as "does not match" | The script checks for `sha256sum` first and says so |
+| Low | The spec section said "the one call below" but showed none | It now says the README gives the line |

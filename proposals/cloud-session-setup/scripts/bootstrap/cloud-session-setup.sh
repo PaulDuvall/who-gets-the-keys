@@ -13,6 +13,7 @@ prefix="${NODE_PREFIX:-/opt/node24}"
 bin="${BIN_DIR:-/root/.local/bin}"
 
 cd "$(dirname "$0")/../.."
+command -v sha256sum >/dev/null 2>&1 || { echo "cloud-session-setup: needs sha256sum to check the download. Nothing was installed." >&2; exit 1; }
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
