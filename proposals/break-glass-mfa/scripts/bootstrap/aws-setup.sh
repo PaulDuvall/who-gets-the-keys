@@ -557,8 +557,13 @@ add_key() {
     bg_status="AWS returned no access key for ${bg_user}. Delete any key it lists, lift the SCP and run this again."
     return 1
   fi
-  aws configure set aws_access_key_id "$key_id" --profile "$bg_user_profile"
-  aws configure set aws_secret_access_key "$key_secret" --profile "$bg_user_profile"
+  # aws configure set puts the secret on a command line for an instant, as ykman does the seed (decision 0007).
+  if ! aws configure set aws_access_key_id "$key_id" --profile "$bg_user_profile" ||
+    ! aws configure set aws_secret_access_key "$key_secret" --profile "$bg_user_profile"; then
+    key_secret=""
+    bg_status="Created access key ${key_id} for ${bg_user}, but could not save it in profile ${bg_user_profile}. Lift the SCP, delete that key and run this again."
+    return 1
+  fi
   key_secret=""
   keys="$key_id"
   say "Created access key ${key_id} for ${bg_user} and saved it in profile ${bg_user_profile}, in your AWS credentials file." \
@@ -615,13 +620,18 @@ else
   if [ -z "$bg_status" ]; then
     # The device named by this script, or the first one listed, is the one the profile asks a code for.
     printf '%s\n' "$devices" | grep -qxF -- "$serial" || serial="$(printf '%s\n' "$devices" | head -n 1)"
-    aws configure set region "$region" --profile "$bg_user_profile"
-    aws configure set role_arn "$bg_role" --profile "$bg_profile"
-    aws configure set source_profile "$bg_user_profile" --profile "$bg_profile"
-    aws configure set mfa_serial "$serial" --profile "$bg_profile"
-    aws configure set region "$region" --profile "$bg_profile"
-    aws configure set duration_seconds 3600 --profile "$bg_profile"
-    say "Profile ${bg_profile} assumes ${bg_role} as ${bg_user}, asking for a code from ${serial}, in ${region}."
+    # A failed write must not stop the run before infra/org attaches the SCP (SPEC-001-R217).
+    if aws configure set region "$region" --profile "$bg_user_profile" &&
+      aws configure set role_arn "$bg_role" --profile "$bg_profile" &&
+      aws configure set source_profile "$bg_user_profile" --profile "$bg_profile" &&
+      aws configure set mfa_serial "$serial" --profile "$bg_profile" &&
+      aws configure set region "$region" --profile "$bg_profile" &&
+      aws configure set duration_seconds 3600 --profile "$bg_profile"; then
+      say "Profile ${bg_profile} assumes ${bg_role} as ${bg_user}, asking for a code from ${serial}, in ${region}."
+    else
+      bg_status="Could not write profiles ${bg_user_profile} and ${bg_profile} in your AWS config. Fix that file's permissions and run this again."
+      say "$bg_status"
+    fi
   else
     say "$bg_status"
   fi
@@ -643,7 +653,7 @@ if [ -n "$bg_status" ]; then
   say "" "Break-glass is not usable yet. ${bg_status}"
 else
   say "" "Check break-glass once. It asks for a code from your YubiKey, and ${email} gets an alert email:" \
-    "aws sts get-caller-identity --profile ${bg_profile}"
+    "aws sts get-caller-identity --profile ${bg_profile} --region ${region}"
 fi
 if [ -n "$email_reminder" ]; then
   say "" "If you have not yet, click Confirm subscription in the email AWS sent to ${email}."

@@ -207,8 +207,10 @@ Step 5 of `aws-setup.sh` enrolls the user while the SCP is not attached, which i
 Once the SCP is attached, check it once. It asks for a code and sends an alert email:
 
 ```bash
-aws sts get-caller-identity --profile who-gets-the-keys-break-glass
+aws sts get-caller-identity --profile who-gets-the-keys-break-glass --region us-east-1
 ```
+
+The trust allows the assumption only through `us-east-1`, and an `AWS_REGION` in your shell overrides the profile's region, so the command names it.
 
 To apply `infra/sandbox` as break-glass, use the commands `scripts/bootstrap/aws.sh` prints in its step 4: Terraform cannot ask for an MFA code, so the AWS CLI asks and hands Terraform the role's credentials. Rotate the access key every 90 days as break-glass, without lifting the SCP. A lost YubiKey needs the SCP lifted and step 5 run again. Decision 0007 lists the commands for both.
 

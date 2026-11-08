@@ -73,7 +73,7 @@ The talk's question is who holds a credential that can act, and whether the pipe
 | Commands | `ykman oath accounts add --touch --issuer AWS who-gets-the-keys-break-glass-user "$(cat <seed file>)"`, then `ykman oath accounts code --single who-gets-the-keys-break-glass-user` for each code | Documented (https://docs.yubico.com/software/yubikey/tools/ykman/OATH_Commands.html) |
 | Backups | IAM users "can register up to eight MFA devices of any type". A second YubiKey can be added later as break-glass, from the same seed at enrollment or as a second device | Documented |
 
-The seed passes through `ykman`'s command line for a moment, where another process of the same user could read it. The seed file is mode 600 in the run's private temporary directory and is deleted when the step ends.
+The seed passes through `ykman`'s command line for a moment, where another process of the same user could read it. The access key's secret passes through `aws configure set`'s command line the same way, for the same moment. The seed file is mode 600 in the run's private temporary directory and is deleted when the step ends.
 
 ## Bootstrapping: route C one last time
 

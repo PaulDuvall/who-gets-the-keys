@@ -100,6 +100,14 @@ In step 5 of 7 it creates the TOTP device and asks you to add its secret to the 
 
 If the `infra/sandbox` apply fails with "Invalid principal in policy", IAM had not yet propagated the new user. Run the same command again; the plan then holds only what is left.
 
+The `infra/sandbox` plan may also update `aws_lambda_function.export` in place, if a `main` deploy since 2026-11-08's `src/` change was left unapproved. That change is acceptable; any other is not.
+
+If `aws-setup.sh` stops before its step 6, after a declined plan, a failed apply or Ctrl-C, the SCP stays detached. If you will not run it again now, attach the SCP again, then do step 6's check:
+
+```bash
+aws organizations attach-policy --policy-id <SCP policy ID> --target-id <sandbox account ID> --profile org-management
+```
+
 ### 6. Check that the SCP is back
 
 `<SCP policy ID>` must be listed again:
@@ -115,7 +123,7 @@ Each of these four calls should produce one alert email within a few minutes, if
 The old route is refused:
 
 ```bash
-aws sts assume-role --role-arn arn:aws:iam::<sandbox account ID>:role/who-gets-the-keys/who-gets-the-keys-break-glass --role-session-name old-route --profile wgtk-sandbox-admin
+aws sts assume-role --role-arn arn:aws:iam::<sandbox account ID>:role/who-gets-the-keys/who-gets-the-keys-break-glass --role-session-name old-route --profile wgtk-sandbox-admin --region us-east-1
 ```
 
 Expect `AccessDenied ... is not authorized to perform: sts:AssumeRole`.
@@ -123,7 +131,7 @@ Expect `AccessDenied ... is not authorized to perform: sts:AssumeRole`.
 The access key without a code is refused:
 
 ```bash
-aws sts assume-role --role-arn arn:aws:iam::<sandbox account ID>:role/who-gets-the-keys/who-gets-the-keys-break-glass --role-session-name no-code --profile who-gets-the-keys-break-glass-user
+aws sts assume-role --role-arn arn:aws:iam::<sandbox account ID>:role/who-gets-the-keys/who-gets-the-keys-break-glass --role-session-name no-code --profile who-gets-the-keys-break-glass-user --region us-east-1
 ```
 
 Expect `AccessDenied`.
@@ -131,7 +139,7 @@ Expect `AccessDenied`.
 The access key can do nothing else:
 
 ```bash
-aws s3 ls --profile who-gets-the-keys-break-glass-user
+aws s3 ls --profile who-gets-the-keys-break-glass-user --region us-east-1
 ```
 
 Expect `AccessDenied ... with an explicit deny in an identity-based policy`.
@@ -139,7 +147,7 @@ Expect `AccessDenied ... with an explicit deny in an identity-based policy`.
 The good path. It asks for a code; touch the YubiKey for it with `ykman oath accounts code --single who-gets-the-keys-break-glass-user`:
 
 ```bash
-aws sts get-caller-identity --profile who-gets-the-keys-break-glass
+aws sts get-caller-identity --profile who-gets-the-keys-break-glass --region us-east-1
 ```
 
 Expect `arn:aws:sts::<sandbox account ID>:assumed-role/who-gets-the-keys-break-glass/<session>`. Done when the alert email for it arrives, with `"eventName": "AssumeRole"`.
@@ -165,3 +173,19 @@ On 2026-11-07, before the history rewrite, in a scratch worktree of the commit t
 Not run: `install`, because `npm ci` would rewrite the shared `node_modules`; `sca`, because no lockfile changes; `signatures` and `mutation`. `signatures` fails on `main` in this container for the same missing `ssh-keygen`.
 
 2026-11-08, after restaging: the preflight in `docs/notes/autonomous-run-2026-11-08.md`, with every batch of that day applied in order.
+
+## Review of the restaged batch, 2026-11-08
+
+An independent review applied the seven batches in order: `test/break-glass.test.ts` 7 passed, `test/aws-setup.test.ts` 48 passed, and `tsc`, trace, iac (with `terraform init` against the registry), sast, secrets, lint and slides passed. It found the rebuild faithful (`iam.tf`, both `main.tf` files, `aws.sh` and the new test byte for byte as first staged, but for the ID), R217 met, nothing that locks the owner out or widens access, and nothing critical.
+
+| Severity | Finding | Done |
+|---|---|---|
+| High | The staged `aws-setup.sh` reworded two header lines the role ARN batch adds, so `land.sh` would report "lacks lines" and the runbook would have the owner answer no | Fixed in `ef423f6` before the review ended |
+| Medium | No way back if `aws-setup.sh` stops before attaching the SCP | Step 5 gives the `attach-policy` command |
+| Low | An `AWS_REGION` in the shell overrides the profile's region and fails the trust's `aws:RequestedRegion` | `--region us-east-1` on step 7's calls, the README's check and `aws-setup.sh`'s closing hint |
+| Low | The expected plan did not allow for a Lambda update left by an unapproved deploy | Named as acceptable |
+| Low | A failed `aws configure set` after a key was made exited before the SCP step, against R217 | Each failure now sets the status line and the run goes on; a new test covers the "no break-glass user yet" path |
+| Low | The secret passes through `aws configure set`'s command line | Said in decision 0007 beside the seed's exposure |
+| Low | `break-glass.test.ts`'s regexes would miss an extra condition key | Not changed: the ten recorded mutations each fail a test |
+| Low | Backlog 7v1's quarterly drill is not addressed | Stays open in the backlog |
+| Low | The branch this was first staged on still holds the real account ID, email and SCP policy ID, and `main`'s history holds the email and policy ID | Owner step: delete the branch; the history is part of backlog m7a's steps 3 and 4 |

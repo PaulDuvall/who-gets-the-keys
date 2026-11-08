@@ -699,7 +699,7 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
       `${USER_PROFILE} region us-east-1`, `${BG_PROFILE} role_arn ${BG_ROLE}`, `${BG_PROFILE} source_profile ${USER_PROFILE}`,
       `${BG_PROFILE} mfa_serial ${SERIAL}`, `${BG_PROFILE} region us-east-1`, `${BG_PROFILE} duration_seconds 3600`,
     ]);
-    expect(r.stdout).toContain(`Check break-glass once. It asks for a code from your YubiKey, and owner@example.com gets an alert email:\naws sts get-caller-identity --profile ${BG_PROFILE}\n`);
+    expect(r.stdout).toContain(`Check break-glass once. It asks for a code from your YubiKey, and owner@example.com gets an alert email:\naws sts get-caller-identity --profile ${BG_PROFILE} --region us-east-1\n`);
     expect(r.stdout).not.toContain("Break-glass is not usable yet.");
   }, TIMEOUT);
 
@@ -714,6 +714,17 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
     expect(r.stdout).toContain("Break-glass is not usable yet. The SCP is attached");
     expect(r.stdout).not.toContain("Check break-glass once.");
     expect(lines(join(repo.stub, "applied")).map((line) => line.split(" from ")[0])).toEqual(["applied sandbox create", "applied org create"]);
+  }, TIMEOUT);
+
+  it("SPEC-001-R217 skips the enrollment when infra/sandbox has no break-glass user yet, and still applies infra/org", () => {
+    const repo = makeRepo();
+    unenrolled(repo);
+    const r = run(repo, "y\ny\n\ny\n", { TRIAGE_MODEL: PICKED, STUB_NO_USER: "1" });
+    expect(r.status).toBe(0);
+    expect(r.calls.filter((call) => /iam (create-virtual|create-access|enable-mfa|delete-)|configure set/.test(call))).toEqual([]);
+    expect(r.stdout).toContain("infra/sandbox has no break-glass user yet, because its plan was not applied. Skipped.");
+    expect(r.stdout).toContain("Break-glass is not usable yet.");
+    expect(lines(join(repo.stub, "applied")).map((line) => line.split(" from ")[0])).toContain("applied org create");
   }, TIMEOUT);
 
   it("SPEC-001-R217 stops asking after three failed tries, makes no access key without a device, deletes the seed, and still attaches the SCP", () => {
