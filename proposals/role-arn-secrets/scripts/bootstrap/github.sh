@@ -167,13 +167,14 @@ if [ "${1:-}" = "--vars" ]; then
     echo "Make it public, then run this script again before the next push to main so sandbox and probe get a required reviewer."
   fi
   outputs="$(terraform -chdir=infra/sandbox output -json)"
-  deploy="$(jq -r .deploy_role_arn.value <<<"$outputs")"
-  triage="$(jq -r .triage_role_arn.value <<<"$outputs")"
-  probe="$(jq -r .probe_role_arn.value <<<"$outputs")"
+  deploy="$(jq -r '.deploy_role_arn.value // empty' <<<"$outputs")"
+  triage="$(jq -r '.triage_role_arn.value // empty' <<<"$outputs")"
+  probe="$(jq -r '.probe_role_arn.value // empty' <<<"$outputs")"
   producer="$(jq -r '.producer_role_arn.value // empty' <<<"$outputs")"
   producer_model="$(jq -r '.producer_inference_profile.value // empty' <<<"$outputs")"
-  if [ -z "$producer" ] || [ -z "$producer_model" ]; then
-    echo "infra/sandbox has no producer_role_arn or producer_inference_profile output. Apply infra/sandbox first. Nothing set."
+  if [ -z "$deploy" ] || [ -z "$triage" ] || [ -z "$probe" ] || [ -z "$producer" ] || [ -z "$producer_model" ]; then
+    echo "infra/sandbox lacks one of the outputs deploy_role_arn, triage_role_arn, probe_role_arn, producer_role_arn and"
+    echo "producer_inference_profile. Apply infra/sandbox first. Nothing set."
     exit 1
   fi
   model="${TRIAGE_MODEL:?set TRIAGE_MODEL to the Bedrock model or inference profile ID for triage}"

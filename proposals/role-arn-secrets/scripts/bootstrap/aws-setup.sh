@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The whole AWS setup as one command: the sandbox member account, its break-glass alert, the SCP from the management
-# account, then the repository variables. Checks that change nothing in AWS or GitHub come first, then one confirm.
+# account, then the repository secrets and variables. Checks that change nothing in AWS or GitHub come first, then one
+# confirm.
 # It pauses again only to review each Terraform plan and to remind you to confirm the alert email.
 # The sandbox must be a member account: SCPs do not affect the management account, so B11 needs one (SPEC-001-R30).
 # Runs on macOS's bash 3.2 and on Linux: no mapfile, no associative arrays, no case-changing expansions.
@@ -374,7 +375,7 @@ plan_and_apply() {
 declined() {
   printf '%s\n' "$2" >&2
   if [ "$1" = infra/sandbox ] && [ -n "$attached" ] &&
-    ask "Skip infra/sandbox and go on to the alert, infra/org and the repository variables?"; then
+    ask "Skip infra/sandbox and go on to the alert, infra/org and the repository secrets and variables?"; then
     say "Skipped infra/sandbox. The pipeline's deploy job, or break-glass, applies its changes."
     return 0
   fi

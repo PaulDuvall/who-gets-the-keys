@@ -113,7 +113,7 @@ const stubTerraform = [
 const stubGh = [
   "#!/usr/bin/env bash",
   log,
-  'if [ "$1 ${2:-}" = "variable list" ]; then printf \'DEPLOY_ROLE_ARN\\nTRIAGE_MODEL\\nPROBE_ROLE_ARN\\n\'; exit 0; fi',
+  'if [ "$1 ${2:-}" = "variable list" ]; then if [ -n "${STUB_VARIABLES:-}" ]; then cat "$STUB_VARIABLES"; else printf \'DEPLOY_ROLE_ARN\\nTRIAGE_MODEL\\nPROBE_ROLE_ARN\\n\'; fi; exit 0; fi',
   'case "$1" in auth|variable|secret) exit 0 ;; esac',
   'if [ "${2:-}" = "-X" ]; then',
   '  case " $* " in *" --input - "*) cat > /dev/null ;; esac',
@@ -158,7 +158,7 @@ const isRead = (call: string) => READS.some((read) => read.test(call));
 interface Repo { work: string; origin: string; stub: string; tmp: string; env: NodeJS.ProcessEnv }
 interface Result { status: number | null; stdout: string; out: string; calls: string[] }
 
-describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP and the repository variables in one command", () => {
+describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP and the repository secrets and variables in one command", () => {
   // Made in beforeAll, not here, so listing the tests (the trace check runs vitest list) leaves no directory behind.
   let scratch = "";
   beforeAll(() => { scratch = mkdtempSync(join(tmpdir(), "aws-setup-")); });
@@ -375,7 +375,7 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
     const stop = run(repo, "y\nn\nn\n", { TRIAGE_MODEL: PICKED });
     expect(stop.status).toBe(1);
     expect(stop.stdout).toContain("If this plan changes them, answer no, then skip infra/sandbox to go on to the later steps.");
-    expect(stop.stdout).toContain("Skip infra/sandbox and go on to the alert, infra/org and the repository variables? [y/N]");
+    expect(stop.stdout).toContain("Skip infra/sandbox and go on to the alert, infra/org and the repository secrets and variables? [y/N]");
     expect(stop.out).toContain("Stopped, as you chose.");
     expect(stop.calls.filter((call) => later.test(call))).toEqual([]);
 
@@ -633,5 +633,49 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
       /\bcoproc\b/, /\|&/, /&>>/, /;;&/, /\bwait -n\b/, /\$\{[^}]*@[QEPAaKUuL]\}/, /\bEPOCH(?:SECONDS|REALTIME)\b/];
     for (const feature of bash4) expect([String(feature), feature.test(code)]).toEqual([String(feature), false]);
     expect(code).not.toMatch(/^\s*(?:eval|source|\.)\s/m);
+  });
+});
+
+// github.sh --vars on its own, as the owner runs it after the role ARN batch lands: the stub gh above, and a terraform
+// that prints the outputs in STUB_OUTPUTS.
+describe("SPEC-001-R86 github.sh --vars sets the four role ARNs as secrets, then deletes only their variables", () => {
+  let scratch = "";
+  beforeAll(() => { scratch = mkdtempSync(join(tmpdir(), "github-vars-")); });
+  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+  const ROLE = "arn:aws:iam::111111111111:role/who-gets-the-keys/who-gets-the-keys";
+  const ALL = { deploy_role_arn: `${ROLE}-deploy`, triage_role_arn: `${ROLE}-triage-bedrock`, probe_role_arn: `${ROLE}-scenario-probe`, producer_role_arn: `${ROLE}-producer-bedrock`, producer_inference_profile: "us.anthropic.claude-example-p" };
+
+  function vars(outputs: Record<string, string>, variables: string): { status: number | null; out: string; writes: string[] } {
+    const dir = mkdtempSync(join(scratch, "run-"));
+    const stub = join(dir, "stub");
+    mkdirSync(stub);
+    writeFileSync(join(stub, "gh"), stubGh);
+    writeFileSync(join(stub, "terraform"), ["#!/usr/bin/env bash", log, 'cat "$STUB_OUTPUTS"', ""].join("\n"));
+    for (const name of ["gh", "terraform"]) chmodSync(join(stub, name), 0o755);
+    writeFileSync(join(dir, "outputs.json"), JSON.stringify(Object.fromEntries(Object.entries(outputs).map(([k, v]) => [k, { value: v }]))));
+    writeFileSync(join(dir, "variables"), variables);
+    const env: NodeJS.ProcessEnv = {};
+    for (const [key, value] of Object.entries(process.env)) if (!/^(AWS_|GH_|GITHUB_|TRIAGE_MODEL$)/.test(key)) env[key] = value;
+    Object.assign(env, { PATH: `${stub}:${process.env["PATH"] ?? ""}`, STUB_DIR: stub, REPO: "o/r", TRIAGE_MODEL: PICKED, STUB_OUTPUTS: join(dir, "outputs.json"), STUB_VARIABLES: join(dir, "variables"), GH_CONFIG_DIR: dir });
+    const r = spawnSync("bash", [join(process.cwd(), "scripts/bootstrap/github.sh"), "--vars"], { cwd: dir, env, input: "y\ny\n", encoding: "utf8", timeout: TIMEOUT });
+    const calls = existsSync(join(stub, "calls")) ? readFileSync(join(stub, "calls"), "utf8").split("\n").filter(Boolean) : [];
+    return { status: r.status, out: `${r.stdout}${r.stderr}`, writes: calls.filter((c) => / (secret|variable) (set|delete) /.test(c)) };
+  }
+
+  it("SPEC-001-R86 sets the four secrets and two model variables, and deletes no variable when none holds a role ARN", { timeout: TIMEOUT }, () => {
+    const r = vars(ALL, "TRIAGE_MODEL\nPRODUCER_MODEL\n");
+    expect(r.status).toBe(0);
+    expect(r.writes.map((c) => c.split(" | ")[1])).toEqual([
+      `secret set DEPLOY_ROLE_ARN --repo o/r --body ${ROLE}-deploy`, `secret set TRIAGE_ROLE_ARN --repo o/r --body ${ROLE}-triage-bedrock`,
+      `secret set PROBE_ROLE_ARN --repo o/r --body ${ROLE}-scenario-probe`, `secret set PRODUCER_ROLE_ARN --repo o/r --body ${ROLE}-producer-bedrock`,
+      `variable set TRIAGE_MODEL --repo o/r --body ${PICKED}`, "variable set PRODUCER_MODEL --repo o/r --body us.anthropic.claude-example-p",
+    ]);
+  });
+
+  it.each(Object.keys(ALL))("SPEC-001-R86 sets and deletes nothing when the output %s is missing", { timeout: TIMEOUT }, (missing) => {
+    const r = vars(Object.fromEntries(Object.entries(ALL).filter(([k]) => k !== missing)), "DEPLOY_ROLE_ARN\n");
+    expect(r.status).toBe(1);
+    expect(r.out).toContain("Apply infra/sandbox first. Nothing set.");
+    expect(r.writes).toEqual([]);
   });
 });

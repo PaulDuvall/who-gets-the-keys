@@ -1,5 +1,6 @@
-# Triage a new issue with Claude via Bedrock (OIDC). The issue body is untrusted input, so the agent job holds
-# no secrets, no write token, no tools, a turn limit and the egress allowlist. Its only output is one label from a
+# Triage a new issue with Claude via Bedrock (OIDC). The issue body is untrusted input, so the agent job holds no
+# credential secret, no write token, no tools, a turn limit and the egress allowlist. Its one secret, TRIAGE_ROLE_ARN,
+# is a role ARN, read only by configure-aws-credentials, so the log masks the AWS account ID (SPEC-001-R86). Its only output is one label from a
 # fixed schema; a second job with no agent checks the label against the fixed set and applies it.
 name: issue-triage
 

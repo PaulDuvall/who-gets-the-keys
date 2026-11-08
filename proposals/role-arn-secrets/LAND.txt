@@ -10,6 +10,7 @@ message: spec: read the role ARNs from secrets, so no run log prints the AWS acc
 spec: SPEC-001-R85
 spec: SPEC-001-R86
 spec: SPEC-001-R27
+spec: SPEC-001-R30
 # main still has the producer and SCP rows this copy was staged against.
 requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R86 | THE Terraform in `infra/sandbox` SHALL define role `who-gets-the-keys-producer-bedrock`
 requires: .github/workflows/producer.yml aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd

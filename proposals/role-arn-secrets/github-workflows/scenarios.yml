@@ -120,6 +120,7 @@ jobs:
           aws-region: us-east-1
           mask-aws-account-id: true
       - name: Run the on-demand probes
+        shell: bash
         env:
           DEPLOY_ROLE_ARN: ${{ secrets.DEPLOY_ROLE_ARN }}
         run: scenarios/on-demand.sh | tee on-demand.log
