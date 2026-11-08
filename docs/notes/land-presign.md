@@ -6,12 +6,12 @@ Status: staged in `proposals/land-presign/`, not landed. Drafted 2026-11-08. Lan
 
 | When | New behaviour | Lesson |
 |---|---|---|
-| After the moves are staged, before the review | Checks `node --version` against `package.json`'s `engines` (`>=24.11.0 <25`). Then, in a temporary worktree holding exactly the staged tree, runs `npm ci --ignore-scripts`, `tsc --noEmit`, ESLint on each moved `.ts`, `.mts`, `.js` or `.mjs` file, `vitest run`, `node scripts/checks.ts trace`, and `git apply --check` on each scenario patch that touches a moved file. A failure prints `Preflight failed: <step>`, the step's last 20 lines, signs nothing, and puts the working tree and index back | L10, L19, L20 |
-| After `main` moves | Waits, up to 10 minutes, until the deploy job, `deploy to sandbox`, waits for approval, then prints `Approve the sandbox deployment in main's run <ID>: <URL>`, and prints the URL again after `gh run watch` ends | backlog u3u, update of 2026-11-08 |
-| After `main`'s run fails | If every job but the deploy passed or was skipped: a cancelled deploy says it was most likely cancelled by a newer push; a deploy that failed without running a step says it was rejected or never started. Both say nothing needs fixing. Any other failure keeps the old "fix the problem in a new commit on top" | L13 |
+| After the review, before the signing prompt | Checks `node --version` against `package.json`'s `engines` (`>=24.11.0 <25`), refusing a pre-release. Then, in a temporary worktree holding exactly the staged tree, from an empty environment with a temporary `HOME`, runs `npm ci --ignore-scripts`, `tsc --noEmit`, ESLint on each moved `.ts`, `.mts`, `.js` or `.mjs` file, `vitest run`, `node scripts/checks.ts trace`, and `git apply --check` on each scenario patch the batch moves, that touches a moved file, or that git cannot read. A failure prints `Preflight failed: <step>`, the failing tests and the last 20 lines, keeps the whole output in a named file, signs nothing, and puts the working tree and index back | L10, L19, L20 |
+| After `main` moves | Waits, up to 10 minutes, until the run or its deploy job, `deploy to sandbox`, waits for approval, then prints `Approve the sandbox deployment in main's run <ID>: <URL>` and keeps polling, for up to an hour, until the deployment no longer waits: `gh run watch` switches to the terminal's alternate screen and would hide the line. Then it watches, and prints the URL again after the watch ends | backlog u3u, update of 2026-11-08 |
+| After `main`'s run fails | If every job but the deploy passed or was skipped: a deploy cancelled before any step says it was most likely cancelled by a newer push, and nothing needs fixing; a deploy that failed without running a step says it was rejected or could not start, that nothing needs fixing if the owner rejected it, and otherwise how to see why. Any other failure, a cancel after steps ran included, keeps the old "fix the problem in a new commit on top" | L13 |
 | When `gh` cannot read the run | The old messages, with no wait: the existing `land.sh` and `land.sh --delivery` tests' stub `gh` answers no `run view`, and they pass unchanged | |
 
-Two choices beyond the backlog item's criteria, each recorded here: the preflight runs every test, not only the moved ones, because T3a and T4's failures were in tests the batch did not move (L19, L20); and it runs before the review rather than just before the signing prompt, so the owner never reads a diff that will be refused.
+One choice beyond the backlog item's criteria: the preflight runs every test, not only the moved ones, because T3a and T4's failures were in tests the batch did not move (L19, L20). It runs after the owner's review, not before it, because it runs the batch's own code; see the review below.
 
 ## Evidence for the cancelled and rejected cases
 
@@ -40,3 +40,19 @@ So "failed without running a step" stands for a rejection. Inference: a job that
 - `test/land.test.ts` with the changes, for want of `ssh-keygen` here.
 - The job `status` value `waiting` for a job held at an environment's approval: the backlog item names it, and GitHub's REST reference lists it among job statuses; not read from a live waiting run.
 - The preflight's run time on the owner's machine: `npm ci` plus the full suite, estimated 1 to 3 minutes (inference from this container's 40 to 60 s for the suite).
+
+## Review, 2026-11-08
+
+An independent review found two critical, two high, four medium and six low findings. It confirmed that `read-tree -u --reset` reproduces the staged tree exactly, that Ctrl-C during a step runs the cleanup, and that the gh expressions give the expected output on runs 42431648429 and 42404547253.
+
+| Severity | Finding | Done |
+|---|---|---|
+| Critical | `land.sh` exports `GIT_LITERAL_PATHSPECS=1`, and every step inherited it: the trace check's `git ls-files -- specs/*.md` matched nothing, so trace and vitest would refuse every batch on the owner's machine. The stubs hid it | Each step runs under `env -i` with only `PATH`, the language, the npm cache, a temporary `HOME` and `TMPDIR`, and a git identity. A test checks that no step sees that variable, the SSH agent or `AWS_PROFILE`. The full suite and the trace check were run here under that environment: the same 3 `ssh-keygen` failures, trace passes |
+| Critical | The staged `test/land.test.ts` added `package.json` to its repository but not to the first test's file list, so the landing's candidate run would fail after signing (shown with a stand-in `ssh-keygen`) | Added |
+| High | The preflight ran the batch's own code before the owner's review, with the owner's SSH agent, gh and AWS credentials | It runs after the review, from the empty environment, and says the key must not blink. The repository's own git settings still reach it, so a test that signs could make the key blink: the message says to press Ctrl-C |
+| High | `gh run watch` switches to the alternate screen, hiding the approval line | It keeps polling until the deployment no longer waits, then watches. A test feeds a sequence of states and checks no watch starts while it waits |
+| Medium | R213's explanation clause fired for any deploy failure, and its wait had no bound | R213 says when it explains, and gives the 10-minute and one-hour bounds |
+| Medium | "Nothing needs fixing" for a cancel after steps ran, and for any failure without steps | Only a cancel before any step; a failure without steps says nothing needs fixing only if the owner rejected it |
+| Medium | A batch that changes only a scenario patch was not checked, and an unreadable patch made `land.sh` exit 128 | Both are checked as steps; two tests |
+| Medium | Failure output was hard to use | Control characters stripped, failing tests listed, the whole output kept in a named file |
+| Low | Prune only when the worktree directory existed; a pre-release Node.js gave a bash error; only the job-level `waiting` matched; no test of the order or the polling; macOS untested | Fixed, tested, except macOS: the full suite has not run there |

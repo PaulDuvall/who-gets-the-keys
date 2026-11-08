@@ -172,7 +172,7 @@ describe("SPEC-001-R41 land.sh lands a staged batch through a candidate branch",
     expect(originRef(repo, "main")).toBe(sha);
     expect(originRef(repo, "candidate/land-batch")).toBe("");
     expect(git(repo, "ls-tree", "-r", "--name-only", "HEAD").split("\n")).toEqual([
-      ".github/workflows/pipeline.yml", ".gitignore", "approvers.txt", "docs/a.md", "scripts/tool/new.sh", "specs/SPEC-001-delivery-pipeline.md",
+      ".github/workflows/pipeline.yml", ".gitignore", "approvers.txt", "docs/a.md", "package.json", "scripts/tool/new.sh", "specs/SPEC-001-delivery-pipeline.md",
     ]);
     expect(`${git(repo, "show", "HEAD:.github/workflows/pipeline.yml")}\n`).toBe(BATCH["proposals/batch/github-workflows/pipeline.yml"]);
     expect(existsSync(join(repo.work, "proposals"))).toBe(false);
