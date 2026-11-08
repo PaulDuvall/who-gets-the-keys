@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# The whole AWS setup as one command: the sandbox member account, its break-glass alert and break-glass user, the SCP
-# from the management account, then the repository secrets and variables. Checks that change nothing in AWS or GitHub
-# come first, then one confirm.
+# The whole AWS setup as one command: the sandbox member account, its break-glass alert, the SCP from the management
+# account, then the repository secrets and variables. Checks that change nothing in AWS or GitHub come first, then one
+# confirm.
+# Step 5 of 7 also enrolls the break-glass user, while the SCP is not attached (SPEC-001-R217).
 # It pauses again only to review each Terraform plan and to remind you to confirm the alert email.
 # The sandbox must be a member account: SCPs do not affect the management account, so B11 needs one (SPEC-001-R30).
 # Runs on macOS's bash 3.2 and on Linux: no mapfile, no associative arrays, no case-changing expansions.
