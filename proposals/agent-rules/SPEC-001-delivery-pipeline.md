@@ -69,12 +69,12 @@ A `<...>` identifier is the value recorded for that scenario in `scenarios/scena
 
 ## Local sessions
 
-The approver's security key and SPEC-001-R12 are the control against an agent signing. This requirement is a tripwire in front of them: it reads only command text, so a script the agent writes and runs can pass it.
+The approver's security key and SPEC-001-R12 are the control against an agent signing, and the approver's review of each landing the control against what a commit says. These requirements are tripwires in front of them: they read only command text and the files it names, so a script the agent writes and runs can pass them.
 
 | ID | Requirement |
 |---|---|
 | SPEC-001-R39 | WHEN a local Claude Code session runs a Bash command that could sign a commit or tag, or reach a signing key (a git signing option or signing configuration, `ssh-keygen -Y sign`, `ssh-add`, `SSH_AUTH_SOCK`, writing a commit object, or running `scripts/bootstrap/rewrite-history.ts`), THE `no-sign` PreToolUse hook SHALL exit with status 2 and append one `signing-attempt` line to `.claude/security-events.log`. Text in a commit message, meaning a `-m` argument or the heredoc of `git commit -F -`, SHALL NOT count. |
-| SPEC-001-R214 | WHEN a Claude Code session in this repository runs a Bash command that runs `git commit`, and the command's text, or a file it passes with `-F` or `--file`, holds `claude.ai/code/session_`, THE `no-session-link` PreToolUse hook SHALL exit with status 2 and say that owner decision D24 names no Claude Code session in this repository. Like SPEC-001-R39's hook, it reads only command text and the files it names, so it is a tripwire in front of the review of each commit, not a boundary. |
+| SPEC-001-R214 | WHEN an interactive Claude Code session in this repository runs a Bash command that runs `git commit`, and the command's text, or a message file it names with `-F`, `--file` or a `<` redirect, read from the command's working directory after any `cd` or `git -C`, holds `claude.ai/code/session_` in any letter case or a `Claude-Session:` trailer, THE `no-session-link` PreToolUse hook SHALL exit with status 2 and say that owner decision D24 names no Claude Code session in this repository. It SHALL read only regular files up to 1 MiB. The runner producer runs with hooks off (SPEC-001-R87), so this does not cover it; its commits are written by the publish job. |
 
 ## Cloud sessions
 

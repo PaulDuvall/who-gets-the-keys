@@ -86,9 +86,11 @@ describe("SPEC-001-R214 the no-session-link hook", () => {
   afterAll(() => rmSync(project, { recursive: true, force: true }));
   writeFileSync(join(project, "linked.txt"), "docs: a change\n\nAgent: Claude Code\nClaude-Session: https://claude.ai/code/session_01AbCd\n");
   writeFileSync(join(project, "clean.txt"), "docs: a change\n\nAgent: Claude Code\n");
-  const hook = (command: string) =>
+  mkdirSync(join(project, "sub"));
+  writeFileSync(join(project, "sub", "linked.txt"), "docs: a change\n\nClaude-Session: https://claude.ai/code/session_01AbCd\n");
+  const hook = (command: string, cwd?: string) =>
     spawnSync(process.execPath, [join(process.cwd(), ".claude/hooks/hook.mjs"), "no-session-link"], {
-      input: JSON.stringify({ session_id: "s", tool_input: { command } }),
+      input: JSON.stringify({ session_id: "s", tool_input: { command }, ...(cwd === undefined ? {} : { cwd }) }),
       env: { ...process.env, CLAUDE_PROJECT_DIR: project },
       encoding: "utf8",
     });
@@ -102,12 +104,31 @@ describe("SPEC-001-R214 the no-session-link hook", () => {
       "git commit --file=linked.txt",
       `git commit -q -F ${join(project, "linked.txt")}`,
       `cd /tmp && git commit --amend -m "see ${link}"`,
+      `git commit -m "docs: x" -m "Claude-Session: session_01AbCd"`,
+      `git commit -m "see HTTPS://CLAUDE.AI/code/session_01AbCd"`,
+      `git \\\n  commit -m "see ${link}"`,
+      "git commit -F - < linked.txt",
+      "cd sub && git commit -F linked.txt",
+      "git -C sub commit -F linked.txt",
     ];
     for (const command of blocked) {
       const r = hook(command);
       expect([command, r.status]).toEqual([command, 2]);
       expect(r.stderr).toContain("Owner decision D24 names no Claude Code session in this repository");
     }
+  });
+
+  it("SPEC-001-R214 reads a relative message file from the command's own working directory", () => {
+    expect(hook("git commit -F linked.txt", join(project, "sub")).status).toBe(2);
+    expect(hook("git commit -F clean.txt", join(project, "sub")).status).toBe(0);
+  });
+
+  it("SPEC-001-R214 reads only regular files, and never fails closed on odd input", () => {
+    expect(hook("git commit -F /dev/zero").status).toBe(0);
+    const odd = spawnSync(process.execPath, [join(process.cwd(), ".claude/hooks/hook.mjs"), "no-session-link"], {
+      input: JSON.stringify({ session_id: "s", tool_input: { command: 42 } }), env: { ...process.env, CLAUDE_PROJECT_DIR: project }, encoding: "utf8",
+    });
+    expect(odd.status).toBe(0);
   });
 
   it("SPEC-001-R214 allows other commits, and commands that only mention a session link", () => {
