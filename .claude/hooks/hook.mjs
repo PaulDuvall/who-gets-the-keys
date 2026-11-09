@@ -1,8 +1,8 @@
-// Claude Code hooks. Usage: node hook.mjs <expect-expect|gitleaks-staged|security-event|no-sign>
+// Claude Code hooks. Usage: node hook.mjs <expect-expect|gitleaks-staged|security-event|no-sign|no-session-link>
 // Reads the hook's JSON from stdin. Exit 2 blocks (PreToolUse) or reports back (PostToolUse).
 import { execFileSync } from "node:child_process";
-import { appendFileSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { appendFileSync, readFileSync, statSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
 
 const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const input = JSON.parse(readFileSync(0, "utf8"));
@@ -90,6 +90,37 @@ const hooks = {
     const event = { at: new Date().toISOString(), event: "signing-attempt", session: input.session_id, command: full };
     appendFileSync(join(root, ".claude/security-events.log"), `${JSON.stringify(event)}\n`);
     process.stderr.write("Blocked: this command could sign a commit or tag, or reach a signing key. Only an approver signs, with a security key. Agent commits are unsigned: git -c commit.gpgsign=false commit.\n");
+    return 2;
+  },
+  // PreToolUse on Bash: refuse a git commit whose message links a Claude Code session. Owner decision D24 names no
+  // session in this repository, and some sessions are told to add a Claude-Session trailer (SPEC-001-R214). It reads
+  // the command's text, and the message files it names with -F, --file or a < redirect, resolved from the command's
+  // working directory after any cd or git -C. Like no-sign, it is a tripwire, not a boundary.
+  "no-session-link"() {
+    const command = typeof tool.command === "string" ? tool.command.replace(/\\\n/g, " ") : "";
+    if (!/\bgit\b[^\n]*\bcommit\b/.test(command)) return 0;
+    const link = /claude\.ai\/code\/session_|(?:^|[\s"'])Claude-Session:/im;
+    let dir = typeof input.cwd === "string" && input.cwd !== "" ? input.cwd : root;
+    const cd = [...command.matchAll(/(?:^|[;&|]\s*)cd\s+(["']?)([^\s"';&|]+)\1/g)].at(-1)?.[2];
+    if (cd !== undefined) dir = isAbsolute(cd) ? cd : join(dir, cd);
+    const gitC = /\bgit\s+-C\s+(["']?)([^\s"']+)\1[^\n]*\bcommit\b/.exec(command)?.[2];
+    if (gitC !== undefined) dir = isAbsolute(gitC) ? gitC : join(dir, gitC);
+    const named = [
+      ...[...command.matchAll(/\s(?:-F|--file)(?:=|\s+)(["']?)([^\s"']+)\1/g)].map((m) => m[2]),
+      ...[...command.matchAll(/\s<\s*(["']?)([^\s"'<>;&|]+)\1/g)].map((m) => m[2]),
+    ].filter((f) => f !== undefined && f !== "-");
+    // Only regular files up to 1 MiB: a FIFO would hang the hook, and /dev/zero would never end.
+    const read = (file) => {
+      try {
+        const path = isAbsolute(file) ? file : join(dir, file);
+        const stat = statSync(path);
+        return stat.isFile() && stat.size <= 1024 * 1024 ? readFileSync(path, "utf8") : "";
+      } catch {
+        return "";
+      }
+    };
+    if (![command, ...named.map(read)].some((text) => link.test(text))) return 0;
+    process.stderr.write("Blocked: this commit message links a Claude Code session. Owner decision D24 names no Claude Code session in this repository, so leave out the Claude-Session trailer and any session link.\n");
     return 2;
   },
 };

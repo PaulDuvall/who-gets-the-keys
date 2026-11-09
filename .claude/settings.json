@@ -31,7 +31,8 @@
         "hooks": [
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/hook.mjs gitleaks-staged" },
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/hook.mjs security-event" },
-          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/hook.mjs no-sign" }
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/hook.mjs no-sign" },
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/hook.mjs no-session-link" }
         ]
       }
     ],
