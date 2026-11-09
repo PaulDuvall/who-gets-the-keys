@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Lands one staged batch of protected files as one approver-signed commit, through a candidate branch (SPEC-001-R41),
-# or one runner producer delivery, unsigned, through the owner's own push (SPEC-001-R210).
+# or one runner producer delivery, unsigned, through the owner's own push (SPEC-001-R210). Before it asks to sign, it
+# tests the moved tree as the candidate run will, and it says where to approve the deploy (SPEC-001-R213).
 # Runs on macOS's bash 3.2 and on Linux: no mapfile, no associative arrays, no case-changing expansions, and every
 # array is either known to be non-empty or read by index under a counter.
 set -euo pipefail
@@ -10,7 +11,9 @@ usage() {
   echo "       scripts/bootstrap/land.sh --to-main <sha> <candidate branch>"
   echo "       scripts/bootstrap/land.sh --delivery candidate/<task>"
   echo "  Lands one staged batch, for example proposals/phase-1, as one signed commit. It reads <batch dir>/LAND.txt,"
-  echo "  moves each file into place, shows the diff and asks before signing. Then it pushes that commit to"
+  echo "  moves each file into place, tests the moved tree in a temporary worktree (Node.js version, npm ci, tsc, ESLint"
+  echo "  on the moved code, every test, the trace check and the scenario patches that touch a moved file), shows the"
+  echo "  diff and asks before signing. Then it pushes that commit to"
   echo "  candidate/land-<batch name>, waits for its pipeline run, pushes the same commit to main and deletes the"
   echo "  candidate branch. main only moves to a commit whose checks passed (SPEC-001-R41)."
   echo "  --stop-before-main  stop once the candidate run passes, and print the --to-main command that finishes"
@@ -126,7 +129,7 @@ delete_if_at() {
 # finish_main <sha> <candidate branch> [<other branch>]: moves main to that exact commit, deletes <other branch> if
 # given, watches main's run, then deletes the candidate branch.
 finish_main() {
-  local sha="$1" branch="$2" other="${3:-}" short run="" status=0
+  local sha="$1" branch="$2" other="${3:-}" short run="" status=0 url="" deploy_wait=""
   short="$(git rev-parse --short "$sha")"
   if ! git push origin "${sha}:refs/heads/main"; then
     if [ -n "$other" ]; then
@@ -142,10 +145,21 @@ finish_main() {
   say "" "main is at ${short}." \
     "The deploy to the sandbox now waits for your approval in GitHub: approve the sandbox deployment in main's run."
   if run="$(find_run main "$sha")"; then
+    url="$(run_url "$run")"
     say "Pipeline run ${run} on main. To open it in a browser:" "gh run view ${run} --web" \
       "Watching it until the deploy finishes. If you stop watching, delete the candidate branch afterwards:" \
       "git push origin --delete ${branch}"
+    if [ -n "$url" ]; then
+      say "Waiting until its deploy job, ${deploy_job}, waits for your approval."
+      deploy_wait="$(wait_for_deploy "$run")"
+      if [ "$deploy_wait" = waiting ]; then
+        say "" "Approve the sandbox deployment in main's run ${run}: ${url}" \
+          "This waits until you approve or reject it, then watches the deploy." ""
+        wait_for_approval "$run"
+      fi
+    fi
     gh run watch "$run" --exit-status || status=1
+    [ -z "$url" ] || say "" "main's run ${run}: ${url}"
   else
     say "No pipeline run on main for ${short} after 5 minutes. To look for it:" \
       "gh run list --workflow pipeline.yml --branch main"
@@ -154,6 +168,9 @@ finish_main() {
   delete_if_at "$branch" "$sha"
   case "$status" in
     1)
+      if explain_failure "$run" "$short"; then
+        exit 1
+      fi
       say "main's run did not pass. The commit is on main, so fix the problem in a new commit on top." \
         "Never amend a pushed commit. To see why it failed:" "gh run view ${run} --log-failed"
       exit 1
@@ -204,6 +221,177 @@ watch_candidate() {
   candidate_run="$run"
 }
 
+# remove_tree: removes the preflight's temporary worktree, if there is one, and any stale record in .git/worktrees.
+remove_tree() {
+  [ -n "${work:-}" ] || return 0
+  if [ -d "$work/tree" ]; then
+    git worktree remove --force "$work/tree" >/dev/null 2>&1 || rm -rf "$work/tree"
+  fi
+  git worktree prune >/dev/null 2>&1 || true
+}
+
+# version_at_least <version> <minimum>: both "X.Y.Z"; succeeds when <version> is not below <minimum>.
+version_at_least() {
+  local a1 a2 a3 b1 b2 b3
+  IFS=. read -r a1 a2 a3 <<< "$1"
+  IFS=. read -r b1 b2 b3 <<< "$2"
+  [ "$a1" -gt "$b1" ] && return 0
+  [ "$a1" -lt "$b1" ] && return 1
+  [ "$a2" -gt "$b2" ] && return 0
+  [ "$a2" -lt "$b2" ] && return 1
+  [ "$a3" -ge "$b3" ]
+}
+
+# preflight_step <name> <command...>: runs one preflight step in the temporary worktree, from an empty environment
+# with a throwaway HOME: no SSH agent, no AWS or gh credentials, no git settings but the repository's own, and none of
+# this script's own variables, such as GIT_LITERAL_PATHSPECS, which would change what the checks see. On failure it
+# prints the failing tests and the end of the output, keeps the whole output in a file it names, and refuses, so
+# nothing is signed and the cleanup puts the working tree and index back.
+preflight_step() {
+  local name="$1" kept
+  shift
+  if (cd "$work/tree" && env -i PATH="$PATH" HOME="$work/home" TMPDIR="$work/tmp" LANG="${LANG:-C.UTF-8}" TERM=dumb \
+      NO_COLOR=1 CI=1 npm_config_cache="$npm_cache" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null \
+      GIT_AUTHOR_NAME=preflight GIT_AUTHOR_EMAIL=preflight@example.invalid \
+      GIT_COMMITTER_NAME=preflight GIT_COMMITTER_EMAIL=preflight@example.invalid "$@") > "$work/step.log" 2>&1; then
+    say "  passed: ${name}"
+    return 0
+  fi
+  kept="$(mktemp "${TMPDIR:-/tmp}/land-preflight.XXXXXX")"
+  tr -d '\000-\010\013-\037\177' < "$work/step.log" > "$kept"
+  say "  FAILED: ${name}" ""
+  if grep -q ' FAIL ' "$kept"; then
+    say "Failing tests:"
+    grep ' FAIL ' "$kept" | sort -u | head -n 20 || true
+  fi
+  say "Its last lines:"
+  tail -n 20 "$kept"
+  fail "" "Preflight failed: ${name}. Nothing was signed. The whole output is in ${kept}." \
+    "Fix the batch in a new commit on main, then run this again."
+}
+
+# preflight: tests the moved tree after the review and before the signature (SPEC-001-R213), as the candidate run will,
+# so a batch that fails is never signed. The worktree holds exactly the index as the moves left it.
+preflight() {
+  local engines min max version tree_id n lint_count lint patch path touched check
+  say "" "Preflight: testing the moved tree in a temporary worktree, as the candidate run will, before you sign." \
+    "It runs the batch's own code, its tests included, without your SSH agent or cloud credentials. Your security key" \
+    "must not blink until it asks you to sign. If it blinks, do not touch it: press Ctrl-C."
+  engines="$(sed -n 's/^[[:space:]]*"node":[[:space:]]*">=\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\) <\([0-9][0-9]*\)",\{0,1\}[[:space:]]*$/\1 \2/p' package.json | head -n 1)"
+  [ -n "$engines" ] || fail "Preflight failed: package.json's engines.node is not of the form \">=X.Y.Z <N\". Nothing was signed."
+  read -r min max <<< "$engines"
+  version="$(node --version 2>/dev/null || true)"
+  version="${version#v}"
+  case "$version" in
+    *[!0123456789.]*) fail "Preflight failed: Node.js ${version} is a pre-release or not a version. package.json needs >=${min} <${max}. Nothing was signed." ;;
+    [0-9]*.[0-9]*.[0-9]*) ;;
+    *) fail "Preflight failed: no Node.js on PATH. package.json needs >=${min} <${max}. Nothing was signed." ;;
+  esac
+  if ! version_at_least "$version" "$min" || [ "${version%%.*}" -ge "$max" ]; then
+    fail "Preflight failed: Node.js ${version} is outside package.json's engines range, >=${min} <${max}." \
+      "Put a Node.js in that range first on PATH, then run this again. Nothing was signed."
+  fi
+  say "  passed: Node.js ${version} is in >=${min} <${max}"
+  # npm's own cache, so npm ci need not download everything again. Not read with npm: the moved tree's .npmrc could set it.
+  npm_cache="${npm_config_cache:-${HOME}/.npm}"
+  mkdir -p "$work/home" "$work/tmp"
+  tree_id="$(git write-tree)"
+  git worktree add -q --detach "$work/tree" HEAD >/dev/null 2>&1 || fail "Preflight failed: git worktree add. Nothing was signed."
+  git -C "$work/tree" read-tree -u --reset "$tree_id" || fail "Preflight failed: git read-tree. Nothing was signed."
+  preflight_step "npm ci --ignore-scripts" npm ci --ignore-scripts --no-audit --no-fund
+  preflight_step "tsc --noEmit" npx --no-install tsc --noEmit -p .
+  lint=()
+  lint_count=0
+  n=0
+  while [ "$n" -lt "$move_count" ]; do
+    case "${move_dests[$n]}" in
+      *.ts|*.mts|*.js|*.mjs) lint[$lint_count]="${move_dests[$n]}"; lint_count=$((lint_count + 1)) ;;
+    esac
+    n=$((n + 1))
+  done
+  if [ "$lint_count" -gt 0 ]; then
+    preflight_step "ESLint on the moved code" npx --no-install eslint -- "${lint[@]}"
+  fi
+  preflight_step "every test (vitest run)" npx --no-install vitest run
+  preflight_step "the trace check" node scripts/checks.ts trace
+  # Each scenario patch the batch moves, or that touches a file the batch moves, must still apply (lesson L20). A patch
+  # git cannot read is checked too, so it fails as a step, not as this script.
+  for patch in "$work"/tree/scenarios/*.patch; do
+    [ -f "$patch" ] || continue
+    path="scenarios/${patch##*/}"
+    touched="$(git -C "$work/tree" apply --numstat -- "$path" 2>/dev/null | cut -f3 || true)"
+    check=0
+    [ -n "$touched" ] || check=1
+    n=0
+    while [ "$n" -lt "$move_count" ] && [ "$check" = 0 ]; do
+      if [ "${move_dests[$n]}" = "$path" ] || printf '%s\n' "$touched" | grep -qxF -- "${move_dests[$n]}"; then
+        check=1
+      fi
+      n=$((n + 1))
+    done
+    [ "$check" = 0 ] || preflight_step "git apply --check ${path}" git apply --check -- "$path"
+  done
+  remove_tree
+  say "Preflight passed."
+}
+
+# run_url <run>: prints the run's URL, or nothing when gh cannot read it.
+run_url() { gh run view "$1" --json url --jq .url 2>/dev/null | head -n 1 || true; }
+
+# deploy_state <run>: prints "<run status> <deploy job status>", or fails when gh cannot read the run.
+deploy_state() {
+  gh run view "$1" --json status,jobs --jq ".status + \" \" + ([.jobs[] | select(.name == \"${deploy_job}\") | .status] | first // \"none\")" 2>/dev/null
+}
+
+# wait_for_deploy <run>: waits, up to 60 polls (10 minutes), until main's run's deploy job, or the run, waits for approval,
+# or the run ends. Prints "waiting" only in the first case. Stops early, printing nothing, when gh cannot read the run.
+wait_for_deploy() {
+  local attempt state
+  for attempt in $(seq "${LAND_WAIT_TRIES:-60}"); do
+    state="$(deploy_state "$1")" || return 0
+    case "$state" in
+      waiting*|*" waiting") echo waiting; return 0 ;;
+      completed*) return 0 ;;
+    esac
+    [ "$attempt" = "${LAND_WAIT_TRIES:-60}" ] || sleep "${LAND_POLL_SECONDS:-10}"
+  done
+}
+
+# wait_for_approval <run>: while the deploy waits for approval, up to 360 polls (an hour), keeps polling instead of
+# watching: gh run watch takes over the screen, which would hide the approval line just printed (lesson L13).
+wait_for_approval() {
+  local attempt state
+  for attempt in $(seq "${LAND_APPROVE_TRIES:-360}"); do
+    state="$(deploy_state "$1")" || return 0
+    case "$state" in
+      waiting*|*" waiting") ;;
+      *) return 0 ;;
+    esac
+    [ "$attempt" = "${LAND_APPROVE_TRIES:-360}" ] || sleep "${LAND_POLL_SECONDS:-10}"
+  done
+}
+
+# explain_failure <run> <short SHA>: when every job but the deploy passed, names the deploy job and what happened to it,
+# and says nothing needs fixing (lesson L13). Succeeds only then.
+explain_failure() {
+  local jobs other deploy steps
+  jobs="$(gh run view "$1" --json jobs --jq '.jobs[] | [.name, (.conclusion // ""), (.steps | length | tostring)] | join("\t")' 2>/dev/null)" || return 1
+  other="$(printf '%s\n' "$jobs" | awk -F '\t' -v d="$deploy_job" 'NF && $1 != d && $2 != "success" && $2 != "skipped"' | head -n 1)"
+  deploy="$(printf '%s\n' "$jobs" | awk -F '\t' -v d="$deploy_job" '$1 == d { print $2 "\t" $3 }' | head -n 1)"
+  [ -z "$other" ] && [ -n "$deploy" ] || return 1
+  steps="${deploy#*	}"
+  case "${deploy%%	*}:${steps}" in
+    cancelled:0)
+      say "main's run $1 passed every check, and only its deploy job, ${deploy_job}, was cancelled before it ran a step," \
+        "most likely by a newer push to main. $2 is on main and nothing needs fixing. The next push to main deploys it." ;;
+    failure:0)
+      say "main's run $1 passed every check, and its deploy job, ${deploy_job}, failed without running a step:" \
+        "the sandbox deployment was rejected, or the job could not start." \
+        "If you rejected it, $2 is on main and nothing needs fixing. Otherwise, see why:" "gh run view $1 --log-failed" ;;
+    *) return 1 ;;
+  esac
+}
+
 need_tools() {
   local version major minor
   command -v gh >/dev/null 2>&1 || fail "This needs the GitHub CLI, gh. Install it, sign in with gh auth login, then run this again."
@@ -249,6 +437,8 @@ esac
 
 need_tools
 candidate_run=""
+deploy_job="deploy to sandbox"
+npm_cache=""
 delivery_branch=""
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/land.XXXXXX")"
@@ -256,6 +446,7 @@ moved=0
 start=""
 cleanup() {
   local status=$?
+  remove_tree
   if [ "$moved" = 1 ]; then
     git reset -q --hard "$start" || true
     remove_empty_dirs dest
@@ -641,6 +832,7 @@ if ask "Show the full diff in a pager?"; then
   # Quitting the pager before the end is a finished review, not a failure.
   git diff --cached --no-renames -O"$work/order" || true
 fi
+preflight
 ask "Sign and land?" || fail "You chose not to sign."
 
 trailers=()

@@ -50,6 +50,8 @@ const MANIFEST = [
 
 const BASE: Record<string, string> = {
   ".gitignore": "*.local\n",
+  // land.sh checks Node.js against engines before it signs (SPEC-001-R213); the stub node, npm and npx below pass.
+  "package.json": '{\n  "name": "t",\n  "engines": {\n    "node": ">=24.11.0 <25"\n  }\n}\n',
   "specs/SPEC-001-delivery-pipeline.md": "| ID | Requirement |\n|---|---|\n| SPEC-001-R41 | main only moves to a commit on which checks passed. |\n",
   ".github/workflows/pipeline.yml": "on: push\njobs: {}\n",
   "docs/a.md": "one\n",
@@ -115,6 +117,11 @@ describe("SPEC-001-R41 land.sh lands a staged batch through a candidate branch",
     writeFileSync(join(dir, "gitconfig"), "");
     writeFileSync(join(repo.stub, "gh"), stubGh);
     chmodSync(join(repo.stub, "gh"), 0o755);
+    // The pre-sign preflight's tools pass here; test/land-presign.test.ts tests the preflight itself (SPEC-001-R213).
+    for (const name of ["node", "npm", "npx"]) {
+      writeFileSync(join(repo.stub, name), '#!/usr/bin/env bash\nif [ "$*" = --version ]; then echo v24.22.2; fi\nexit 0\n');
+      chmodSync(join(repo.stub, name), 0o755);
+    }
     writeFileSync(repo.signers, signerLine(keys.approver));
     execFileSync("git", ["init", "-q", "--bare", "-b", "main", repo.origin], { env: repo.env });
     execFileSync("git", ["init", "-q", "-b", "main", repo.work], { env: repo.env });
@@ -165,7 +172,7 @@ describe("SPEC-001-R41 land.sh lands a staged batch through a candidate branch",
     expect(originRef(repo, "main")).toBe(sha);
     expect(originRef(repo, "candidate/land-batch")).toBe("");
     expect(git(repo, "ls-tree", "-r", "--name-only", "HEAD").split("\n")).toEqual([
-      ".github/workflows/pipeline.yml", ".gitignore", "approvers.txt", "docs/a.md", "scripts/tool/new.sh", "specs/SPEC-001-delivery-pipeline.md",
+      ".github/workflows/pipeline.yml", ".gitignore", "approvers.txt", "docs/a.md", "package.json", "scripts/tool/new.sh", "specs/SPEC-001-delivery-pipeline.md",
     ]);
     expect(`${git(repo, "show", "HEAD:.github/workflows/pipeline.yml")}\n`).toBe(BATCH["proposals/batch/github-workflows/pipeline.yml"]);
     expect(existsSync(join(repo.work, "proposals"))).toBe(false);
