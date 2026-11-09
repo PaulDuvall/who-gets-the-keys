@@ -172,6 +172,8 @@ The deck's speaker notes name example tools for each practice. Where this repo u
 
 A runner producer delivery is unsigned and touches only unprotected paths, but its branch has no counted checks: the publish job pushes it with the `GITHUB_TOKEN`, which starts no run. `scripts/bootstrap/land.sh --delivery candidate/<task>` shows the delivery and, on a yes, pushes the same commit to `candidate/<task>-owner`, waits for that run and moves `main` (SPEC-001-R210). The publish job prints the command.
 
+To start the producer, run `scripts/bootstrap/producer.sh task <task> --subject <subject>` for a signed task file, or `scripts/bootstrap/producer.sh probe` for the egress probe, from your `main` at `origin/main`. It dispatches `producer.yml`, takes the run the dispatch started, watches it, and judges it from GitHub's record of the run and its steps, never from log text, which also holds the agent's output. It prints the producer's own result lines: the permission mode, any `BOUNDARY` or `CHECK` line, the publish job's `Pushed` line and how the agent's run ended; and for a task that passed, the `land.sh --delivery` command. It exits 1 unless the run passed (SPEC-001-R212).
+
 ## AWS setup
 
 The sandbox must be a member account of your AWS Organization, not its management account. SCPs do not affect the management account, so B11's SCP denial would not hold there. AWS also advises against running workloads in it.
