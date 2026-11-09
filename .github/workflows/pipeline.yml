@@ -40,8 +40,9 @@ jobs:
         run: |
           scripts/ci/install-tools.sh "$RUNNER_TEMP/tools/bin"
           echo "$RUNNER_TEMP/tools/bin" >> "$GITHUB_PATH"
+      # Started with node, not npm run: npm hands a committed .npmrc's node-options and script-shell to what it starts (SPEC-001-R215).
       - name: Run every check
-        run: npm run checks
+        run: node scripts/checks.ts
       - name: Check the task that the range's Task trailer names (SPEC-001-R64, R65, R68)
         run: node scripts/checks.ts task
       - name: Check the range's Task commits against that task (SPEC-001-R66, R67, R68)
@@ -65,10 +66,11 @@ jobs:
         with:
           node-version-file: package.json
           package-manager-cache: false
+      # npm ci --ignore-scripts starts no process. The tsc line is package.json's build script, run without npm (SPEC-001-R215).
       - name: Build the Lambda artifact
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
-          npm run build
+          node_modules/.bin/tsc --noEmit false --outDir dist
           mkdir -p dist/function
           cp dist/src/*.js dist/function/
           echo '{"type":"module"}' > dist/function/package.json

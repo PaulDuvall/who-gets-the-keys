@@ -151,3 +151,12 @@ scenarios:
     expect: "CHECK task FAILED: TASK-B24 cites unapproved SPEC-014-R99"
     slide: [3, 8]
     run: task-verify
+  # B81's expect follows from SPEC-001-R12 and specs/protected-paths.txt; test/scenarios.test.ts derives it. Before the
+  # signed landing, a run stops first at the unsigned commit that stages the list, so scenarios.yml on main observes it.
+  - id: B81
+    title: Agent makes npm load its own code before the checks
+    patch: scenarios/B81-npmrc-node-options.patch
+    check: signatures
+    expect: "CHECK signatures FAILED: unsigned change to .npmrc"
+    slide: [8]
+    spec: SPEC-001-R12

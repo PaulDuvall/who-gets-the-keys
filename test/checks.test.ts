@@ -9,7 +9,7 @@ import baseVitest from "../vitest.config.ts";
 import strykerVitest from "../vitest.stryker.config.ts";
 import {
   COMMANDS, CheckFailure, ORDER, allowedNames, approversFor, attestationArgs, changedFiles, dependencyNames, destructiveChanges, exportsOf, failedTestFiles,
-  guardedBy, jobBlock, lockfilePaths, lowered, protectedPaths, pipelineCacheFinding, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
+  guardedBy, jobBlock, lockfilePaths, lowered, protectedPaths, pipelineCacheFinding, pipelineNpmFinding, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
   RECEIPT_TYPES, pinArgs, receiptLines, receiptPin, receiptRecord, verifiedStatement,
   deployTipId,
 } from "../scripts/checks.ts";
@@ -48,6 +48,57 @@ describe("SPEC-001 checks", () => {
     expect(pipelineCacheFinding("cache-mode: none\n    cache-mode: write\n")).toBe(true);
     expect(pipelineCacheFinding("cache-mode: none\n          cache: npm\n")).toBe(true);
   });
+
+  it("SPEC-001-R215 lets pipeline.yml run npm only as npm ci --ignore-scripts, and starts the checks and the build with node", () => {
+    const pipeline = read(".github/workflows/pipeline.yml");
+    expect(pipelineNpmFinding(pipeline)).toBe(false);
+    expect(pipeline).toContain("        run: node scripts/checks.ts\n");
+    const build = (JSON.parse(read("package.json")) as { scripts: { build: string } }).scripts.build.split(" ");
+    expect(build[0]).toBe("tsc");
+    const direct = ["node_modules/.bin/tsc", ...build.slice(1)];
+    expect(pipeline).toContain(`\n          ${direct.join(" ")}\n`);
+    const harness = read("scenarios/run.ts");
+    expect(harness).toContain(`sh(${JSON.stringify(direct).replace(/","/g, '", "')}, dir, env)`);
+    expect(harness).not.toMatch(/"npm", "(?!ci")|"npx"/);
+    const step = (run: string) => `jobs:\n  build:\n    steps:\n      - run: ${run}\n`;
+    const bad = ["npm run checks", "npm test", "npm ci", "npm ci --no-audit", "npm install --ignore-scripts", "npm exec --no -- node x.ts",
+      "npx --no-install srt", "/usr/bin/npm run build", "npm ci --ignore-scripts && npm run build", "(cd x && npm run y)", "pnpm install", "pnpx x",
+      "yarn", "corepack enable", "bun x.ts", "bunx x", "npm ci --ignore-scripts --no-ignore-scripts", "npm ci --ignore-scripts false",
+      "npm ci --ignore-scripts --ignore-scripts=false", "npm ci --ignore-scripts --foreground-scripts"];
+    expect(bad.filter((run) => !pipelineNpmFinding(step(run)))).toEqual([]);
+    const good = ["node scripts/checks.ts", "npm ci --ignore-scripts --no-audit --no-fund", "npm ci --no-audit --ignore-scripts", "# npm run checks",
+      "echo built # npm run build", "cat .npmrc", "npm_config_update_notifier=false node x.ts", "rebuild", "package-manager-cache: false"];
+    expect(good.filter((run) => pipelineNpmFinding(step(run)))).toEqual([]);
+  });
+
+  it("SPEC-001-R215 a committed .npmrc reaches what npm run and npm exec start, never node itself or npm ci --ignore-scripts, and no environment variable undoes it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "npmrc-"));
+    try {
+      const pkg = { name: "probe", version: "0.0.0", private: true };
+      writeFileSync(join(dir, "package.json"), JSON.stringify({ ...pkg, scripts: { probe: "node probe.mjs", preinstall: "node probe.mjs" } }));
+      writeFileSync(join(dir, "package-lock.json"), JSON.stringify({ ...pkg, lockfileVersion: 3, requires: true, packages: { "": pkg } }));
+      writeFileSync(join(dir, "probe.mjs"), "process.exitCode = 1;\n");
+      writeFileSync(join(dir, "payload.mjs"), 'import { appendFileSync } from "node:fs";\nappendFileSync("loaded.log", "loaded\\n");\nprocess.on("exit", () => { process.exitCode = 0; });\n');
+      writeFileSync(join(dir, ".npmrc"), "node-options=--import=./payload.mjs\nignore-scripts=false\n");
+      const clean = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(?:npm_|node_options$)/i.test(key)));
+      const run = (argv: string[], extra: Record<string, string> = {}) => {
+        rmSync(join(dir, "loaded.log"), { force: true });
+        const [file = "", ...args] = argv;
+        const r = spawnSync(file, args, { cwd: dir, encoding: "utf8", env: { ...clean, npm_config_update_notifier: "false", ...extra } });
+        return { status: r.status, loaded: existsSync(join(dir, "loaded.log")) };
+      };
+      const hijacked = { status: 0, loaded: true };
+      expect(run(["npm", "run", "probe"])).toEqual(hijacked);
+      expect(run(["npm", "exec", "--no", "--", "node", "probe.mjs"])).toEqual(hijacked);
+      expect(run(["npm", "ci", "--no-audit", "--no-fund"])).toEqual(hijacked);
+      // npm skips an empty npm_config_ variable, and NPM_CONFIG_USERCONFIG replaces only ~/.npmrc, not the project's.
+      expect(run(["npm", "run", "probe"], { npm_config_node_options: "", NPM_CONFIG_USERCONFIG: "/dev/null" })).toEqual(hijacked);
+      expect(run(["node", "probe.mjs"])).toEqual({ status: 1, loaded: false });
+      expect(run([...COMMANDS.install])).toEqual({ status: 0, loaded: false });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 
   it("SPEC-001-R5 installs from a lockfile that matches package.json", () => {
     expect(COMMANDS.install).toEqual(["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"]);

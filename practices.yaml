@@ -346,5 +346,5 @@ practices:
     area: GitHub Actions
     slides: [8]
     coverage: good+bad
-    enforced_by: [check:signatures, B18]
+    enforced_by: [check:signatures, B18, B81]
     files: [specs/protected-paths.txt, scripts/checks.ts]

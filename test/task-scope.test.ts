@@ -292,11 +292,11 @@ describe("SPEC-001 task files and scope (Tracer 2, T3a)", () => {
     }, SLOW);
   });
 
-  it("SPEC-001-R68 runs the task and then the scope check as the checks job's last steps, after npm run checks, outside the ordered fifteen", () => {
+  it("SPEC-001-R68 runs the task and then the scope check as the checks job's last steps, after node scripts/checks.ts, outside the ordered fifteen", () => {
     interface Step { name?: string; run?: string; if?: string; uses?: string; with?: Record<string, unknown> }
     const pipeline = parse(readFileSync(".github/workflows/pipeline.yml", "utf8")) as { jobs: Record<string, { if?: string; steps: Step[] }> };
     const steps = pipeline.jobs["checks"]?.steps ?? [];
-    expect(steps.slice(-3).map((s) => [s.run, s.if])).toEqual([["npm run checks", undefined], ["node scripts/checks.ts task", undefined], ["node scripts/checks.ts scope", undefined]]);
+    expect(steps.slice(-3).map((s) => [s.run, s.if])).toEqual([["node scripts/checks.ts", undefined], ["node scripts/checks.ts task", undefined], ["node scripts/checks.ts scope", undefined]]);
     expect(steps[0]?.with?.["fetch-depth"]).toBe(0);
     expect(pipeline.jobs["checks"]?.if).toBeUndefined();
     expect(ORDER).not.toContain("task");

@@ -105,7 +105,8 @@ export function runIn(root: string, dir: string, s: Scenario, env: NodeJS.Proces
   }
   if (s.run === "deploy-verify") {
     sh(["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], dir, env);
-    sh(["npm", "run", "build"], dir, env);
+    // package.json's build script, run as the build job runs it: without npm, so no .npmrc adds code (SPEC-001-R215).
+    sh(["node_modules/.bin/tsc", "--noEmit", "false", "--outDir", "dist"], dir, env);
     sh(["bash", "-c", "mkdir -p dist/function && cp dist/src/*.js dist/function/ && cd dist/function && zip -X -q ../function.zip ./*"], dir, env);
     const out = sh(["node", "scripts/checks.ts", "attestation", "dist/function.zip"], dir, env).out;
     return { result: judge(s, out), log: out };

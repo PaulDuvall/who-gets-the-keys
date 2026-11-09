@@ -1,4 +1,4 @@
-// Check dispatcher (SPEC-001-R1 to R18 and R190), and the task and scope checks (R64 to R68), which run outside ORDER.
+// Check dispatcher (SPEC-001-R1 to R18, R190 and R215), and the task and scope checks (R64 to R68), which run outside ORDER.
 // Usage: node scripts/checks.ts [check [args] | practices-md]; node scripts/checks.ts task|scope [<base commit>]
 // No check imports a package before the install check has run, so the first three need only Node.js built-ins.
 import { spawnSync } from "node:child_process";
@@ -76,6 +76,18 @@ export function pipelineCacheFinding(pipeline: string): boolean {
     || /uses:\s*actions\/cache[@/]/.test(pipeline)
     || /^\s+cache-mode:\s*(?!none\b)/m.test(pipeline)
     || /^\s+(?:cache|enable-cache|package-manager-cache):\s*(?!false\b)\S/m.test(pipeline);
+}
+
+// A package manager run in pipeline.yml reads settings the commit can set. npm hands a project .npmrc's node-options to
+// every Node.js process it starts and runs `npm run` and `npm exec` through its script-shell; the others have hooks of
+// their own. `npm ci --ignore-scripts` starts no process, so it is the one use allowed, with only --no-audit and --no-fund
+// beside it: npm lets a later flag, or a following `false`, turn scripts back on (SPEC-001-R215). Comments are skipped.
+// Each mention runs to the next shell separator, and any other mention fails closed.
+const PACKAGE_MANAGER = /(?<![\w.-])(npm|npx|pnpm|pnpx|yarn|corepack|bunx?)(?![\w.-])([^;&|()`\n]*)/g;
+export function pipelineNpmFinding(pipeline: string): boolean {
+  return pipeline.split("\n").map((line) => line.replace(/(?:^|\s)#.*$/, "")).some((line) =>
+    [...line.matchAll(PACKAGE_MANAGER)].some(([, tool, rest = ""]) =>
+      tool !== "npm" || !/^\s+ci(?:\s+--(?:ignore-scripts|no-audit|no-fund))+\s*$/.test(rest) || !/\s--ignore-scripts(?:\s|$)/.test(rest)));
 }
 
 export function requirementIds(specText: string): string[] {
@@ -650,7 +662,9 @@ const checks: Record<string, (args: string[]) => void | Promise<void>> = {
       const findings = (r.stdout.trim().startsWith("[") ? JSON.parse(r.stdout) : []) as { ident: string }[];
       mustPass("workflows", r, first(findings.map((f) => f.ident)) ?? "zizmor error");
     }
-    if (pipelineCacheFinding(readFileSync(".github/workflows/pipeline.yml", "utf8"))) throw new CheckFailure("workflows", "deploy-cache");
+    const pipeline = readFileSync(".github/workflows/pipeline.yml", "utf8");
+    if (pipelineCacheFinding(pipeline)) throw new CheckFailure("workflows", "deploy-cache");
+    if (pipelineNpmFinding(pipeline)) throw new CheckFailure("workflows", "npm-run");
     const triage = readFileSync(".github/workflows/issue-triage.yml", "utf8");
     const replay = readFileSync(".github/workflows/scenarios.yml", "utf8");
     for (const key of ["permissions", "env"]) {
@@ -794,7 +808,7 @@ const checks: Record<string, (args: string[]) => void | Promise<void>> = {
     mustPass("mutation", r, mutationId(r.stdout + r.stderr));
   },
 
-  // Outside ORDER: the checks job runs these two after npm run checks, over the range from the merge base with main (SPEC-001-R68).
+  // Outside ORDER: the checks job runs these two after node scripts/checks.ts, over the range from the merge base with main (SPEC-001-R68).
   task(args) {
     taskCheck(args);
   },

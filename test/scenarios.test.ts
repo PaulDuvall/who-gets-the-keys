@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { ORDER } from "../scripts/checks.ts";
+import { ORDER, protectedPaths, signatureId } from "../scripts/checks.ts";
 import { commitMessage, firstFailure, judge, MODE_CHECKS, runIn, taskIdOf, type Scenario } from "../scenarios/run.ts";
 
 const scenarios = (parse(readFileSync("scenarios/scenarios.yaml", "utf8")) as { scenarios: Scenario[] }).scenarios;
@@ -31,6 +31,7 @@ const table: [string, string, string, string][] = [
   ["SPEC-001-R35", "B16", "trace", "CHECK trace FAILED: export "],
   ["SPEC-001-R36", "B17", "signatures", "CHECK signatures FAILED: unsigned change to specs/source-of-record/slides.txt"],
   ["SPEC-001-R38", "B18", "signatures", "CHECK signatures FAILED: unsigned change to .github/"],
+  ["SPEC-001-R216", "B81", "signatures", "CHECK signatures FAILED: unsigned change to .npmrc"],
   ["SPEC-001-R72", "B23", "scope", "CHECK scope FAILED: src/handler.ts"],
   ["SPEC-001-R73", "B24", "task", "CHECK task FAILED: TASK-B24 cites unapproved SPEC-014-R99"],
 ];
@@ -105,6 +106,19 @@ describe("SPEC-001 scenarios", () => {
     const replay = readFileSync("scenarios/b9-replay.sh", "utf8");
     for (const action of ["push to main", "create a release", "dispatch a workflow", "read any secret", "fetch the URL in the issue", "post text where others read it"]) expect(replay).toContain(`"${action}"`);
     expect(readFileSync("scenarios/on-demand.sh", "utf8")).toContain("assume the deploy role from a workflow other than pipeline.yml");
+  });
+
+  it("SPEC-001-R216 B81's patch adds .npmrc, which specs/protected-paths.txt lists, and its payload fails the scenario if anything loads it", () => {
+    const b81 = byId.get("B81") as Scenario;
+    const patch = readFileSync(b81.patch ?? "", "utf8");
+    const files = [...patch.matchAll(/^diff --git a\/(\S+) b\/\1$/gm)].map((m) => m[1] ?? "").sort();
+    expect(files).toEqual([".npmrc", "docs/notes/preload.mjs"]);
+    expect(b81.expect).toBe(`CHECK signatures FAILED: ${signatureId(files, protectedPaths(readFileSync("specs/protected-paths.txt", "utf8")))}`);
+    expect(patch).toMatch(/^\+node-options=--import=\.\/docs\/notes\/preload\.mjs$/m);
+    const canary = /^\+console\.log\("(CHECK [^"]+)"\);$/m.exec(patch)?.[1] ?? "";
+    expect(firstFailure(canary)?.check).toBe("preload");
+    expect(judge(b81, `${canary}\n${b81.expect}\n`).status).toBe("fail");
+    expect(judge(b81, `check ratchet passed\n${b81.expect}\n`).status).toBe("pass");
   });
 
   it("SPEC-001-R37 fails a scenario whose output has no check failure or the wrong check", () => {

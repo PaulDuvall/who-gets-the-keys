@@ -15,7 +15,7 @@
       "Bash(aws *)",
       "Read(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.config/gh/**)",
       "Edit(.github/**)", "Edit(.claude/**)", "Edit(specs/**)", "Edit(approvers.txt)", "Edit(allowed-deps.txt)",
-      "Edit(stryker.config.json)", "Edit(**/package.json)", "Edit(**/package-lock.json)",
+      "Edit(stryker.config.json)", "Edit(**/package.json)", "Edit(**/package-lock.json)", "Edit(**/.npmrc)",
       "Edit(video/narration/**)"
     ]
   },

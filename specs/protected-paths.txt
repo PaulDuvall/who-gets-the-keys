@@ -23,6 +23,10 @@ video/narration/
 factory-video/narration/
 factory-video/package.json
 factory-video/package-lock.json
+# npm settings for each directory npm runs in. npm reads the project's .npmrc on every command: its node-options
+# reaches every Node.js process npm starts, and its script-shell runs npm run and npm exec (SPEC-001-R215, B81)
+.npmrc
+video/record/.npmrc
 # Task files: the instruction for one delivery and the paths it may touch (SPEC-001-R64)
 tasks/
 # Agent settings, hooks, agents, skills and instructions
