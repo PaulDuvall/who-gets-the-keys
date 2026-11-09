@@ -120,13 +120,17 @@ fi
 echo
 echo "Run these yourself, in order, or run scripts/bootstrap/aws-setup.sh, which does all of them."
 echo
-echo "1. First sandbox apply, with credentials for account ${expected}. This creates the deploy and break-glass roles the SCP exempts:"
+echo "1. First sandbox apply, with credentials for account ${expected}. This creates the deploy and break-glass roles the SCP exempts,"
+echo "   and the break-glass user, the only principal that may assume break-glass:"
 echo "npm ci --ignore-scripts"
 echo "npm run build"
 echo "mkdir -p dist/function && cp dist/src/*.js dist/function/ && echo '{\"type\":\"module\"}' > dist/function/package.json"
 echo "(cd dist/function && TZ=UTC touch -t 198001010000 ./* && zip -X -q ../function.zip ./*)"
 echo "terraform -chdir=infra/sandbox init -backend-config=bucket=${bucket}"
 echo "terraform -chdir=infra/sandbox apply -var artifact_sha256=\$(openssl dgst -sha256 -binary dist/function.zip | base64)"
+echo
+echo "   Before step 2, give the break-glass user its TOTP device and its access key, which only break-glass can do once"
+echo "   the SCP is attached. Step 5 of scripts/bootstrap/aws-setup.sh does it (docs/decisions/0007-break-glass-mfa.md)."
 echo
 echo "2. SCP, with credentials for the management account and a state bucket in that account:"
 echo "EXPECTED_ACCOUNT_ID=<management account> scripts/bootstrap/aws.sh --org-state"
@@ -138,6 +142,9 @@ echo "TRIAGE_MODEL=<bedrock model or inference profile ID> scripts/bootstrap/git
 echo
 echo "4. After the SCP, the pipeline applies only the export Lambda, its table, its log group and its role's policies."
 echo "   Changes to the other roles, the Lambda role boundary, the KMS key or the break-glass alarm"
-echo "   fail in the deploy job. Apply them yourself as who-gets-the-keys-break-glass, with MFA; this fires the alarm:"
-echo "terraform -chdir=infra/sandbox plan -out=plan.out -var artifact_sha256=\$(openssl dgst -sha256 -binary dist/function.zip | base64)"
-echo "terraform -chdir=infra/sandbox apply plan.out"
+echo "   fail in the deploy job. Apply them yourself as who-gets-the-keys-break-glass, which emails the break-glass alert."
+echo "   Terraform cannot ask for an MFA code, so the AWS CLI asks for one, from your YubiKey, and hands Terraform the"
+echo "   role's credentials in a subshell. The profile is the one aws-setup.sh writes:"
+echo "aws sts get-caller-identity --profile who-gets-the-keys-break-glass"
+echo "(eval \"\$(aws configure export-credentials --profile who-gets-the-keys-break-glass --format env)\" && terraform -chdir=infra/sandbox plan -out=plan.out -var artifact_sha256=\$(openssl dgst -sha256 -binary dist/function.zip | base64))"
+echo "(eval \"\$(aws configure export-credentials --profile who-gets-the-keys-break-glass --format env)\" && terraform -chdir=infra/sandbox apply plan.out)"

@@ -188,7 +188,31 @@ SANDBOX_ACCOUNT_ID=111122223333 SANDBOX_PROFILE=sandbox MANAGEMENT_PROFILE=manag
 
 It first checks the tools, the working tree, both accounts, the organization and Bedrock. If a check fails, it says what to fix and changes nothing. Then it asks once. After that it pauses only to show each Terraform plan before applying that saved plan, and to remind you to confirm the alert email.
 
-It runs `aws.sh`, the two Terraform applies, the alert subscription and `github.sh --vars`. Set `TRIAGE_MODEL` to skip picking a Bedrock model from a list, and `BEDROCK_FORM` to submit the Anthropic first-time-use form. A rerun skips what exists. Each backend is set up with `-reconfigure`, so no state moves over from an account used before, and resources there stay as they are. When it finishes, approve the sandbox deploy in `main`'s tip run in GitHub, never an older run's. If that deploy already ran and failed, rerun the run's failed jobs with `gh run rerun <run ID> --failed`, then approve.
+It runs `aws.sh`, the two Terraform applies, the alert subscription, the break-glass user's enrollment (below) and `github.sh --vars`. Set `TRIAGE_MODEL` to skip picking a Bedrock model from a list, and `BEDROCK_FORM` to submit the Anthropic first-time-use form. A rerun skips what exists. Each backend is set up with `-reconfigure`, so no state moves over from an account used before, and resources there stay as they are. When it finishes, approve the sandbox deploy in `main`'s tip run in GitHub, never an older run's. If that deploy already ran and failed, rerun the run's failed jobs with `gh run rerun <run ID> --failed`, then approve.
+
+### Break-glass
+
+SPEC-001-R217, `docs/decisions/0007-break-glass-mfa.md`. The first enrollment needs the SCP lifted once: the steps are in `docs/notes/break-glass-mfa.md`.
+
+Break-glass is the only identity that can change the workload's roles once the SCP is attached. Only one principal may assume it: IAM user `who-gets-the-keys-break-glass-user`, with a TOTP code, through `us-east-1`. An IAM Identity Center session cannot: it is federated, so it carries no MFA flag. The user's access key can do nothing else, and every call it makes, and every assumption of break-glass, emails `ALERT_EMAIL`. The alert needs a CloudTrail trail that logs read and write management events.
+
+You need a YubiKey with the OATH application enabled (`ykman info` lists it) and `ykman`. AWS takes no FIDO2 key for this. Any RFC 6238 authenticator app works instead.
+
+Step 5 of `aws-setup.sh` enrolls the user while the SCP is not attached, which is on a first setup or after you lift it:
+
+1. It creates the TOTP device and writes its secret to a file only you can read. You add it to the YubiKey with the `ykman oath accounts add --touch` command it prints.
+2. It asks for two codes, one after the other, each from `ykman oath accounts code --single who-gets-the-keys-break-glass-user` and a touch.
+3. It creates one access key into profile `who-gets-the-keys-break-glass-user`, without printing it, and writes profile `who-gets-the-keys-break-glass` with `mfa_serial`. Set `BREAK_GLASS_PROFILE` for other names.
+
+Once the SCP is attached, check it once. It asks for a code and sends an alert email:
+
+```bash
+aws sts get-caller-identity --profile who-gets-the-keys-break-glass --region us-east-1
+```
+
+The trust allows the assumption only through `us-east-1`, and an `AWS_REGION` in your shell overrides the profile's region, so the command names it.
+
+To apply `infra/sandbox` as break-glass, use the commands `scripts/bootstrap/aws.sh` prints in its step 4: Terraform cannot ask for an MFA code, so the AWS CLI asks and hands Terraform the role's credentials. Rotate the access key every 90 days as break-glass, without lifting the SCP. A lost YubiKey needs the SCP lifted and step 5 run again. Decision 0007 lists the commands for both.
 
 ## Cloud session environment
 

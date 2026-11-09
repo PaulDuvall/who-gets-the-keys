@@ -2,6 +2,7 @@
 # The whole AWS setup as one command: the sandbox member account, its break-glass alert, the SCP from the management
 # account, then the repository secrets and variables. Checks that change nothing in AWS or GitHub come first, then one
 # confirm.
+# Step 5 of 7 also enrolls the break-glass user, while the SCP is not attached (SPEC-001-R217).
 # It pauses again only to review each Terraform plan and to remind you to confirm the alert email.
 # The sandbox must be a member account: SCPs do not affect the management account, so B11 needs one (SPEC-001-R30).
 # Runs on macOS's bash 3.2 and on Linux: no mapfile, no associative arrays, no case-changing expansions.
@@ -10,21 +11,27 @@ set -euo pipefail
 region="us-east-1"
 repo="${REPO:-PaulDuvall/who-gets-the-keys}"
 scp_name="who-gets-the-keys-sandbox-writes"
+default_break_glass_profile="who-gets-the-keys-break-glass"
 
 usage() {
   echo "usage: SANDBOX_ACCOUNT_ID=<12 digits> SANDBOX_PROFILE=<profile> MANAGEMENT_PROFILE=<profile> \\"
-  echo "       ALERT_EMAIL=<address> [TRIAGE_MODEL=<model ID>] [BEDROCK_FORM=<form.json>] scripts/bootstrap/aws-setup.sh"
+  echo "       ALERT_EMAIL=<address> [TRIAGE_MODEL=<model ID>] [BEDROCK_FORM=<form.json>] \\"
+  echo "       [BREAK_GLASS_PROFILE=<profile>] scripts/bootstrap/aws-setup.sh"
   echo "  SANDBOX_PROFILE     admin profile for the sandbox account, a member of your AWS Organization"
   echo "  MANAGEMENT_PROFILE  admin profile for the organization's management account, where the SCP is applied"
   echo "  ALERT_EMAIL         gets an email each time someone assumes the break-glass role"
   echo "  TRIAGE_MODEL        Bedrock model for issue triage, starting us.anthropic. or anthropic."
   echo "                      Unset, you pick from the us.anthropic. inference profiles Bedrock lists in ${region}"
   echo "  BEDROCK_FORM        Anthropic first-time-use form for Bedrock, submitted with scripts/bootstrap/aws.sh"
+  echo "  BREAK_GLASS_PROFILE CLI profile this writes for assuming break-glass with MFA. Default ${default_break_glass_profile};"
+  echo "                      the break-glass user's access key goes in profile <BREAK_GLASS_PROFILE>-user"
   echo "  First it checks the tools, the working tree, both accounts, the organization and Bedrock, changing nothing."
   echo "  After one confirm it runs scripts/bootstrap/aws.sh in the sandbox account, builds the Lambda artifact,"
   echo "  plans infra/sandbox, shows the plan and applies that saved plan once you agree. Then it subscribes"
-  echo "  ALERT_EMAIL to the break-glass topic, creates infra/org's state bucket in the management account,"
-  echo "  plans, shows and applies infra/org the same way, and runs scripts/bootstrap/github.sh --vars."
+  echo "  ALERT_EMAIL to the break-glass topic. While the SCP is not attached, it gives the break-glass user the TOTP"
+  echo "  device you add to your YubiKey and one access key, and writes the two break-glass CLI profiles. Then it"
+  echo "  creates infra/org's state bucket in the management account, plans, shows and applies infra/org the same"
+  echo "  way, and runs scripts/bootstrap/github.sh --vars."
   echo "  A rerun skips what exists. It never runs terraform destroy."
 }
 
@@ -77,6 +84,8 @@ management_profile="${MANAGEMENT_PROFILE:-}"
 email="${ALERT_EMAIL:-}"
 model="${TRIAGE_MODEL:-}"
 form="${BEDROCK_FORM:-}"
+bg_profile="${BREAK_GLASS_PROFILE:-$default_break_glass_profile}"
+bg_user_profile="${bg_profile}-user"
 if [ -z "$sandbox_id" ] || [ -z "$sandbox_profile" ] || [ -z "$management_profile" ] || [ -z "$email" ]; then
   usage >&2
   exit 2
@@ -132,6 +141,16 @@ case "$model" in
        "The triage role may invoke only foundation-model/anthropic.* and inference-profile/us.anthropic.* in ${region}." \
        "Unset TRIAGE_MODEL to pick from the inference profiles Bedrock lists." ;;
 esac
+# The profile names go into ~/.aws/config and ~/.aws/credentials section headers, so they may hold only these.
+profile_chars="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-"
+case "$bg_profile" in
+  ""|-*|*[!$profile_chars]*)
+    refuse "BREAK_GLASS_PROFILE $(printf '%s' "$bg_profile" | shown) is not a profile name: use letters, digits, dot, underscore and hyphen." ;;
+esac
+if [ "$bg_profile" = "$sandbox_profile" ] || [ "$bg_profile" = "$management_profile" ] ||
+  [ "$bg_user_profile" = "$sandbox_profile" ] || [ "$bg_user_profile" = "$management_profile" ]; then
+  refuse "BREAK_GLASS_PROFILE ${bg_profile} would overwrite profile ${sandbox_profile} or ${management_profile}. Choose another name."
+fi
 if [ -n "$form" ]; then
   [ -f "$form" ] || refuse "BEDROCK_FORM ${form} is not a file."
   # aws.sh runs from the repository root, so a path relative to here becomes absolute.
@@ -309,6 +328,8 @@ say "" "Checks passed. Nothing has changed yet." "" \
 [ -z "$form" ] || say "  the Anthropic first-time-use form ${form} is submitted to Bedrock"
 say "  infra/sandbox is planned with the Lambda artifact built here at ${head:0:12}; you review the plan before it applies" \
   "  ${email} is subscribed to break-glass alerts, unless it already has a subscription" \
+  "  the break-glass user gets a TOTP device and one access key if it lacks them, while the SCP is not attached;" \
+  "  you add the device to your YubiKey. Profiles ${bg_profile} and ${bg_user_profile} are written to your AWS config" \
   "Management account ${management_id}, profile ${management_profile}, as ${management_arn}:" \
   "  state bucket ${org_bucket} ${org_bucket_plan}" \
   "  infra/org is planned: SCP ${scp_name} attached to ${sandbox_id}; you review the plan before it applies"
@@ -383,7 +404,7 @@ declined() {
   exit 1
 }
 
-say "" "Step 1 of 6: build the Lambda artifact at ${head:0:12}, as pipeline.yml's build job does."
+say "" "Step 1 of 7: build the Lambda artifact at ${head:0:12}, as pipeline.yml's build job does."
 rm -rf dist
 npm ci --ignore-scripts </dev/null
 npm run build </dev/null
@@ -396,14 +417,14 @@ echo '{"type":"module"}' > dist/function/package.json
 artifact_sha256="$(openssl dgst -sha256 -binary dist/function.zip | base64)"
 say "Built dist/function.zip."
 
-say "" "Step 2 of 6: sandbox account ${sandbox_id}: state bucket and GitHub OIDC provider, by scripts/bootstrap/aws.sh."
+say "" "Step 2 of 7: sandbox account ${sandbox_id}: state bucket and GitHub OIDC provider, by scripts/bootstrap/aws.sh."
 if [ -n "$form" ]; then
   sandbox EXPECTED_ACCOUNT_ID="$sandbox_id" bash scripts/bootstrap/aws.sh --yes --bedrock-form "$form" </dev/null
 else
   sandbox EXPECTED_ACCOUNT_ID="$sandbox_id" bash scripts/bootstrap/aws.sh --yes </dev/null
 fi
 
-say "" "Step 3 of 6: sandbox account ${sandbox_id}: infra/sandbox."
+say "" "Step 3 of 7: sandbox account ${sandbox_id}: infra/sandbox."
 init_backend sandbox infra/sandbox "$sandbox_bucket"
 if [ -n "$attached" ]; then
   say "The SCP is attached, so a change to the export Lambda, its table, its log group or the roles fails at apply." \
@@ -412,7 +433,7 @@ if [ -n "$attached" ]; then
 fi
 plan_and_apply sandbox "$sandbox_id" infra/sandbox "$work/sandbox.tfplan" -var "artifact_sha256=${artifact_sha256}"
 
-say "" "Step 4 of 6: break-glass alerts to ${email}."
+say "" "Step 4 of 7: break-glass alerts to ${email}."
 topic="$(sandbox terraform -chdir=infra/sandbox output -raw break_glass_topic_arn </dev/null)"
 sandbox aws sns list-subscriptions-by-topic --region "$region" --topic-arn "$topic" \
   --query "Subscriptions[?Protocol=='email'].[Endpoint,SubscriptionArn]" --output text > "$work/subscriptions"
@@ -449,18 +470,191 @@ case "$subscription" in
     ;;
 esac
 
-say "" "Step 5 of 6: management account ${management_id}: state bucket, by scripts/bootstrap/aws.sh --org-state, and infra/org."
+# ---------- Step 5: the break-glass user (SPEC-001-R217) ----------
+# The SCP lets only break-glass give that user an MFA device or an access key, and break-glass needs both, so this
+# step can make them only while the SCP is not attached: on a first setup, or after you lift it. A failure here leaves
+# break-glass unusable but never stops the run, so the next step still attaches the SCP.
+
+bg_status=""
+mfa_path="/who-gets-the-keys/"
+
+# bg_read <command...>: runs a sandbox read and prints its text output, with AWS's "None" for an empty list as nothing.
+bg_read() {
+  local out
+  out="$(sandbox "$@" --output text 2>"$work/err")" || return 1
+  case "$out" in None) out="" ;; esac
+  printf '%s' "$out" | tr '\t' '\n' | sed '/^$/d'
+}
+
+# read_code <prompt>: reads one line into code and succeeds only for six digits.
+read_code() {
+  code=""
+  printf '%s ' "$1"
+  IFS= read -r code || code=""
+  [ -t 0 ] || printf '\n'
+  printf '%s\n' "$code" | grep -Eq '^[0-9]{6}$'
+}
+
+# add_totp: makes the user's virtual MFA device, has you add its secret to your YubiKey, and enables it with two codes.
+add_totp() {
+  local attempt code="" first=""
+  # A device that an earlier run made but never enabled is deleted first, so its name can be used again.
+  if bg_read aws iam list-virtual-mfa-devices --assignment-status Unassigned --query 'VirtualMFADevices[].SerialNumber' |
+    grep -qxF -- "$serial"; then
+    sandbox aws iam delete-virtual-mfa-device --serial-number "$serial" 2>"$work/err" ||
+      { bg_status="Cannot delete the unused TOTP device ${serial}: $(last_error)"; return 1; }
+  fi
+  if ! (umask 077 && sandbox aws iam create-virtual-mfa-device --path "$mfa_path" --virtual-mfa-device-name "$bg_user" \
+      --bootstrap-method Base32StringSeed --outfile "$work/totp-seed" --query VirtualMFADevice.SerialNumber --output text \
+      >/dev/null 2>"$work/err"); then
+    bg_status="Cannot create a TOTP device for ${bg_user}: $(last_error)"
+    return 1
+  fi
+  say "Created TOTP device ${serial}." \
+    "Its secret is in ${work}/totp-seed, readable only by you. It is deleted when this step ends, and never printed." \
+    "Add it to your YubiKey's OATH application, with a touch required for every code. In a second terminal:" \
+    "ykman oath accounts add --touch --issuer AWS ${bg_user} \"\$(cat ${work}/totp-seed)\"" \
+    "AWS takes it as an authenticator app. It accepts no FIDO2 security key or passkey for AssumeRole."
+  pause "When the YubiKey holds it, press Enter."
+  for attempt in 1 2 3; do
+    say "Get a code with a touch:" "ykman oath accounts code --single ${bg_user}"
+    if read_code "First code:"; then
+      first="$code"
+      say "Wait for the next code, up to 30 seconds, and get it the same way."
+      if read_code "Next code:" && [ "$code" != "$first" ]; then
+        if sandbox aws iam enable-mfa-device --user-name "$bg_user" --serial-number "$serial" \
+            --authentication-code1 "$first" --authentication-code2 "$code" 2>"$work/err"; then
+          rm -f "$work/totp-seed"
+          say "Enabled TOTP device ${serial} for ${bg_user}. Deleted ${work}/totp-seed."
+          return 0
+        fi
+        say "AWS refused those codes: $(last_error)"
+      else
+        say "That is not a second, different code of six digits."
+      fi
+    else
+      say "That is not a code of six digits."
+    fi
+    [ "$attempt" = 3 ] || say "Try again, ${attempt} of 3 tries used."
+  done
+  rm -f "$work/totp-seed"
+  bg_status="${bg_user} has no enabled TOTP device: three tries failed. Delete the account from the YubiKey with ykman oath accounts delete ${bg_user}, lift the SCP and run this again."
+  return 1
+}
+
+# add_key: makes the user's one access key and saves it in the user profile, never printing the secret.
+add_key() {
+  local key_id="" key_secret=""
+  if ! (umask 077 && sandbox aws iam create-access-key --user-name "$bg_user" \
+      --query 'AccessKey.[AccessKeyId,SecretAccessKey]' --output text > "$work/key" 2>"$work/err"); then
+    rm -f "$work/key"
+    bg_status="Cannot create an access key for ${bg_user}: $(last_error)"
+    return 1
+  fi
+  IFS="$(printf '\t')" read -r key_id key_secret < "$work/key" || true
+  rm -f "$work/key"
+  if [ -z "$key_id" ] || [ -z "$key_secret" ]; then
+    bg_status="AWS returned no access key for ${bg_user}. Delete any key it lists, lift the SCP and run this again."
+    return 1
+  fi
+  # aws configure set puts the secret on a command line for an instant, as ykman does the seed (decision 0007).
+  if ! aws configure set aws_access_key_id "$key_id" --profile "$bg_user_profile" ||
+    ! aws configure set aws_secret_access_key "$key_secret" --profile "$bg_user_profile"; then
+    key_secret=""
+    bg_status="Created access key ${key_id} for ${bg_user}, but could not save it in profile ${bg_user_profile}. Lift the SCP, delete that key and run this again."
+    return 1
+  fi
+  key_secret=""
+  keys="$key_id"
+  say "Created access key ${key_id} for ${bg_user} and saved it in profile ${bg_user_profile}, in your AWS credentials file." \
+    "The secret was not printed. It can do one thing: assume break-glass with a code from your YubiKey."
+}
+
+say "" "Step 5 of 7: break-glass user: its TOTP device and access key, and profiles ${bg_profile} and ${bg_user_profile}."
+bg_user="$(sandbox terraform -chdir=infra/sandbox output -raw break_glass_user_name </dev/null 2>/dev/null || true)"
+bg_role="$(sandbox terraform -chdir=infra/sandbox output -raw break_glass_role_arn </dev/null 2>/dev/null || true)"
+printf '%s\n' "$bg_user" | grep -Eq '^who-gets-the-keys-[a-z-]+$' || bg_user=""
+printf '%s\n' "$bg_role" | grep -Eq "^arn:aws:iam::${sandbox_id}:role/who-gets-the-keys/who-gets-the-keys-[a-z-]+\$" || bg_role=""
+if [ -z "$bg_user" ] || [ -z "$bg_role" ]; then
+  bg_status="infra/sandbox has no break-glass user yet, because its plan was not applied."
+  say "${bg_status} Skipped."
+else
+  serial="arn:aws:iam::${sandbox_id}:mfa${mfa_path}${bg_user}"
+  if ! devices="$(bg_read aws iam list-mfa-devices --user-name "$bg_user" --query 'MFADevices[].SerialNumber')"; then
+    bg_status="Cannot list the MFA devices of ${bg_user}: $(last_error)"
+  elif ! keys="$(bg_read aws iam list-access-keys --user-name "$bg_user" --query 'AccessKeyMetadata[].AccessKeyId')"; then
+    bg_status="Cannot list the access keys of ${bg_user}: $(last_error)"
+  fi
+  if [ -z "$bg_status" ]; then
+    # The key this computer holds must be one the user has; a new computer or a lost credentials file needs a new key.
+    held="$(aws configure get aws_access_key_id --profile "$bg_user_profile" 2>/dev/null || true)"
+    if [ -n "$keys" ] && ! printf '%s\n' "$keys" | grep -qxF -- "$held"; then
+      if [ -n "$attached" ]; then
+        bg_status="Profile ${bg_user_profile} does not hold ${bg_user}'s access key $(printf '%s' "$keys" | head -n 1). Lift the SCP and run this again to replace it."
+      elif [ "$(printf '%s\n' "$keys" | wc -l | tr -d ' ')" = 1 ] &&
+        ask "Profile ${bg_user_profile} does not hold ${bg_user}'s access key ${keys}. Delete that key and make a new one?"; then
+        if sandbox aws iam delete-access-key --user-name "$bg_user" --access-key-id "$keys" 2>"$work/err"; then
+          say "Deleted access key ${keys}."
+          keys=""
+        else
+          bg_status="Cannot delete access key ${keys}: $(last_error)"
+        fi
+      else
+        bg_status="Profile ${bg_user_profile} does not hold an access key of ${bg_user}, which has: $(printf '%s' "$keys" | tr '\n' ' ')"
+      fi
+    fi
+  fi
+  if [ -z "$bg_status" ] && { [ -z "$devices" ] || [ -z "$keys" ]; } && [ -n "$attached" ]; then
+    bg_status="The SCP is attached, so only break-glass can give ${bg_user} a TOTP device or an access key, and it needs both to assume break-glass. Lift the SCP and run this again (docs/decisions/0007-break-glass-mfa.md)."
+  fi
+  if [ -z "$bg_status" ] && [ -z "$devices" ]; then
+    add_totp && devices="$serial" || true
+  elif [ -z "$bg_status" ]; then
+    say "${bg_user} already has TOTP device $(printf '%s' "$devices" | head -n 1). Skipped."
+  fi
+  if [ -z "$bg_status" ] && [ -z "$keys" ]; then
+    add_key || true
+  elif [ -z "$bg_status" ]; then
+    say "${bg_user} already has access key ${keys}, held in profile ${bg_user_profile}. Skipped."
+  fi
+  if [ -z "$bg_status" ]; then
+    # The device named by this script, or the first one listed, is the one the profile asks a code for.
+    printf '%s\n' "$devices" | grep -qxF -- "$serial" || serial="$(printf '%s\n' "$devices" | head -n 1)"
+    # A failed write must not stop the run before infra/org attaches the SCP (SPEC-001-R217).
+    if aws configure set region "$region" --profile "$bg_user_profile" &&
+      aws configure set role_arn "$bg_role" --profile "$bg_profile" &&
+      aws configure set source_profile "$bg_user_profile" --profile "$bg_profile" &&
+      aws configure set mfa_serial "$serial" --profile "$bg_profile" &&
+      aws configure set region "$region" --profile "$bg_profile" &&
+      aws configure set duration_seconds 3600 --profile "$bg_profile"; then
+      say "Profile ${bg_profile} assumes ${bg_role} as ${bg_user}, asking for a code from ${serial}, in ${region}."
+    else
+      bg_status="Could not write profiles ${bg_user_profile} and ${bg_profile} in your AWS config. Fix that file's permissions and run this again."
+      say "$bg_status"
+    fi
+  else
+    say "$bg_status"
+  fi
+fi
+
+say "" "Step 6 of 7: management account ${management_id}: state bucket, by scripts/bootstrap/aws.sh --org-state, and infra/org."
 management EXPECTED_ACCOUNT_ID="$management_id" bash scripts/bootstrap/aws.sh --org-state --yes </dev/null
 init_backend management infra/org "$org_bucket"
 plan_and_apply management "$management_id" infra/org "$work/org.tfplan" -var "sandbox_account_id=${sandbox_id}"
 
-say "" "Step 6 of 6: GitHub ${repo}, by scripts/bootstrap/github.sh --vars. Your confirm above answers its questions."
+say "" "Step 7 of 7: GitHub ${repo}, by scripts/bootstrap/github.sh --vars. Your confirm above answers its questions."
 sandbox TRIAGE_MODEL="$model" bash scripts/bootstrap/github.sh --vars <<'ANSWERS'
 y
 y
 ANSWERS
 
 say "" "Done. To check the repository secrets and variables:" "gh secret list --repo ${repo}" "gh variable list --repo ${repo}"
+if [ -n "$bg_status" ]; then
+  say "" "Break-glass is not usable yet. ${bg_status}"
+else
+  say "" "Check break-glass once. It asks for a code from your YubiKey, and ${email} gets an alert email:" \
+    "aws sts get-caller-identity --profile ${bg_profile} --region ${region}"
+fi
 if [ -n "$email_reminder" ]; then
   say "" "If you have not yet, click Confirm subscription in the email AWS sent to ${email}."
 fi

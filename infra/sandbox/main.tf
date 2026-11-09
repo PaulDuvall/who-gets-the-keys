@@ -124,16 +124,27 @@ resource "aws_sns_topic" "break_glass" {
   kms_master_key_id = "alias/aws/sns"
 }
 
+# Fires on any assumption of the break-glass role and on any API call by the break-glass user, denied ones included,
+# so a leaked access key is reported on its first use (SPEC-001-R217). CloudTrail logs AssumeRole as a read-only
+# management event, and a rule in state ENABLED matches none of those, so this rule needs the state below. It sees
+# only events recorded in var.region and global-service events: the break-glass trust requires that Region's endpoint.
+# It also needs a CloudTrail trail that is logging management events (docs/decisions/0007-break-glass-mfa.md).
 resource "aws_cloudwatch_event_rule" "break_glass_used" {
   name        = "who-gets-the-keys-break-glass-used"
-  description = "Any assumption of the break-glass role"
+  description = "Any assumption of the break-glass role, and any API call by the break-glass user"
+  state       = "ENABLED_WITH_ALL_CLOUDTRAIL_MANAGEMENT_EVENTS"
   event_pattern = jsonencode({
-    source        = ["aws.sts"]
     "detail-type" = ["AWS API Call via CloudTrail"]
-    detail = {
-      eventName         = ["AssumeRole"]
-      requestParameters = { roleArn = [aws_iam_role.break_glass.arn] }
-    }
+    "$or" = [
+      {
+        source = ["aws.sts"]
+        detail = {
+          eventName         = ["AssumeRole"]
+          requestParameters = { roleArn = [aws_iam_role.break_glass.arn] }
+        }
+      },
+      { detail = { userIdentity = { arn = [aws_iam_user.break_glass.arn] } } },
+    ]
   })
 }
 
@@ -184,4 +195,14 @@ output "producer_inference_profile" {
 output "break_glass_topic_arn" {
   description = "SNS topic alarmed on every break-glass assumption; subscribe to it"
   value       = aws_sns_topic.break_glass.arn
+}
+
+output "break_glass_role_arn" {
+  description = "The break-glass role, for the role_arn of the owner's break-glass CLI profile"
+  value       = aws_iam_role.break_glass.arn
+}
+
+output "break_glass_user_name" {
+  description = "The only principal that may assume break-glass, with MFA (SPEC-001-R217)"
+  value       = aws_iam_user.break_glass.name
 }

@@ -20,6 +20,14 @@ const TOPIC = `arn:aws:sns:us-east-1:${SANDBOX}:who-gets-the-keys-break-glass`;
 // Bedrock's answer, unsorted, as text output puts it: tab-separated on one line.
 const PROFILES = "us.anthropic.claude-example-b-v1:0\tus.anthropic.claude-example-a-v1:0";
 const PICKED = "us.anthropic.claude-example-a-v1:0";
+// The break-glass user (SPEC-001-R217), its TOTP device and the two CLI profiles aws-setup.sh writes by default.
+const BG_USER = "who-gets-the-keys-break-glass-user";
+const BG_ROLE = `arn:aws:iam::${SANDBOX}:role/who-gets-the-keys/who-gets-the-keys-break-glass`;
+const SERIAL = `arn:aws:iam::${SANDBOX}:mfa/who-gets-the-keys/${BG_USER}`;
+const BG_PROFILE = "who-gets-the-keys-break-glass";
+const USER_PROFILE = `${BG_PROFILE}-user`;
+const SEED = "JBSWY3DPEHPK3PXPSTUBSEEDVALUE";
+const SECRET = "stub/secret+value/never/printed";
 
 const log = 'printf "%s %s | %s\\n" "$(basename "$0")" "${AWS_PROFILE:-}" "$*" >> "$STUB_DIR/calls"';
 
@@ -60,6 +68,23 @@ const stubAws = [
   '    cat "$STUB_DIR/oidc-$(account)" ;;',
   '  "iam create-open-id-connect-provider") echo sts.amazonaws.com > "$STUB_DIR/oidc-$(account)"; echo "{}" ;;',
   '  "sns list-subscriptions-by-topic") if [ -f "$STUB_DIR/subscriptions" ]; then cat "$STUB_DIR/subscriptions"; fi ;;',
+  // The break-glass user's MFA devices and keys live in files too. The TOTP seed's file mode is kept, the seed is not.
+  '  "iam list-mfa-devices") if [ -f "$STUB_DIR/mfa" ]; then cat "$STUB_DIR/mfa"; fi ;;',
+  '  "iam list-access-keys") if [ -f "$STUB_DIR/keys" ]; then cat "$STUB_DIR/keys"; fi ;;',
+  '  "iam list-virtual-mfa-devices") if [ -f "$STUB_DIR/unassigned" ]; then cat "$STUB_DIR/unassigned"; fi ;;',
+  '  "iam delete-virtual-mfa-device") rm -f "$STUB_DIR/unassigned" ;;',
+  '  "iam create-virtual-mfa-device")',
+  '    seed="$(arg --outfile "$@")"; echo "$STUB_SEED" > "$seed"; echo "$seed" > "$STUB_DIR/seed-path"',
+  '    ls -l "$seed" | cut -c1-10 > "$STUB_DIR/seed-mode"',
+  '    echo "arn:aws:iam::$(account):mfa$(arg --path "$@")$(arg --virtual-mfa-device-name "$@")" | tee "$STUB_DIR/unassigned" ;;',
+  '  "iam enable-mfa-device")',
+  '    [ "$(arg --authentication-code1 "$@") $(arg --authentication-code2 "$@")" = "111111 222222" ] || refused InvalidAuthenticationCode EnableMFADevice',
+  '    arg --serial-number "$@" > "$STUB_DIR/mfa"; rm -f "$STUB_DIR/unassigned" ;;',
+  '  "iam create-access-key") printf "AKIASTUBNEWKEY\\t%s\\n" "$STUB_SECRET"; echo AKIASTUBNEWKEY > "$STUB_DIR/keys" ;;',
+  '  "iam delete-access-key") rm -f "$STUB_DIR/keys" ;;',
+  // aws configure keeps "<profile> <key> <value>" lines; get prints the last value set.
+  '  "configure set") printf "%s %s %s\\n" "$(arg --profile "$@")" "$3" "$4" >> "$STUB_DIR/config" ;;',
+  '  "configure get") awk -v p="$(arg --profile "$@")" -v k="$3" \'$1 == p && $2 == k { v = $3 } END { if (v == "") exit 1; print v }\' "$STUB_DIR/config" 2>/dev/null || exit 1 ;;',
   '  "sns subscribe")',
   '    printf "%s\\tPendingConfirmation\\n" "$(arg --notification-endpoint "$@")" >> "$STUB_DIR/subscriptions"',
   '    echo "pending confirmation" ;;',
@@ -101,7 +126,12 @@ const stubTerraform = [
   '      *) echo "apply of $last, which no plan saved" >> "$STUB_DIR/applied"; exit 1 ;;',
   "    esac ;;",
   "  output)",
-  '    if [ "${2:-}" = -raw ]; then echo "arn:aws:sns:us-east-1:${STUB_SBX_ACCOUNT}:who-gets-the-keys-break-glass"',
+  '    if [ "${2:-}" = -raw ]; then',
+  '      case "${3:-}" in',
+  '        break_glass_user_name) [ -n "${STUB_NO_USER:-}" ] || echo who-gets-the-keys-break-glass-user ;;',
+  '        break_glass_role_arn) [ -n "${STUB_NO_USER:-}" ] || echo "arn:aws:iam::${STUB_SBX_ACCOUNT}:role/who-gets-the-keys/who-gets-the-keys-break-glass" ;;',
+  '        *) echo "arn:aws:sns:us-east-1:${STUB_SBX_ACCOUNT}:who-gets-the-keys-break-glass" ;;',
+  '      esac',
   '    else r="arn:aws:iam::${STUB_SBX_ACCOUNT}:role/who-gets-the-keys/who-gets-the-keys"',
   '      printf \'{"deploy_role_arn":{"value":"%s-deploy"},"triage_role_arn":{"value":"%s-triage-bedrock"},"probe_role_arn":{"value":"%s-scenario-probe"},"producer_role_arn":{"value":"%s-producer-bedrock"},"producer_inference_profile":{"value":"us.anthropic.claude-example-p"}}\\n\' "$r" "$r" "$r" "$r"',
   "    fi ;;",
@@ -179,7 +209,7 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
       TMPDIR: repo.tmp, PATH: `${repo.stub}:${process.env["PATH"] ?? ""}`, STUB_DIR: repo.stub, REPO: "o/r",
       SANDBOX_ACCOUNT_ID: SANDBOX, SANDBOX_PROFILE: "sbx", MANAGEMENT_PROFILE: "mgmt", ALERT_EMAIL: "owner@example.com",
       STUB_SBX_ACCOUNT: SANDBOX, STUB_MGMT_ACCOUNT: MANAGEMENT, STUB_ORG_MANAGEMENT: MANAGEMENT, STUB_MEMBER: SANDBOX,
-      STUB_SCP: "ENABLED", STUB_PROFILES: PROFILES,
+      STUB_SCP: "ENABLED", STUB_PROFILES: PROFILES, STUB_SEED: SEED, STUB_SECRET: SECRET,
     });
     for (const path of [repo.stub, repo.tmp, join(dir, "home"), join(repo.work, "infra/sandbox"), join(repo.work, "infra/org")]) mkdirSync(path, { recursive: true });
     writeFileSync(join(dir, "gitconfig"), "[user]\n\tname = Owner\n\temail = owner@example.com\n[commit]\n\tgpgsign = false\n");
@@ -193,6 +223,10 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
       mkdirSync(dirname(join(repo.work, path)), { recursive: true });
       copyFileSync(join(process.cwd(), path), join(repo.work, path));
     }
+    // The break-glass user starts set up, as after a first run: one device, one key, and this computer holds the key.
+    writeFileSync(join(repo.stub, "mfa"), `${SERIAL}\n`);
+    writeFileSync(join(repo.stub, "keys"), "AKIASTUBOLDKEY\n");
+    writeFileSync(join(repo.stub, "config"), `${USER_PROFILE} aws_access_key_id AKIASTUBOLDKEY\n`);
     writeFileSync(join(repo.work, "infra/sandbox/main.tf"), "# stand-in\n");
     writeFileSync(join(repo.work, "infra/org/main.tf"), "# stand-in\n");
     git(repo, "remote", "add", "origin", repo.origin);
@@ -255,6 +289,12 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
       "terraform sbx | -chdir=infra/sandbox output -raw break_glass_topic_arn",
       `aws sbx | sns list-subscriptions-by-topic --region us-east-1 --topic-arn ${TOPIC} `,
       `aws sbx | sns subscribe --region us-east-1 --topic-arn ${TOPIC} --protocol email --notification-endpoint owner@example.com `,
+      "terraform sbx | -chdir=infra/sandbox output -raw break_glass_user_name",
+      "terraform sbx | -chdir=infra/sandbox output -raw break_glass_role_arn",
+      `aws sbx | iam list-mfa-devices --user-name ${BG_USER} `,
+      `aws sbx | iam list-access-keys --user-name ${BG_USER} `,
+      `aws  | configure get aws_access_key_id --profile ${USER_PROFILE}`,
+      `aws  | configure set role_arn ${BG_ROLE} --profile ${BG_PROFILE}`,
       `aws mgmt | s3api create-bucket --bucket ${ORG_BUCKET} --bucket-namespace account-regional --region us-east-1`,
       `aws mgmt | s3api put-bucket-policy --bucket ${ORG_BUCKET} `,
       `terraform mgmt | -chdir=infra/org init -input=false -reconfigure -lockfile=readonly -backend-config=bucket=${ORG_BUCKET}`,
@@ -618,6 +658,136 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
     expect(org.calls.filter((call) => call.includes(" iam "))).toEqual([]);
     expect(org.out).toContain(`terraform -chdir=infra/org init -backend-config=bucket=${ORG_BUCKET}`);
     expect(aws(["--org-state", "--bedrock-form", "scripts/bootstrap/aws.sh"], "", "mgmt", MANAGEMENT).status).toBe(2);
+  }, TIMEOUT);
+
+  // config: the AWS config lines the stub kept, as "<profile> <key> <value>".
+  const config = (repo: Repo) => lines(join(repo.stub, "config"));
+  const unenrolled = (repo: Repo) => { for (const name of ["mfa", "keys", "config"]) rmSync(join(repo.stub, name), { force: true }); };
+
+  it("SPEC-001-R217 gives the break-glass user a TOTP device and one access key before infra/org attaches the SCP, and never prints the seed or the secret", () => {
+    const repo = makeRepo();
+    unenrolled(repo);
+    const r = run(repo, "1\ny\ny\n\n\n111111\n222222\ny\n");
+    expect(r.status).toBe(0);
+    const order = [
+      `aws sbx | iam list-mfa-devices --user-name ${BG_USER} `,
+      `aws sbx | iam list-access-keys --user-name ${BG_USER} `,
+      `aws sbx | iam create-virtual-mfa-device --path /who-gets-the-keys/ --virtual-mfa-device-name ${BG_USER} --bootstrap-method Base32StringSeed --outfile ${repo.tmp}/aws-setup.`,
+      `aws sbx | iam enable-mfa-device --user-name ${BG_USER} --serial-number ${SERIAL} --authentication-code1 111111 --authentication-code2 222222`,
+      `aws sbx | iam create-access-key --user-name ${BG_USER} `,
+      `aws  | configure set aws_access_key_id AKIASTUBNEWKEY --profile ${USER_PROFILE}`,
+      `aws  | configure set role_arn ${BG_ROLE} --profile ${BG_PROFILE}`,
+      "terraform mgmt | -chdir=infra/org plan -input=false -out=",
+      "terraform mgmt | -chdir=infra/org apply -input=false ",
+    ].map((start) => index(r.calls, start));
+    expect(order.every((i) => i > -1)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    // Every IAM call runs as the sandbox admin, and none hands AWS a password or a login profile.
+    expect(r.calls.filter((call) => / iam /.test(call) && !call.startsWith("aws sbx | "))).toEqual([]);
+    expect(r.calls.filter((call) => /login-profile|--password/.test(call))).toEqual([]);
+    // The seed went to a file only its owner can read, inside the run's own temporary directory, and is gone.
+    const seedPath = readFileSync(join(repo.stub, "seed-path"), "utf8").trim();
+    expect(seedPath.startsWith(`${repo.tmp}/aws-setup.`) && seedPath.endsWith("/totp-seed")).toBe(true);
+    expect(readFileSync(join(repo.stub, "seed-mode"), "utf8").trim()).toBe("-rw-------");
+    expect(existsSync(seedPath)).toBe(false);
+    expect(r.out).not.toContain(SEED);
+    expect(r.out).not.toContain(SECRET);
+    expect(r.stdout).toContain(`ykman oath accounts add --touch --issuer AWS ${BG_USER} "$(cat ${seedPath})"`);
+    expect(r.stdout).toContain(`ykman oath accounts code --single ${BG_USER}`);
+    expect(config(repo)).toEqual([
+      `${USER_PROFILE} aws_access_key_id AKIASTUBNEWKEY`, `${USER_PROFILE} aws_secret_access_key ${SECRET}`,
+      `${USER_PROFILE} region us-east-1`, `${BG_PROFILE} role_arn ${BG_ROLE}`, `${BG_PROFILE} source_profile ${USER_PROFILE}`,
+      `${BG_PROFILE} mfa_serial ${SERIAL}`, `${BG_PROFILE} region us-east-1`, `${BG_PROFILE} duration_seconds 3600`,
+    ]);
+    expect(r.stdout).toContain(`Check break-glass once. It asks for a code from your YubiKey, and owner@example.com gets an alert email:\naws sts get-caller-identity --profile ${BG_PROFILE} --region us-east-1\n`);
+    expect(r.stdout).not.toContain("Break-glass is not usable yet.");
+  }, TIMEOUT);
+
+  it("SPEC-001-R217 makes no TOTP device or access key while the SCP is attached, says how to finish, and still applies infra/org", () => {
+    const repo = makeRepo();
+    unenrolled(repo);
+    writeFileSync(join(repo.stub, "scp"), "");
+    const r = run(repo, "y\ny\n\ny\n", { TRIAGE_MODEL: PICKED });
+    expect(r.status).toBe(0);
+    expect(r.calls.filter((call) => /iam (create-virtual|create-access|enable-mfa|delete-)|configure set/.test(call))).toEqual([]);
+    expect(r.stdout).toContain(`The SCP is attached, so only break-glass can give ${BG_USER} a TOTP device or an access key`);
+    expect(r.stdout).toContain("Break-glass is not usable yet. The SCP is attached");
+    expect(r.stdout).not.toContain("Check break-glass once.");
+    expect(lines(join(repo.stub, "applied")).map((line) => line.split(" from ")[0])).toEqual(["applied sandbox create", "applied org create"]);
+  }, TIMEOUT);
+
+  it("SPEC-001-R217 skips the enrollment when infra/sandbox has no break-glass user yet, and still applies infra/org", () => {
+    const repo = makeRepo();
+    unenrolled(repo);
+    const r = run(repo, "y\ny\n\ny\n", { TRIAGE_MODEL: PICKED, STUB_NO_USER: "1" });
+    expect(r.status).toBe(0);
+    expect(r.calls.filter((call) => /iam (create-virtual|create-access|enable-mfa|delete-)|configure set/.test(call))).toEqual([]);
+    expect(r.stdout).toContain("infra/sandbox has no break-glass user yet, because its plan was not applied. Skipped.");
+    expect(r.stdout).toContain("Break-glass is not usable yet.");
+    expect(lines(join(repo.stub, "applied")).map((line) => line.split(" from ")[0])).toContain("applied org create");
+  }, TIMEOUT);
+
+  it("SPEC-001-R217 stops asking after three failed tries, makes no access key without a device, deletes the seed, and still attaches the SCP", () => {
+    const repo = makeRepo();
+    unenrolled(repo);
+    // Not six digits; the same code twice; then two codes AWS refuses.
+    const r = run(repo, "1\ny\ny\n\n\nabc\n111111\n111111\n333333\n444444\ny\n");
+    expect(r.status).toBe(0);
+    expect(r.calls.filter((call) => call.includes(" iam enable-mfa-device "))).toHaveLength(1);
+    expect(r.calls.filter((call) => call.includes(" iam create-access-key "))).toEqual([]);
+    expect(r.calls.filter((call) => call.includes(" configure set "))).toEqual([]);
+    expect(r.stdout).toContain("That is not a code of six digits.");
+    expect(r.stdout).toContain("That is not a second, different code of six digits.");
+    expect(r.stdout).toContain("AWS refused those codes:");
+    expect(r.stdout).toContain("Break-glass is not usable yet. who-gets-the-keys-break-glass-user has no enabled TOTP device: three tries failed.");
+    expect(existsSync(readFileSync(join(repo.stub, "seed-path"), "utf8").trim())).toBe(false);
+    expect(lines(join(repo.stub, "applied")).map((line) => line.split(" from ")[0])).toEqual(["applied sandbox create", "applied org create"]);
+    // A rerun deletes the device that was never enabled before it makes a new one under the same name.
+    const again = run(repo, "y\n\n\n111111\n222222\n", { TRIAGE_MODEL: PICKED });
+    expect(again.status).toBe(0);
+    const del = index(again.calls, `aws sbx | iam delete-virtual-mfa-device --serial-number ${SERIAL}`);
+    expect(del).toBeGreaterThan(-1);
+    expect(del).toBeLessThan(index(again.calls, "aws sbx | iam create-virtual-mfa-device "));
+    expect(lines(join(repo.stub, "mfa"))).toEqual([SERIAL]);
+    expect(again.stdout).toContain("Check break-glass once.");
+  }, TIMEOUT);
+
+  it("SPEC-001-R217 replaces an access key this computer does not hold only when the owner agrees", () => {
+    const repo = makeRepo();
+    rmSync(join(repo.stub, "config"));
+    const no = run(repo, "1\ny\ny\n\nn\ny\n");
+    expect(no.status).toBe(0);
+    expect(no.calls.filter((call) => / iam (delete|create)-access-key /.test(call))).toEqual([]);
+    expect(no.stdout).toContain(`Profile ${USER_PROFILE} does not hold ${BG_USER}'s access key AKIASTUBOLDKEY. Delete that key and make a new one? [y/N]`);
+    expect(no.stdout).toContain("Break-glass is not usable yet.");
+    const other = makeRepo();
+    rmSync(join(other.stub, "config"));
+    const yes = run(other, "1\ny\ny\n\ny\ny\n");
+    expect(yes.status).toBe(0);
+    const del = index(yes.calls, `aws sbx | iam delete-access-key --user-name ${BG_USER} --access-key-id AKIASTUBOLDKEY`);
+    expect(del).toBeGreaterThan(-1);
+    expect(del).toBeLessThan(index(yes.calls, `aws sbx | iam create-access-key --user-name ${BG_USER} `));
+    expect(yes.calls.filter((call) => call.includes(" iam create-virtual-mfa-device "))).toEqual([]);
+    expect(yes.out).not.toContain(SECRET);
+    expect(yes.stdout).toContain("Check break-glass once.");
+  }, TIMEOUT);
+
+  it("SPEC-001-R217 refuses a BREAK_GLASS_PROFILE that is not a plain name or would overwrite another profile, before any write", () => {
+    const cases: [NodeJS.ProcessEnv, string][] = [
+      [{ BREAK_GLASS_PROFILE: "bad name" }, "is not a profile name"],
+      [{ BREAK_GLASS_PROFILE: "-x" }, "is not a profile name"],
+      [{ BREAK_GLASS_PROFILE: "a[b]" }, "is not a profile name"],
+      [{ BREAK_GLASS_PROFILE: "sbx" }, "would overwrite profile"],
+      [{ BREAK_GLASS_PROFILE: "mgmt" }, "would overwrite profile"],
+      [{ BREAK_GLASS_PROFILE: "sb", SANDBOX_PROFILE: "sb-user" }, "would overwrite profile"],
+    ];
+    for (const [extra, said] of cases) {
+      const repo = makeRepo();
+      const r = run(repo, "1\ny\n", extra);
+      expectNothingChanged(repo, r);
+      expect(r.calls).toEqual([]);
+      expect(r.out).toContain(said);
+    }
   }, TIMEOUT);
 
   it("SPEC-001-R30 aws-setup.sh is executable, parses, and keeps to bash 3.2 so it runs on macOS as well as Linux", () => {

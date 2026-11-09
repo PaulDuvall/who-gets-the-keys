@@ -64,9 +64,11 @@ locals {
     table     = "arn:aws:dynamodb:${var.region}:${local.account_id}:table/export_jobs"
     log_group = "arn:aws:logs:${var.region}:${local.account_id}:log-group:/aws/lambda/${local.function_name}*"
   }
+  # Change, Deactivate, Enable, Reset, Resync and Upload cover a user's password, MFA devices and other credentials.
   identity_writes = [
-    "iam:Add*", "iam:Attach*", "iam:Create*", "iam:Delete*", "iam:Detach*", "iam:PassRole", "iam:Put*", "iam:Remove*",
-    "iam:Set*", "iam:Tag*", "iam:Untag*", "iam:Update*",
+    "iam:Add*", "iam:Attach*", "iam:Change*", "iam:Create*", "iam:Deactivate*", "iam:Delete*", "iam:Detach*",
+    "iam:Enable*", "iam:PassRole", "iam:Put*", "iam:Remove*", "iam:Reset*", "iam:Resync*", "iam:Set*", "iam:Tag*",
+    "iam:Untag*", "iam:Update*", "iam:Upload*",
   ]
 }
 
@@ -97,6 +99,12 @@ data "aws_iam_policy_document" "deploy" {
       "arn:aws:iam::${local.account_id}:policy${local.role_path}*",
       data.aws_iam_openid_connect_provider.github.arn,
     ]
+  }
+  # The break-glass user and its policy, for the plan's refresh, and nothing about its access key or MFA device.
+  statement {
+    sid       = "ReadBreakGlassUser"
+    actions   = ["iam:GetUser", "iam:GetUserPolicy", "iam:ListUserPolicies", "iam:ListUserTags"]
+    resources = ["arn:aws:iam::${local.account_id}:user${local.role_path}*"]
   }
   statement {
     sid       = "ReadAccountWide"
@@ -164,8 +172,9 @@ data "aws_iam_policy_document" "deploy" {
     effect  = "Deny"
     actions = local.identity_writes
     resources = [
-      aws_iam_role.deploy.arn, aws_iam_role.triage.arn, aws_iam_role.probe.arn, aws_iam_role.break_glass.arn,
-      data.aws_iam_openid_connect_provider.github.arn, aws_iam_policy.export_lambda_boundary.arn,
+      aws_iam_role.deploy.arn, aws_iam_role.triage.arn, aws_iam_role.probe.arn, aws_iam_role.producer.arn,
+      aws_iam_role.break_glass.arn, aws_iam_user.break_glass.arn, data.aws_iam_openid_connect_provider.github.arn,
+      aws_iam_policy.export_lambda_boundary.arn,
     ]
   }
   statement {
@@ -286,6 +295,18 @@ resource "aws_iam_role_policy" "probe" {
   })
 }
 
+# Who may become break-glass, and how (SPEC-001-R217): only the break-glass user below, with its MFA code in the same
+# AssumeRole call, through the STS endpoint in var.region, where the break-glass rule sees the CloudTrail event.
+# An Identity Center session is federated, so aws:MultiFactorAuthPresent is absent from it, and an AssumeRole session
+# such as OrganizationAccountAccessRole's carries no MFA context, so no session the owner had could qualify. Trusting
+# the account root instead would let any identity here that can make itself a virtual MFA device qualify.
+locals {
+  break_glass_conditions = {
+    Bool         = { "aws:MultiFactorAuthPresent" = "true" }
+    StringEquals = { "aws:RequestedRegion" = var.region }
+  }
+}
+
 resource "aws_iam_role" "break_glass" {
   name                 = "who-gets-the-keys-break-glass"
   path                 = local.role_path
@@ -294,10 +315,52 @@ resource "aws_iam_role" "break_glass" {
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { AWS = "arn:aws:iam::${local.account_id}:root" }
+      Principal = { AWS = aws_iam_user.break_glass.arn }
       Action    = "sts:AssumeRole"
-      Condition = { Bool = { "aws:MultiFactorAuthPresent" = "true" } }
+      Condition = local.break_glass_conditions
     }]
+  })
+}
+
+# The owner's one way in to break-glass: no console password, group or managed policy, and one inline policy. Its
+# TOTP device and its one access key are made by hand (scripts/bootstrap/aws-setup.sh, step 5), never here, so neither
+# the TOTP seed nor the secret key is ever in Terraform state. force_destroy stays false, so Terraform cannot delete
+# the user while it has a key or an MFA device. Deleting it would also break the trust above: a recreated user gets a
+# new principal ID.
+resource "aws_iam_user" "break_glass" {
+  name = "who-gets-the-keys-break-glass-user"
+  path = local.role_path
+}
+
+# The trust above names this user, so in this account it needs no Allow to assume the role; the Allow states the
+# intent. The two Denies make the key good for that one call whatever any other policy grants it, a resource-based
+# policy naming the user included. sts:GetCallerIdentity needs no permission and cannot be denied.
+resource "aws_iam_user_policy" "break_glass" {
+  name = "assume-break-glass-with-mfa"
+  user = aws_iam_user.break_glass.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AssumeBreakGlassWithMfa"
+        Effect    = "Allow"
+        Action    = "sts:AssumeRole"
+        Resource  = aws_iam_role.break_glass.arn
+        Condition = local.break_glass_conditions
+      },
+      {
+        Sid       = "NothingElse"
+        Effect    = "Deny"
+        NotAction = "sts:AssumeRole"
+        Resource  = "*"
+      },
+      {
+        Sid         = "NoOtherRole"
+        Effect      = "Deny"
+        Action      = "sts:AssumeRole"
+        NotResource = aws_iam_role.break_glass.arn
+      },
+    ]
   })
 }
 
@@ -307,37 +370,60 @@ resource "aws_iam_role_policy_attachment" "break_glass" {
 }
 
 # Identity changes after the SCP is attached go through this role, with MFA, which fires the break-glass alarm.
-# PowerUserAccess grants no IAM, so this adds IAM for this workload's roles and policies and the account's GitHub OIDC provider only.
-# Changing roles and their policies is this role's purpose, so Semgrep's privilege-escalation and resource-exposure
-# rules are suppressed for this one statement; no user, access-key or login-profile action is granted.
+# PowerUserAccess grants no IAM, so this adds IAM for this workload's roles and policies and the account's GitHub OIDC
+# provider, and, in a second statement, for the break-glass user, so a break-glass session can plan infra/sandbox,
+# rotate the user's access key and replace its MFA device while the old one still works (docs/decisions/0007).
+# Changing roles, policies and that user is this role's purpose, so Semgrep's privilege-escalation and resource-exposure
+# rules are suppressed for these two statements, and its credential-exposure and other-user rules for the second: a
+# break-glass session can already rewrite its own trust, so a key it makes for the user adds no power. No login-profile
+# action is granted: the user never gets a password.
 resource "aws_iam_role_policy" "break_glass_identity" {
   name = "identity"
   role = aws_iam_role.break_glass.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Sid    = "WorkloadIdentities"
-      Effect = "Allow"
-      # nosemgrep: terraform.lang.security.iam.no-iam-priv-esc-funcs.no-iam-priv-esc-funcs, terraform.lang.security.iam.no-iam-resource-exposure.no-iam-resource-exposure
-      Action = [
-        "iam:GetRole", "iam:GetRolePolicy", "iam:GetPolicy", "iam:GetPolicyVersion", "iam:GetOpenIDConnectProvider",
-        "iam:ListRolePolicies", "iam:ListAttachedRolePolicies", "iam:ListPolicyVersions", "iam:ListRoleTags",
-        "iam:ListPolicyTags", "iam:ListOpenIDConnectProviderTags",
-        "iam:CreateRole", "iam:DeleteRole", "iam:UpdateRole", "iam:UpdateRoleDescription", "iam:UpdateAssumeRolePolicy",
-        "iam:TagRole", "iam:UntagRole", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:AttachRolePolicy",
-        "iam:DetachRolePolicy", "iam:PutRolePermissionsBoundary", "iam:DeleteRolePermissionsBoundary", "iam:PassRole",
-        "iam:CreatePolicy", "iam:DeletePolicy", "iam:CreatePolicyVersion", "iam:DeletePolicyVersion",
-        "iam:SetDefaultPolicyVersion", "iam:TagPolicy", "iam:UntagPolicy",
-        "iam:CreateOpenIDConnectProvider", "iam:DeleteOpenIDConnectProvider", "iam:UpdateOpenIDConnectProviderThumbprint",
-        "iam:AddClientIDToOpenIDConnectProvider", "iam:RemoveClientIDFromOpenIDConnectProvider",
-        "iam:TagOpenIDConnectProvider", "iam:UntagOpenIDConnectProvider",
-      ]
-      Resource = [
-        "arn:aws:iam::${local.account_id}:role${local.role_path}*",
-        "arn:aws:iam::${local.account_id}:policy${local.role_path}*",
-        data.aws_iam_openid_connect_provider.github.arn,
-      ]
-    }]
+    Statement = [
+      {
+        Sid    = "WorkloadIdentities"
+        Effect = "Allow"
+        # nosemgrep: terraform.lang.security.iam.no-iam-priv-esc-funcs.no-iam-priv-esc-funcs, terraform.lang.security.iam.no-iam-resource-exposure.no-iam-resource-exposure
+        Action = [
+          "iam:GetRole", "iam:GetRolePolicy", "iam:GetPolicy", "iam:GetPolicyVersion", "iam:GetOpenIDConnectProvider",
+          "iam:ListRolePolicies", "iam:ListAttachedRolePolicies", "iam:ListPolicyVersions", "iam:ListRoleTags",
+          "iam:ListPolicyTags", "iam:ListOpenIDConnectProviderTags",
+          "iam:CreateRole", "iam:DeleteRole", "iam:UpdateRole", "iam:UpdateRoleDescription", "iam:UpdateAssumeRolePolicy",
+          "iam:TagRole", "iam:UntagRole", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy", "iam:PutRolePermissionsBoundary", "iam:DeleteRolePermissionsBoundary", "iam:PassRole",
+          "iam:CreatePolicy", "iam:DeletePolicy", "iam:CreatePolicyVersion", "iam:DeletePolicyVersion",
+          "iam:SetDefaultPolicyVersion", "iam:TagPolicy", "iam:UntagPolicy",
+          "iam:CreateOpenIDConnectProvider", "iam:DeleteOpenIDConnectProvider", "iam:UpdateOpenIDConnectProviderThumbprint",
+          "iam:AddClientIDToOpenIDConnectProvider", "iam:RemoveClientIDFromOpenIDConnectProvider",
+          "iam:TagOpenIDConnectProvider", "iam:UntagOpenIDConnectProvider",
+        ]
+        Resource = [
+          "arn:aws:iam::${local.account_id}:role${local.role_path}*",
+          "arn:aws:iam::${local.account_id}:policy${local.role_path}*",
+          data.aws_iam_openid_connect_provider.github.arn,
+        ]
+      },
+      {
+        Sid    = "BreakGlassUser"
+        Effect = "Allow"
+        # nosemgrep: terraform.lang.security.iam.no-iam-creds-exposure.no-iam-creds-exposure, terraform.lang.security.iam.no-iam-priv-esc-other-users.no-iam-priv-esc-other-users, terraform.lang.security.iam.no-iam-priv-esc-funcs.no-iam-priv-esc-funcs, terraform.lang.security.iam.no-iam-resource-exposure.no-iam-resource-exposure
+        Action = [
+          "iam:GetUser", "iam:GetUserPolicy", "iam:ListUserPolicies", "iam:ListAttachedUserPolicies", "iam:ListUserTags",
+          "iam:ListGroupsForUser", "iam:ListAccessKeys", "iam:GetAccessKeyLastUsed", "iam:ListMFADevices",
+          "iam:CreateUser", "iam:DeleteUser", "iam:TagUser", "iam:UntagUser", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
+          "iam:CreateAccessKey", "iam:UpdateAccessKey", "iam:DeleteAccessKey",
+          "iam:CreateVirtualMFADevice", "iam:DeleteVirtualMFADevice", "iam:EnableMFADevice", "iam:DeactivateMFADevice",
+          "iam:ResyncMFADevice",
+        ]
+        Resource = [
+          "arn:aws:iam::${local.account_id}:user${local.role_path}*",
+          "arn:aws:iam::${local.account_id}:mfa${local.role_path}*",
+        ]
+      },
+    ]
   })
 }
 

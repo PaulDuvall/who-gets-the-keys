@@ -32,14 +32,18 @@ locals {
   deploy         = "${local.role_arn}who-gets-the-keys-deploy"
   break_glass    = "${local.role_arn}who-gets-the-keys-break-glass"
   service_linked = "arn:aws:iam::*:role/aws-service-role/*"
+  # Change, Deactivate, Enable, Reset, Resync and Upload cover a user's password, MFA devices and other credentials.
   iam_writes = [
-    "iam:Add*", "iam:Attach*", "iam:Create*", "iam:Delete*", "iam:Detach*", "iam:Put*", "iam:Remove*", "iam:Set*",
-    "iam:Tag*", "iam:Untag*", "iam:Update*",
+    "iam:Add*", "iam:Attach*", "iam:Change*", "iam:Create*", "iam:Deactivate*", "iam:Delete*", "iam:Detach*",
+    "iam:Enable*", "iam:Put*", "iam:Remove*", "iam:Reset*", "iam:Resync*", "iam:Set*", "iam:Tag*", "iam:Untag*",
+    "iam:Update*", "iam:Upload*",
   ]
 }
 
 # Workload and the export Lambda's role: only the deploy and break-glass roles write them.
-# Every other identity of this workload and its policies: only the break-glass role. The GitHub OIDC provider is
+# Every other identity of this workload and its policies: only the break-glass role. That includes every user and MFA
+# device under /who-gets-the-keys/, so no one else can give the break-glass user a key or an MFA device, or create a
+# look-alike user there (SPEC-001-R217). The GitHub OIDC provider is
 # account-wide and may serve other repositories, so this SCP leaves it alone; each role's trust policy pins sub, aud
 # and job_workflow_ref.
 # SCPs do not apply to service-linked roles; the aws-service-role exclusion is explicit anyway.
@@ -84,6 +88,8 @@ resource "aws_organizations_policy" "sandbox_writes" {
           "${local.role_arn}who-gets-the-keys-scenario-probe",
           "${local.role_arn}who-gets-the-keys-producer-bedrock",
           "arn:aws:iam::${local.account}:policy/who-gets-the-keys/*",
+          "arn:aws:iam::${local.account}:user/who-gets-the-keys/*",
+          "arn:aws:iam::${local.account}:mfa/who-gets-the-keys/*",
         ]
         Condition = { ArnNotLike = { "aws:PrincipalArn" = [local.break_glass, local.service_linked] } }
       },
