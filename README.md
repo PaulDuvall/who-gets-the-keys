@@ -199,27 +199,13 @@ Claude Code cloud sessions for this repository run in a claude.ai cloud environm
 | Network access | Full. The script fetches from nodejs.org, github.com release downloads, releases.hashicorp.com, PyPI and the npm registry; a limited network has not been tried |
 | Network secrets | None |
 | Environment variables | None |
-| Setup script | Below. It runs as root, from the directory that holds the checkout |
+| Setup script | The one line below. It runs as root, from the directory that holds the checkout |
 
 ```bash
-set -euo pipefail
-if [ -d who-gets-the-keys ]; then
-  v=v24.22.2
-  sha=48cc0e21e048790e54c0cf5749c2725005313d652651c40b7a21feb9697aaf75
-  tmp="$(mktemp -d)"
-  curl -sSfL --retry 3 -o "$tmp/node.tar.xz" "https://nodejs.org/dist/$v/node-$v-linux-x64.tar.xz"
-  echo "$sha  $tmp/node.tar.xz" | sha256sum -c --quiet -
-  rm -rf /opt/node24 && mkdir -p /opt/node24
-  tar -xJf "$tmp/node.tar.xz" -C /opt/node24 --strip-components=1
-  rm -rf "$tmp"
-  mkdir -p /root/.local/bin
-  ln -sf /opt/node24/bin/node /opt/node24/bin/npm /opt/node24/bin/npx /root/.local/bin/
-  (cd who-gets-the-keys && PATH="/root/.local/bin:$PATH" UV_VENV_CLEAR=1 scripts/ci/install-tools.sh /root/.local/bin)
-  (cd who-gets-the-keys && PATH="/root/.local/bin:$PATH" npm ci --ignore-scripts --no-audit --no-fund)
-fi
+if [ -f who-gets-the-keys/scripts/bootstrap/cloud-session-setup.sh ]; then bash who-gets-the-keys/scripts/bootstrap/cloud-session-setup.sh; fi
 ```
 
-It gives a session the Node.js version `package.json` pins (the image ships Node 22), the pinned check CLIs from `scripts/ci/install-tools.sh`, and `node_modules` from the lockfile with install scripts off. `/root/.local/bin` comes before `/opt/node22/bin` on the image's `PATH`. With it, a session can run `tsc`, ESLint, vitest and the other local checks, and the commit hook finds gitleaks. The agent installs nothing: `.claude/settings.json` still denies it `npm ci`, and the owner adds the `npm ci` line, which is why the agent never ran that line itself. The other lines were run twice in a session container on 2026-11-07: Node v24.22.2, npm 11.19.1, gitleaks 8.30.1, osv-scanner 2.7.0, Terraform 1.16.6, TFLint 0.64.0, Semgrep 1.181.0, zizmor 1.31.1. When `package.json`'s Node range or a pinned tool changes, update this script and the environment together.
+The script it calls is [`scripts/bootstrap/cloud-session-setup.sh`](scripts/bootstrap/cloud-session-setup.sh), a protected path, so a change to it needs an approver-signed commit (SPEC-001-R211). It gives a session the Node.js version `package.json` pins (the image ships Node 22), checked against the SHA-256 that `docs/verification.md` records; the pinned check CLIs from `scripts/ci/install-tools.sh`; and `node_modules` from the lockfile with install scripts off. `/root/.local/bin` comes before `/opt/node22/bin` on the image's `PATH`. With it, a session can run `tsc`, ESLint, vitest and the other local checks, and the commit hook finds gitleaks. The agent installs nothing: `.claude/settings.json` still denies it `npm ci`, and the claude.ai environment, not the agent, runs the script. The `-f` test keeps a session on a branch older than the script starting, with nothing installed. The script's lines, then in this README, were run twice in a session container on 2026-11-07: Node v24.22.2, npm 11.19.1, gitleaks 8.30.1, osv-scanner 2.7.0, Terraform 1.16.6, TFLint 0.64.0, Semgrep 1.181.0, zizmor 1.31.1. When `package.json`'s Node range or a pinned tool changes, update the script, its row in `docs/verification.md` and its test together.
 
 ## Factory video
 

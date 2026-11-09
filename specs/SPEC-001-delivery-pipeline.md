@@ -75,6 +75,14 @@ The approver's security key and SPEC-001-R12 are the control against an agent si
 |---|---|
 | SPEC-001-R39 | WHEN a local Claude Code session runs a Bash command that could sign a commit or tag, or reach a signing key (a git signing option or signing configuration, `ssh-keygen -Y sign`, `ssh-add`, `SSH_AUTH_SOCK`, writing a commit object, or running `scripts/bootstrap/rewrite-history.ts`), THE `no-sign` PreToolUse hook SHALL exit with status 2 and append one `signing-attempt` line to `.claude/security-events.log`. Text in a commit message, meaning a `-m` argument or the heredoc of `git commit -F -`, SHALL NOT count. |
 
+## Cloud sessions
+
+A Claude Code cloud session is not the locked-down runner producer (`docs/notes/tracer-2.md`, "Why"). Its cloud environment's network, variables and setup script live in claude.ai, which the owner can change at any time and nothing here versions. This section versions the part that can live in the repository: what the setup script installs. The claude.ai setup script itself stays outside the repository, so no check reads it; the README gives it as one line, which the owner copies into claude.ai.
+
+| ID | Requirement |
+|---|---|
+| SPEC-001-R211 | THE README's "Cloud session environment" section SHALL give the claude.ai cloud environment's setup script as exactly one line, the one in the header of `scripts/bootstrap/cloud-session-setup.sh`, which runs that script from the checkout when the file exists. WHEN it runs, THE script SHALL download the Node.js release it pins and check it against the SHA-256 it pins before it unpacks or installs anything. The pinned release SHALL be one that `package.json`'s `engines` range admits, and the pinned release and SHA-256 SHALL equal the "Node.js for cloud sessions" row of `docs/verification.md`. It SHALL then install that Node.js, the check CLIs with `scripts/ci/install-tools.sh`, and `node_modules` with `npm ci --ignore-scripts`, in that order. IF the download does not match, or `sha256sum` is missing, THEN it SHALL exit nonzero and change nothing it installs. |
+
 ## Checks before `main`
 
 `main` only moves to a commit on which the checks passed. Authors, agent or human, push a commit to a `candidate/` branch first, then push that same commit to `main`.
