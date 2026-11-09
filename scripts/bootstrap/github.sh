@@ -16,8 +16,10 @@ usage() {
   echo "           Once the repository is public, also: you as required reviewer on sandbox and probe (not producer,"
   echo "           whose runs only you can start; SPEC-001-R85),"
   echo "           secret scanning, push protection and private vulnerability reporting."
-  echo "  --vars   also set DEPLOY_ROLE_ARN, TRIAGE_ROLE_ARN, PROBE_ROLE_ARN, PRODUCER_ROLE_ARN and PRODUCER_MODEL from"
-  echo "           infra/sandbox outputs and TRIAGE_MODEL from \$TRIAGE_MODEL."
+  echo "  --vars   also set the secrets DEPLOY_ROLE_ARN, TRIAGE_ROLE_ARN, PROBE_ROLE_ARN and PRODUCER_ROLE_ARN and the"
+  echo "           variable PRODUCER_MODEL from infra/sandbox outputs, and the variable TRIAGE_MODEL from \$TRIAGE_MODEL."
+  echo "           Then deletes any repository variable of those four role ARN names: GitHub masks a secret in run"
+  echo "           logs and prints a variable in clear, and a role ARN holds the AWS account ID (SPEC-001-R86)."
   echo "           Refused on a public repository until sandbox and probe each have a required reviewer."
 }
 
@@ -157,7 +159,7 @@ if [ "${1:-}" = "--vars" ]; then
   if [ "$visibility" = "public" ]; then
     for env in sandbox probe; do
       count="$(gh api "repos/${repo}/environments/${env}" --jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length')"
-      [ "$count" -gt 0 ] || { echo "Environment ${env} has no required reviewer. Variables not set."; exit 1; }
+      [ "$count" -gt 0 ] || { echo "Environment ${env} has no required reviewer. Nothing set."; exit 1; }
     done
   else
     echo
@@ -165,27 +167,44 @@ if [ "${1:-}" = "--vars" ]; then
     echo "Make it public, then run this script again before the next push to main so sandbox and probe get a required reviewer."
   fi
   outputs="$(terraform -chdir=infra/sandbox output -json)"
-  deploy="$(jq -r .deploy_role_arn.value <<<"$outputs")"
-  triage="$(jq -r .triage_role_arn.value <<<"$outputs")"
-  probe="$(jq -r .probe_role_arn.value <<<"$outputs")"
+  deploy="$(jq -r '.deploy_role_arn.value // empty' <<<"$outputs")"
+  triage="$(jq -r '.triage_role_arn.value // empty' <<<"$outputs")"
+  probe="$(jq -r '.probe_role_arn.value // empty' <<<"$outputs")"
   producer="$(jq -r '.producer_role_arn.value // empty' <<<"$outputs")"
   producer_model="$(jq -r '.producer_inference_profile.value // empty' <<<"$outputs")"
-  if [ -z "$producer" ] || [ -z "$producer_model" ]; then
-    echo "infra/sandbox has no producer_role_arn or producer_inference_profile output. Apply infra/sandbox first. Variables not set."
+  if [ -z "$deploy" ] || [ -z "$triage" ] || [ -z "$probe" ] || [ -z "$producer" ] || [ -z "$producer_model" ]; then
+    echo "infra/sandbox lacks one of the outputs deploy_role_arn, triage_role_arn, probe_role_arn, producer_role_arn and"
+    echo "producer_inference_profile. Apply infra/sandbox first. Nothing set."
     exit 1
   fi
   model="${TRIAGE_MODEL:?set TRIAGE_MODEL to the Bedrock model or inference profile ID for triage}"
+  # A role ARN holds the AWS account ID. GitHub prints a step's inputs before the step runs and never masks a variable,
+  # so the ARNs are secrets, which it masks in every log line. The variables of the same names, from earlier runs of this
+  # script, are deleted once the secrets are set (SPEC-001-R86).
+  existing="$(gh variable list --repo "$repo" --json name --jq '.[].name')"
+  stale=""
+  for name in DEPLOY_ROLE_ARN TRIAGE_ROLE_ARN PROBE_ROLE_ARN PRODUCER_ROLE_ARN; do
+    if printf '%s\n' "$existing" | grep -qx "$name"; then stale="${stale} ${name}"; fi
+  done
   echo
+  echo "Will set repository secrets:"
+  printf '  DEPLOY_ROLE_ARN=%s\n  TRIAGE_ROLE_ARN=%s\n  PROBE_ROLE_ARN=%s\n  PRODUCER_ROLE_ARN=%s\n' "$deploy" "$triage" "$probe" "$producer"
   echo "Will set repository variables:"
-  printf '  DEPLOY_ROLE_ARN=%s\n  TRIAGE_ROLE_ARN=%s\n  PROBE_ROLE_ARN=%s\n  TRIAGE_MODEL=%s\n' "$deploy" "$triage" "$probe" "$model"
-  printf '  PRODUCER_ROLE_ARN=%s\n  PRODUCER_MODEL=%s\n' "$producer" "$producer_model"
-  confirm "Set these variables?" || { echo "Variables not set."; exit 1; }
-  gh variable set DEPLOY_ROLE_ARN --repo "$repo" --body "$deploy"
-  gh variable set TRIAGE_ROLE_ARN --repo "$repo" --body "$triage"
-  gh variable set PROBE_ROLE_ARN --repo "$repo" --body "$probe"
+  printf '  TRIAGE_MODEL=%s\n  PRODUCER_MODEL=%s\n' "$model" "$producer_model"
+  if [ -n "$stale" ]; then
+    echo "Will then delete these repository variables, which the secrets replace:"
+    for name in $stale; do echo "  ${name}"; done
+  fi
+  confirm "Set these secrets and variables?" || { echo "Nothing set."; exit 1; }
+  gh secret set DEPLOY_ROLE_ARN --repo "$repo" --body "$deploy"
+  gh secret set TRIAGE_ROLE_ARN --repo "$repo" --body "$triage"
+  gh secret set PROBE_ROLE_ARN --repo "$repo" --body "$probe"
+  gh secret set PRODUCER_ROLE_ARN --repo "$repo" --body "$producer"
   gh variable set TRIAGE_MODEL --repo "$repo" --body "$model"
-  gh variable set PRODUCER_ROLE_ARN --repo "$repo" --body "$producer"
   gh variable set PRODUCER_MODEL --repo "$repo" --body "$producer_model"
+  for name in $stale; do
+    gh variable delete "$name" --repo "$repo"
+  done
 fi
 
 echo

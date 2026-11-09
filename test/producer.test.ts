@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -147,8 +147,18 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     expect(Object.entries(jobs).filter(([, j]) => j.environment !== undefined).map(([id]) => id)).toEqual(["agent"]);
     const idToken = Object.entries(jobs).filter(([, j]) => typeof j.permissions === "object" && j.permissions["id-token"] !== undefined);
     expect(idToken.map(([id]) => id)).toEqual(["agent"]);
-    expect(producerText).not.toMatch(/secrets\./);
     expect(JSON.stringify(agent)).not.toMatch(/github\.token|GH_TOKEN|GITHUB_TOKEN/);
+  });
+
+  it("SPEC-001-R85 references one secret, the role ARN, once, as configure-aws-credentials' role-to-assume, outside env -i", () => {
+    expect([...producerText.matchAll(/secrets\.[A-Za-z0-9_]*/g)].map((m) => m[0])).toEqual(["secrets.PRODUCER_ROLE_ARN"]);
+    const holders = Object.entries(jobs).flatMap(([id, j]) => [j.env, ...j.steps].filter((s) => JSON.stringify(s ?? {}).includes("secrets.")).map(() => id));
+    expect(holders).toEqual(["agent"]);
+    const credentials = job("agent").steps.filter((s) => JSON.stringify(s).includes("secrets."));
+    expect(credentials.map((s) => [s.uses?.split("@")[0], s.with?.["role-to-assume"], s.env, s.run])).toEqual([
+      ["aws-actions/configure-aws-credentials", "${{ secrets.PRODUCER_ROLE_ARN }}", undefined, undefined],
+    ]);
+    expect(runStep("agent").run ?? "").not.toMatch(/ROLE_ARN|secrets/);
   });
 
   it("SPEC-001-R85 starts Claude Code from an empty environment that holds Bedrock, the scrub and the pinned model, and no GitHub or Actions variable", () => {
@@ -197,10 +207,35 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     const github = read("scripts/bootstrap/github.sh");
     expect(github).toContain(`producer="$(jq -r '.producer_role_arn.value // empty' <<<"$outputs")"`);
     expect(github).toContain(`producer_model="$(jq -r '.producer_inference_profile.value // empty' <<<"$outputs")"`);
-    expect(github).toContain('gh variable set PRODUCER_ROLE_ARN --repo "$repo" --body "$producer"');
+    expect(github).toContain('gh secret set PRODUCER_ROLE_ARN --repo "$repo" --body "$producer"');
+    expect(github).not.toMatch(/gh variable set \w*_ROLE_ARN/);
     expect(github).toContain('gh variable set PRODUCER_MODEL --repo "$repo" --body "$producer_model"');
     const agent = job("agent").steps.find((s) => s.uses?.startsWith("aws-actions/configure-aws-credentials@") === true);
-    expect(agent?.with?.["role-to-assume"]).toBe("${{ vars.PRODUCER_ROLE_ARN }}");
+    expect(agent?.with?.["role-to-assume"]).toBe("${{ secrets.PRODUCER_ROLE_ARN }}");
+  });
+
+  it("SPEC-001-R86 every workflow reads a role ARN from a secret, never from a variable", () => {
+    const dir = ".github/workflows";
+    const texts = readdirSync(dir).filter((f) => f.endsWith(".yml")).map((f) => [f, read(join(dir, f))] as const);
+    expect(texts.filter(([, text]) => /vars\.\w*ROLE_ARN/.test(text)).map(([f]) => f)).toEqual([]);
+    const roles = texts.flatMap(([f, text]) => {
+      const wf = parse(text) as Workflow;
+      return Object.values(wf.jobs).flatMap((j) => j.steps.flatMap((s) => [
+        ...(s.with?.["role-to-assume"] === undefined ? [] : [[f, "role-to-assume", s.with["role-to-assume"]]]),
+        ...Object.entries(s.env ?? {}).filter(([k]) => k.endsWith("ROLE_ARN")).map(([k, v]) => [f, k, v]),
+      ]));
+    });
+    expect(roles).toEqual([
+      ["issue-triage.yml", "role-to-assume", "${{ secrets.TRIAGE_ROLE_ARN }}"],
+      ["pipeline.yml", "role-to-assume", "${{ secrets.DEPLOY_ROLE_ARN }}"],
+      ["producer.yml", "role-to-assume", "${{ secrets.PRODUCER_ROLE_ARN }}"],
+      ["scenarios.yml", "role-to-assume", "${{ secrets.PROBE_ROLE_ARN }}"],
+      ["scenarios.yml", "DEPLOY_ROLE_ARN", "${{ secrets.DEPLOY_ROLE_ARN }}"],
+    ]);
+    const github = read("scripts/bootstrap/github.sh");
+    for (const name of ["DEPLOY", "TRIAGE", "PROBE", "PRODUCER"]) expect(github).toContain(`gh secret set ${name}_ROLE_ARN --repo "$repo" --body`);
+    expect(github).toContain("for name in DEPLOY_ROLE_ARN TRIAGE_ROLE_ARN PROBE_ROLE_ARN PRODUCER_ROLE_ARN; do");
+    expect(github).toContain('gh variable delete "$name" --repo "$repo"');
   });
 
   it("SPEC-001-R87 writes the agent's settings from the producer's empty allowlist: no hooks, dontAsk, the sandbox strict, admin-required and not auto-allowing", () => {

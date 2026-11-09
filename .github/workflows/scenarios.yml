@@ -116,12 +116,13 @@ jobs:
           terraform_wrapper: false
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ vars.PROBE_ROLE_ARN }}
+          role-to-assume: ${{ secrets.PROBE_ROLE_ARN }}
           aws-region: us-east-1
           mask-aws-account-id: true
       - name: Run the on-demand probes
+        shell: bash
         env:
-          DEPLOY_ROLE_ARN: ${{ vars.DEPLOY_ROLE_ARN }}
+          DEPLOY_ROLE_ARN: ${{ secrets.DEPLOY_ROLE_ARN }}
         run: scenarios/on-demand.sh | tee on-demand.log
       - name: Upload the on-demand log for the video
         if: always()

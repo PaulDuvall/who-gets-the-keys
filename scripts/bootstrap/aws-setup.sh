@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The whole AWS setup as one command: the sandbox member account, its break-glass alert, the SCP from the management
-# account, then the repository variables. Checks that change nothing in AWS or GitHub come first, then one confirm.
+# account, then the repository secrets and variables. Checks that change nothing in AWS or GitHub come first, then one
+# confirm.
 # It pauses again only to review each Terraform plan and to remind you to confirm the alert email.
 # The sandbox must be a member account: SCPs do not affect the management account, so B11 needs one (SPEC-001-R30).
 # Runs on macOS's bash 3.2 and on Linux: no mapfile, no associative arrays, no case-changing expansions.
@@ -316,9 +317,9 @@ if [ -n "$attached" ]; then
     "  its table, its log group or the who-gets-the-keys roles. A sandbox plan that changes them fails at apply."
 fi
 say "GitHub ${repo}, through scripts/bootstrap/github.sh --vars:" \
-  "  repository settings, environments sandbox, probe and producer, ruleset \"protect main\", and the variables" \
-  "  DEPLOY_ROLE_ARN, TRIAGE_ROLE_ARN, PROBE_ROLE_ARN, PRODUCER_ROLE_ARN and PRODUCER_MODEL from infra/sandbox," \
-  "  and TRIAGE_MODEL=${model}" \
+  "  repository settings, environments sandbox, probe and producer, ruleset \"protect main\", the secrets" \
+  "  DEPLOY_ROLE_ARN, TRIAGE_ROLE_ARN, PROBE_ROLE_ARN and PRODUCER_ROLE_ARN and the variable PRODUCER_MODEL from" \
+  "  infra/sandbox, the variable TRIAGE_MODEL=${model}, and deleting any variable of a role ARN's name" \
   "Here: npm ci --ignore-scripts and npm run build replace node_modules/ and dist/." ""
 ask "Go ahead?" || refuse "You chose not to go ahead."
 started="yes"
@@ -374,7 +375,7 @@ plan_and_apply() {
 declined() {
   printf '%s\n' "$2" >&2
   if [ "$1" = infra/sandbox ] && [ -n "$attached" ] &&
-    ask "Skip infra/sandbox and go on to the alert, infra/org and the repository variables?"; then
+    ask "Skip infra/sandbox and go on to the alert, infra/org and the repository secrets and variables?"; then
     say "Skipped infra/sandbox. The pipeline's deploy job, or break-glass, applies its changes."
     return 0
   fi
@@ -459,7 +460,7 @@ y
 y
 ANSWERS
 
-say "" "Done. To check the repository variables:" "gh variable list --repo ${repo}"
+say "" "Done. To check the repository secrets and variables:" "gh secret list --repo ${repo}" "gh variable list --repo ${repo}"
 if [ -n "$email_reminder" ]; then
   say "" "If you have not yet, click Confirm subscription in the email AWS sent to ${email}."
 fi
