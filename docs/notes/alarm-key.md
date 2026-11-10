@@ -57,7 +57,7 @@ scripts/bootstrap/land.sh proposals/alarm-key
 
 Expect no "Changed since by" warning, unless another commit has changed one of the three destinations since step 1. The preflight prints `passed: git apply --check scenarios/B14-irreversible-table-rename.patch`, then `Preflight passed.`
 
-When it prints `Approve the sandbox deployment in main's run`, do not approve. The deploy role cannot create the key, so the deploy would fail without applying anything, as on 2026-11-09.
+When it prints `Approve the sandbox deployment in main's run`, do not approve. The deploy role cannot create the key, so an early deploy fails at the key, and the topic change, which depends on it, never starts, as on 2026-11-09. Terraform does not roll back, so any change in that plan unrelated to the key would still apply; this batch adds none, and every deploy since 2026-11-08 has planned "No changes".
 
 ### 3. Apply `infra/sandbox` with `aws-setup.sh`
 
@@ -73,7 +73,9 @@ SANDBOX_ACCOUNT_ID=<sandbox account ID> SANDBOX_PROFILE=wgtk-sandbox-admin MANAG
 | `infra/org` plan | `No changes.`, or no prompt |
 | Its step 5 | `already has TOTP device` and `already has access key`, each `Skipped.` |
 
-Its step 4 skips both email subscriptions, and step 7 sets the same secrets and variables as before.
+Its step 4 skips the `ALERT_EMAIL` subscription, which exists, and step 7 sets the same secrets and variables as before.
+
+The plan's "1 to add, 1 to change" assumes the Lambda artifact `aws-setup.sh` builds at `HEAD` has the deployed SHA-256, as it did on 2026-11-09 (that run's plan held no Lambda change). If the plan also changes `aws_lambda_function.export`, answer no: the SCP refuses that change to this profile.
 
 ### 4. Check the alarm
 
@@ -91,7 +93,7 @@ Success: `Invocations` above 0 and `FailedInvocations` 0, or no datapoint. Count
 
 ### 5. Approve the deploy
 
-Approve the deploy in the run `land.sh` printed. It plans no change: the deploy role reads the new key through `DeployReads`.
+Approve the deploy in the run `land.sh` printed. It should plan no change: the deploy role reads the new key through `DeployReads`. If it plans a change to `aws_sns_topic.break_glass`'s `kms_master_key_id`, SNS returned the key in another form than the ARN Terraform set, which the files cannot show. Do not approve another deploy; tell the agent. The topic kept `alias/aws/sns` with no such diff on every earlier deploy.
 
 ### Optional: one subscription
 
@@ -99,4 +101,29 @@ The topic has two confirmed email subscriptions, both to the same inbox, so each
 
 ## How it was tested
 
-Filled in after the preflight below.
+On 2026-11-10, in a scratch worktree of the staging commit with the three moves applied as `land.sh` applies them, in a cloud session with no `ssh-keygen`:
+
+| Step | Result |
+|---|---|
+| `land.sh`'s checks, simulated | Both `requires` lines met, no "Changed since by" warning, `candidate/land-alarm-key` absent |
+| `tsc --noEmit`, ESLint on `test/break-glass.test.ts` | Pass |
+| vitest, every test | All pass but the 3 that need `ssh-keygen` (`test/checks.test.ts`, `test/land.test.ts`, `test/signatures.test.ts`), as on `main` in this container |
+| The new test against `main`'s `infra/sandbox/main.tf` | Fails on `kms_master_key_id = "alias/aws/sns"`, so it catches the fault |
+| The new test against three wrong keys, after the review: an extra Allow with no Sid, a `Condition` on `DeployReads`, and a log group using a literal key ARN | Fails on each; passes on the staged copy |
+| Checks trace, slides, secrets, iac (`terraform fmt`, `validate`, tflint), sast (Semgrep `p/default`) | Pass |
+| `git apply --check`, every scenario patch | 19 of 19 apply; `land.sh`'s preflight checks B14, which touches `infra/sandbox/main.tf` |
+
+Not tested: any call to AWS. The agent runs no Terraform plan against the sandbox; the owner's step 3 plan is the first.
+
+## Review
+
+An independent review by the `validator` subagent, given the files, the spec row and the AWS quote, found nothing critical or high.
+
+| Finding | Severity | Done |
+|---|---|---|
+| SPEC-001-R217 named two of the key's three statements, not the account root's `kms:*` | low | Fixed: the row names all three |
+| These notes said an early deploy "would fail without applying anything", true only while the plan holds nothing else | medium | Fixed in step 2 |
+| The test missed an extra statement without a Sid, a `Condition` on `Account` or `DeployReads`, and a second user of the key through a literal ARN or a data source | low to medium | Fixed: exactly three unconditional Allow statements on `*`, the `Account` principal and action, every key attribute names a key resource, and no `aws_kms_key` data source |
+| Whether SNS returns `KmsMasterKeyId` as the ARN Terraform set; a different form would leave a diff in every plan | cannot be decided from the files | Not fixed; step 5 checks it, and `alias/aws/sns` round-tripped with no diff before |
+| The expected plan assumes a reproducible Lambda zip | low | Recorded in step 3 |
+| The key policy's events grant is unscoped | low, accepted | AWS supports no scoping there; the key encrypts only alarm messages |

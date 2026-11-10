@@ -148,12 +148,24 @@ describe("SPEC-001-R217 break-glass is assumed only by its own IAM user, with MF
     // EventBridge cannot publish to a topic under the AWS managed key: every alarm failed until 2026-11-10.
     expect(all).not.toMatch(/kms_master_key_id\s+= "alias\/aws\/sns"/);
     expect(block(main, 'resource "aws_sns_topic" "break_glass"')).toContain("kms_master_key_id = aws_kms_key.break_glass_alarm.arn");
-    // The topic is the key's only user, because EventBridge's grant cannot be scoped to the rule.
+    // The topic is the key's only user, because EventBridge's grant cannot be scoped to the rule. Every key attribute
+    // names a key resource, never a literal ARN or alias, so a second user cannot hide behind one.
     expect(all.split("aws_kms_key.break_glass_alarm").length - 1).toBe(1);
+    const keyRefs = [...all.matchAll(/\b(kms_master_key_id|kms_key_id|kms_key_arn|target_key_id)\s+= (\S+)/g)].map((m) => [m[1], m[2]]);
+    expect(keyRefs.filter(([, value]) => !value?.startsWith("aws_kms_key."))).toEqual([]);
+    expect(keyRefs.filter(([, value]) => value?.startsWith("aws_kms_key.break_glass_alarm"))).toEqual([["kms_master_key_id", "aws_kms_key.break_glass_alarm.arn"]]);
+    expect(all).not.toContain('data "aws_kms_key"');
     const key = block(main, 'resource "aws_kms_key" "break_glass_alarm"');
     expect(key).toContain("enable_key_rotation = true");
+    // Exactly three statements, each an unconditional Allow on the key itself.
     expect([...key.matchAll(/Sid\s+= "(\w+)"/g)].map((m) => m[1])).toEqual(["Account", "DeployReads", "EventBridgePublishes"]);
-    expect(key).not.toMatch(/Effect\s+= "Deny"/);
+    expect(key.match(/Effect\s+= /g)).toHaveLength(3);
+    expect(key.match(/Effect\s+= "Allow"/g)).toHaveLength(3);
+    expect(key.match(/Resource\s+= "\*"/g)).toHaveLength(3);
+    expect(key).not.toContain("Condition");
+    const account = statement(key, "Account");
+    expect(account).toMatch(/Principal = \{ AWS = "arn:aws:iam::\$\{local\.account_id\}:root" \}/);
+    expect(account).toMatch(/Action\s+= "kms:\*"/);
     const events = statement(key, "EventBridgePublishes");
     expect(events).toMatch(/Principal = \{ Service = "events\.amazonaws\.com" \}/);
     expect(strings(/Action\s+= \[([^\]]*)\]/.exec(events)?.[1] ?? "")).toEqual(["kms:GenerateDataKey*", "kms:Decrypt"]);
