@@ -119,9 +119,46 @@ resource "aws_lambda_function" "export" {
   }
 }
 
+# The break-glass alarm topic's key, used by nothing else (SPEC-001-R217). EventBridge can publish to an encrypted topic
+# only through a customer managed key that lets events.amazonaws.com use it; the AWS managed key alias/aws/sns cannot,
+# so every alarm failed until 2026-11-10. AWS does not support aws:SourceArn, aws:SourceAccount or aws:SourceOrgID in
+# that statement for EventBridge (https://docs.aws.amazon.com/sns/latest/dg/sns-key-management.html), so it is not
+# scoped to the rule. That is why this key encrypts the alarm and nothing else. The deploy role reads the key through
+# this policy, because its IAM policy names only aws_kms_key.sandbox and only break-glass may change that policy.
+resource "aws_kms_key" "break_glass_alarm" {
+  description         = "who-gets-the-keys: the break-glass alarm topic only"
+  enable_key_rotation = true
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "Account"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${local.account_id}:root" }
+        Action    = "kms:*"
+        Resource  = "*"
+      },
+      {
+        Sid       = "DeployReads"
+        Effect    = "Allow"
+        Principal = { AWS = aws_iam_role.deploy.arn }
+        Action    = ["kms:Describe*", "kms:Get*", "kms:List*"]
+        Resource  = "*"
+      },
+      {
+        Sid       = "EventBridgePublishes"
+        Effect    = "Allow"
+        Principal = { Service = "events.amazonaws.com" }
+        Action    = ["kms:GenerateDataKey*", "kms:Decrypt"]
+        Resource  = "*"
+      },
+    ]
+  })
+}
+
 resource "aws_sns_topic" "break_glass" {
   name              = "who-gets-the-keys-break-glass"
-  kms_master_key_id = "alias/aws/sns"
+  kms_master_key_id = aws_kms_key.break_glass_alarm.arn
 }
 
 # Fires on any assumption of the break-glass role and on any API call by the break-glass user, denied ones included,
