@@ -1,9 +1,9 @@
-import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { git, lines, runScript, scratchDir, tempRepo, TIMEOUT, writeFiles, type TempRepo } from "./helpers/temp-repo.ts";
 
 // scripts/bootstrap/producer.sh dispatches the runner producer, finds the run that dispatch started, watches it and
 // reports its result from GitHub's record of the run and its steps (SPEC-001-R212). Each test runs it in a temporary
@@ -11,7 +11,6 @@ import { parse } from "yaml";
 // list from "before" on its first call and "after" later, workflow run from "dispatch", and run view from
 // "conclusion", "steps" and "log".
 const script = join(process.cwd(), "scripts/bootstrap/producer.sh");
-const TIMEOUT = 60_000;
 const stubGh = [
   "#!/usr/bin/env bash",
   'printf "%s\\n" "$*" >> "$STUB_DIR/calls"',
@@ -73,55 +72,34 @@ const steps = (rows: [string, string, string][]) => rows.map((r) => r.join("\t")
 const PROBE_STEPS = steps([[AGENT, TRANSCRIPT, "success"], [AGENT, MODE, "success"], [AGENT, UNLISTED, "success"], [AGENT, EGRESS, "success"]]);
 const TASK_STEPS = steps([[AGENT, TRANSCRIPT, "success"], [AGENT, MODE, "success"], [AGENT, UNLISTED, "skipped"], [PUBLISH, PUSH, "success"]]);
 
-interface Repo { work: string; origin: string; stub: string; env: NodeJS.ProcessEnv; sha: string }
+interface Repo extends TempRepo { sha: string }
 interface Result { status: number | null; out: string; err: string; calls: string[] }
 interface Answers { before?: string[]; after?: string[]; dispatch?: string; conclusion?: string; steps?: string; log?: string[] }
 
 describe("SPEC-001-R212 producer.sh dispatches the producer, finds its own run and reports its result from GitHub's record", () => {
-  let scratch = "";
-  beforeAll(() => { scratch = mkdtempSync(join(tmpdir(), "producer-sh-")); });
-  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+  const scratch = scratchDir("producer-sh-");
   const now = () => Math.floor(Date.now() / 1000);
 
-  let count = 0;
   function repo(): Repo {
-    const dir = join(scratch, String(count++));
-    const origin = join(dir, "origin.git");
-    const work = join(dir, "work");
-    const stub = join(dir, "stub");
-    mkdirSync(stub, { recursive: true });
-    writeFileSync(join(stub, "gh"), stubGh);
-    chmodSync(join(stub, "gh"), 0o755);
-    const env = {
-      ...process.env, PATH: `${stub}:${process.env["PATH"] ?? ""}`, STUB_DIR: stub, REPO: "o/r",
-      PRODUCER_POLL_SECONDS: "0", PRODUCER_POLL_TRIES: "3", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1",
-      GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.invalid", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.invalid",
-    };
-    const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8" }).trim();
-    git(dir, "init", "-q", "--bare", "-b", "main", origin);
-    git(dir, "clone", "-q", origin, work);
-    mkdirSync(join(work, "tasks"));
-    writeFileSync(join(work, "tasks", "TASK-T1.task.md"), "---\nrequirements: [SPEC-014-R1]\nproduces: [src/export.ts]\n---\nDo it.\n");
-    git(work, "add", "-A");
-    git(work, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "task");
-    git(work, "push", "-q", "origin", "HEAD:main");
-    return { work, origin, stub, env, sha: git(work, "rev-parse", "HEAD") };
+    const r = tempRepo(scratch(), {
+      stubs: { gh: stubGh }, env: { REPO: "o/r", PRODUCER_POLL_SECONDS: "0", PRODUCER_POLL_TRIES: "3" }, message: "task",
+      files: { "tasks/TASK-T1.task.md": "---\nrequirements: [SPEC-014-R1]\nproduces: [src/export.ts]\n---\nDo it.\n" },
+    });
+    return { ...r, sha: git(r, "rev-parse", "HEAD") };
   }
 
   function run(r: Repo, args: string[], a: Answers = {}): Result {
-    const files: Record<string, string> = {
+    writeFiles(r.stub, {
       before: (a.before ?? [`100 ${now() - 3600} ${r.sha}`]).join("\n") + "\n",
       after: (a.after ?? [`100 ${now() - 3600} ${r.sha}`, `101 ${now()} ${r.sha}`]).join("\n") + "\n",
       dispatch: a.dispatch ?? "",
       conclusion: a.conclusion ?? "completed success\n",
       steps: a.steps ?? PROBE_STEPS,
       log: (a.log ?? PROBE_LOG).join("\n") + "\n",
-    };
-    for (const [name, text] of Object.entries(files)) writeFileSync(join(r.stub, name), text);
+    });
     for (const name of ["listed", "calls"]) rmSync(join(r.stub, name), { force: true });
-    const p = spawnSync("bash", [script, ...args], { cwd: r.work, env: r.env, encoding: "utf8" });
-    const file = join(r.stub, "calls");
-    return { status: p.status, out: p.stdout, err: p.stderr, calls: existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean) : [] };
+    const p = runScript(r, script, args);
+    return { status: p.status, out: p.stdout, err: p.stderr, calls: lines(join(r.stub, "calls")) };
   }
   const results = (out: string) => out.split("\n").filter((l) => /^(Permission|BOUNDARY|RUN ENDED|CHECK|Pushed)/.test(l));
 
@@ -149,14 +127,14 @@ describe("SPEC-001-R212 producer.sh dispatches the producer, finds its own run a
 
   it("SPEC-001-R212 refuses to dispatch when your main is ahead of or behind origin/main", { timeout: TIMEOUT }, () => {
     const ahead = repo();
-    execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "local only"], { cwd: ahead.work, env: ahead.env });
+    git(ahead, "commit", "-q", "--allow-empty", "-m", "local only");
     const a = run(ahead, ["probe"]);
     expect([a.status, a.calls.filter((c) => c.startsWith("workflow run"))]).toEqual([1, []]);
     expect(a.err).toContain(`origin/main at ${ahead.sha}`);
     const behind = repo();
-    execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "pushed elsewhere"], { cwd: behind.work, env: behind.env });
-    execFileSync("git", ["push", "-q", "origin", "HEAD:main"], { cwd: behind.work, env: behind.env });
-    execFileSync("git", ["reset", "-q", "--hard", "HEAD~1"], { cwd: behind.work, env: behind.env });
+    git(behind, "commit", "-q", "--allow-empty", "-m", "pushed elsewhere");
+    git(behind, "push", "-q", "origin", "HEAD:main");
+    git(behind, "reset", "-q", "--hard", "HEAD~1");
     const b = run(behind, ["probe"]);
     expect([b.status, b.calls.filter((c) => c.startsWith("workflow run"))]).toEqual([1, []]);
     expect(b.err).toContain(`Your main is at ${behind.sha}`);
@@ -221,7 +199,7 @@ describe("SPEC-001-R212 producer.sh dispatches the producer, finds its own run a
 
   it("SPEC-001-R212 reports a task's delivery from origin, and prints its own land command", { timeout: TIMEOUT }, () => {
     const r = repo();
-    execFileSync("git", ["push", "-q", "origin", "HEAD:refs/heads/candidate/TASK-T1"], { cwd: r.work, env: r.env });
+    git(r, "push", "-q", "origin", "HEAD:refs/heads/candidate/TASK-T1");
     const result = run(r, ["task", "TASK-T1", "--subject", "Reject duplicate column names (SPEC-014-R7)"], { steps: TASK_STEPS, log: TASK_LOG });
     expect(result.status).toBe(0);
     expect(result.calls).toContain("workflow run producer.yml --repo o/r --ref main -f task=TASK-T1 -f subject=Reject duplicate column names (SPEC-014-R7) -f egress_probe=false");

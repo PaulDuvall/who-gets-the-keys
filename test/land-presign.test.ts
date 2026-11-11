@@ -1,14 +1,13 @@
-import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { git, lines, runScript, scratchDir, tempRepo, TIMEOUT, writeFiles, type ScriptRun, type TempRepo as Repo } from "./helpers/temp-repo.ts";
 
 // scripts/bootstrap/land.sh tests the moved tree before it asks to sign, and says where to approve the deploy and why a
 // run failed (SPEC-001-R213). These tests stop before any signature, or use --to-main, which signs nothing, so they need
 // no signing key. Each runs land.sh against a temporary clone with a local bare origin and stub gh, node, npm and npx.
 const script = join(process.cwd(), "scripts/bootstrap/land.sh");
-const TIMEOUT = 60_000;
 
 // gh: logs every call, answers auth status, prints run 101 for a candidate branch and 202 for main, exits 1 from run
 // watch for each run in STUB_FAIL, and answers run view from STUB_URL, the file STUB_JOBS, and the file STUB_STATES,
@@ -68,64 +67,28 @@ const BATCH: Record<string, string> = {
   "proposals/batch/a.ts": "export const a = 1;\n",
 };
 
-interface Repo { work: string; origin: string; stub: string; env: NodeJS.ProcessEnv }
-interface Result { status: number | null; out: string; calls: string[]; seen: string[] }
+interface Result extends ScriptRun { calls: string[]; seen: string[] }
 
 describe("SPEC-001-R213 land.sh tests the moved tree before it asks to sign, and explains main's run", () => {
-  let scratch = "";
-  beforeAll(() => { scratch = mkdtempSync(join(tmpdir(), "land-presign-")); });
-  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+  const scratch = scratchDir("land-presign-");
 
-  const write = (root: string, files: Record<string, string>) => {
-    for (const [path, text] of Object.entries(files)) {
-      mkdirSync(dirname(join(root, path)), { recursive: true });
-      writeFileSync(join(root, path), text);
-    }
-  };
-  const git = (repo: Repo, ...args: string[]): string => execFileSync("git", args, { cwd: repo.work, env: repo.env, encoding: "utf8" }).trim();
-  const lines = (file: string): string[] => (existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean) : []);
-
+  // Signing is configured but never reached: every land-mode test answers no at the signing prompt.
   function makeRepo(files: Record<string, string> = BATCH): Repo {
-    const dir = mkdtempSync(join(scratch, "repo-"));
-    const repo: Repo = {
-      work: join(dir, "work"), origin: join(dir, "origin.git"), stub: join(dir, "stub"),
-      env: {
-        ...process.env, HOME: join(dir, "home"), GIT_CONFIG_GLOBAL: join(dir, "gitconfig"), GIT_CONFIG_NOSYSTEM: "1", TMPDIR: join(dir, "tmp"),
-        PATH: `${join(dir, "stub")}:${process.env["PATH"] ?? ""}`, STUB_DIR: join(dir, "stub"), LAND_POLL_SECONDS: "0",
-      },
-    };
-    for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "SSH_AUTH_SOCK", "STUB_FAIL_STEP", "STUB_NODE_VERSION"]) delete repo.env[name];
-    for (const path of [repo.stub, join(dir, "home"), join(dir, "tmp")]) mkdirSync(path);
-    writeFileSync(join(dir, "gitconfig"), "");
-    writeFileSync(join(repo.stub, "gh"), stubGh);
-    for (const name of ["node", "npm", "npx"]) writeFileSync(join(repo.stub, name), stubTool);
-    for (const name of ["gh", "node", "npm", "npx"]) chmodSync(join(repo.stub, name), 0o755);
-    execFileSync("git", ["init", "-q", "--bare", "-b", "main", repo.origin], { env: repo.env });
-    execFileSync("git", ["init", "-q", "-b", "main", repo.work], { env: repo.env });
-    // Signing is configured but never reached: every land-mode test answers no at the signing prompt.
-    const config = { "user.name": "Owner", "user.email": "owner@example.com", "gpg.format": "ssh", "user.signingkey": join(dir, "no-such-key"), "commit.gpgsign": "false" };
-    for (const [key, value] of Object.entries(config)) git(repo, "config", key, value);
-    git(repo, "remote", "add", "origin", repo.origin);
-    write(repo.work, { ...BASE, ...files });
-    git(repo, "add", "-A");
-    git(repo, "commit", "-q", "-m", "init");
-    git(repo, "push", "-q", "-u", "origin", "main");
-    return repo;
+    return tempRepo(scratch(), {
+      stubs: { gh: stubGh, node: stubTool, npm: stubTool, npx: stubTool }, env: { LAND_POLL_SECONDS: "0" },
+      config: { "gpg.format": "ssh", "user.signingkey": join(scratch(), "no-such-key") }, files: { ...BASE, ...files },
+    });
   }
 
   function land(repo: Repo, args: string[], input: string, extra: NodeJS.ProcessEnv = {}): Result {
-    rmSync(join(repo.stub, "calls"), { force: true });
-    rmSync(join(repo.stub, "seen"), { force: true });
-    rmSync(join(repo.stub, "events"), { force: true });
-    rmSync(join(repo.stub, "envs"), { force: true });
+    for (const file of ["calls", "seen", "events", "envs"]) rmSync(join(repo.stub, file), { force: true });
     for (const [key, file] of [["STUB_FAIL_STEP", "fail-step"], ["STUB_NODE_VERSION", "node-version"]] as const) {
       const value = extra[key];
       if (value === undefined) rmSync(join(repo.stub, file), { force: true });
       else writeFileSync(join(repo.stub, file), `${value}\n`);
     }
-    const r = spawnSync("bash", [script, ...args], { cwd: repo.work, env: { ...repo.env, ...extra }, input, encoding: "utf8", timeout: TIMEOUT });
-    const calls = lines(join(repo.stub, "calls")).filter((c) => !c.startsWith("gh "));
-    return { status: r.status, out: `${r.stdout}${r.stderr}`, calls, seen: lines(join(repo.stub, "seen")) };
+    const r = runScript(repo, script, args, { input, env: extra });
+    return { ...r, calls: lines(join(repo.stub, "calls")).filter((c) => !c.startsWith("gh ")), seen: lines(join(repo.stub, "seen")) };
   }
 
   function expectUnchanged(repo: Repo, head: string) {
@@ -238,7 +201,7 @@ describe("SPEC-001-R213 land.sh tests the moved tree before it asks to sign, and
   // --to-main signs nothing: it checks the candidate run, moves main and watches main's run.
   function toMain(extra: NodeJS.ProcessEnv, jobs?: string, states: string[] = ["in_progress waiting", "in_progress in_progress"]): Result {
     const repo = makeRepo();
-    write(repo.work, { "docs/c.md": "changed\n" });
+    writeFiles(repo.work, { "docs/c.md": "changed\n" });
     git(repo, "add", "-A");
     git(repo, "commit", "-q", "-m", "docs: a change");
     const sha = git(repo, "rev-parse", "HEAD");
@@ -298,7 +261,7 @@ describe("SPEC-001-R213 land.sh tests the moved tree before it asks to sign, and
 
   it("SPEC-001-R213 keeps polling, not watching, while the deploy waits, so the approval line stays on screen", { timeout: TIMEOUT }, () => {
     const repo = makeRepo();
-    write(repo.work, { "docs/c.md": "changed\n" });
+    writeFiles(repo.work, { "docs/c.md": "changed\n" });
     git(repo, "add", "-A");
     git(repo, "commit", "-q", "-m", "docs: a change");
     const sha = git(repo, "rev-parse", "HEAD");

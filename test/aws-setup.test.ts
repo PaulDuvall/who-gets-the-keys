@@ -1,8 +1,8 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { commitAll, git, lines, scratchDir, tempRepo, TIMEOUT, writeFiles, writeStubs, type TempRepo as Repo } from "./helpers/temp-repo.ts";
 
 // scripts/bootstrap/aws-setup.sh is the owner's one command for the AWS setup: the sandbox member account, the
 // break-glass alert, the SCP from the management account (SPEC-001-R30), then the roles and triage model as repository
@@ -11,7 +11,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 // stand-in logs every call with its AWS_PROFILE; answers go in on standard input. Nothing reaches AWS or GitHub.
 const script = join(process.cwd(), "scripts/bootstrap/aws-setup.sh");
 const COPIED = ["scripts/bootstrap/aws-setup.sh", "scripts/bootstrap/aws.sh", "scripts/bootstrap/github.sh", ".gitignore"];
-const TIMEOUT = 60_000;
 const SANDBOX = "111111111111";
 const MANAGEMENT = "222222222222";
 const SANDBOX_BUCKET = `who-gets-the-keys-tfstate-${SANDBOX}-us-east-1-an`;
@@ -185,54 +184,28 @@ const READS = [
 ];
 const isRead = (call: string) => READS.some((read) => read.test(call));
 
-interface Repo { work: string; origin: string; stub: string; tmp: string; env: NodeJS.ProcessEnv }
 interface Result { status: number | null; stdout: string; out: string; calls: string[] }
 
 describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP and the repository secrets and variables in one command", () => {
-  // Made in beforeAll, not here, so listing the tests (the trace check runs vitest list) leaves no directory behind.
-  let scratch = "";
-  beforeAll(() => { scratch = mkdtempSync(join(tmpdir(), "aws-setup-")); });
-  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
-
-  const git = (repo: Repo, ...args: string[]): string => execFileSync("git", args, { cwd: repo.work, env: repo.env, encoding: "utf8" }).trim();
-  const lines = (file: string): string[] => (existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean) : []);
+  const scratch = scratchDir("aws-setup-");
 
   function makeRepo(): Repo {
-    const dir = mkdtempSync(join(scratch, "repo-"));
-    const env: NodeJS.ProcessEnv = {};
-    for (const [key, value] of Object.entries(process.env)) {
-      if (!/^(AWS_|TF_|GIT_|GH_|GITHUB_|SSH_AUTH_SOCK$|TRIAGE_MODEL$|BEDROCK_FORM$)/.test(key)) env[key] = value;
-    }
-    const repo: Repo = { work: join(dir, "work"), origin: join(dir, "origin.git"), stub: join(dir, "stub"), tmp: join(dir, "tmp"), env };
-    Object.assign(env, {
-      HOME: join(dir, "home"), GIT_CONFIG_GLOBAL: join(dir, "gitconfig"), GIT_CONFIG_NOSYSTEM: "1", GH_CONFIG_DIR: join(dir, "home"),
-      TMPDIR: repo.tmp, PATH: `${repo.stub}:${process.env["PATH"] ?? ""}`, STUB_DIR: repo.stub, REPO: "o/r",
-      SANDBOX_ACCOUNT_ID: SANDBOX, SANDBOX_PROFILE: "sbx", MANAGEMENT_PROFILE: "mgmt", ALERT_EMAIL: "owner@example.com",
-      STUB_SBX_ACCOUNT: SANDBOX, STUB_MGMT_ACCOUNT: MANAGEMENT, STUB_ORG_MANAGEMENT: MANAGEMENT, STUB_MEMBER: SANDBOX,
-      STUB_SCP: "ENABLED", STUB_PROFILES: PROFILES, STUB_SEED: SEED, STUB_SECRET: SECRET,
+    const repo = tempRepo(scratch(), {
+      drop: /^(AWS_|TF_|GIT_|GH_|GITHUB_|SSH_AUTH_SOCK$|TRIAGE_MODEL$|BEDROCK_FORM$)/, stubs, env: {
+        REPO: "o/r", SANDBOX_ACCOUNT_ID: SANDBOX, SANDBOX_PROFILE: "sbx", MANAGEMENT_PROFILE: "mgmt", ALERT_EMAIL: "owner@example.com",
+        STUB_SBX_ACCOUNT: SANDBOX, STUB_MGMT_ACCOUNT: MANAGEMENT, STUB_ORG_MANAGEMENT: MANAGEMENT, STUB_MEMBER: SANDBOX,
+        STUB_SCP: "ENABLED", STUB_PROFILES: PROFILES, STUB_SEED: SEED, STUB_SECRET: SECRET,
+      },
     });
-    for (const path of [repo.stub, repo.tmp, join(dir, "home"), join(repo.work, "infra/sandbox"), join(repo.work, "infra/org")]) mkdirSync(path, { recursive: true });
-    writeFileSync(join(dir, "gitconfig"), "[user]\n\tname = Owner\n\temail = owner@example.com\n[commit]\n\tgpgsign = false\n");
-    for (const [name, text] of Object.entries(stubs)) {
-      writeFileSync(join(repo.stub, name), text);
-      chmodSync(join(repo.stub, name), 0o755);
-    }
-    execFileSync("git", ["init", "-q", "--bare", "-b", "main", repo.origin], { env });
-    execFileSync("git", ["init", "-q", "-b", "main", repo.work], { env });
+    repo.env["GH_CONFIG_DIR"] = repo.home;
     for (const path of COPIED) {
       mkdirSync(dirname(join(repo.work, path)), { recursive: true });
       copyFileSync(join(process.cwd(), path), join(repo.work, path));
     }
     // The break-glass user starts set up, as after a first run: one device, one key, and this computer holds the key.
-    writeFileSync(join(repo.stub, "mfa"), `${SERIAL}\n`);
-    writeFileSync(join(repo.stub, "keys"), "AKIASTUBOLDKEY\n");
-    writeFileSync(join(repo.stub, "config"), `${USER_PROFILE} aws_access_key_id AKIASTUBOLDKEY\n`);
-    writeFileSync(join(repo.work, "infra/sandbox/main.tf"), "# stand-in\n");
-    writeFileSync(join(repo.work, "infra/org/main.tf"), "# stand-in\n");
-    git(repo, "remote", "add", "origin", repo.origin);
-    git(repo, "add", "-A");
-    git(repo, "commit", "-q", "-m", "init");
-    git(repo, "push", "-q", "-u", "origin", "main");
+    writeFiles(repo.stub, { mfa: `${SERIAL}\n`, keys: "AKIASTUBOLDKEY\n", config: `${USER_PROFILE} aws_access_key_id AKIASTUBOLDKEY\n` });
+    writeFiles(repo.work, { "infra/sandbox/main.tf": "# stand-in\n", "infra/org/main.tf": "# stand-in\n" });
+    commitAll(repo, "init");
     return repo;
   }
 
@@ -809,26 +782,22 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
 // github.sh --vars on its own, as the owner runs it after the role ARN batch lands: the stub gh above, and a terraform
 // that prints the outputs in STUB_OUTPUTS.
 describe("SPEC-001-R86 github.sh --vars sets the four role ARNs as secrets, then deletes only their variables", () => {
-  let scratch = "";
-  beforeAll(() => { scratch = mkdtempSync(join(tmpdir(), "github-vars-")); });
-  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+  const scratch = scratchDir("github-vars-");
   const ROLE = "arn:aws:iam::111111111111:role/who-gets-the-keys/who-gets-the-keys";
   const ALL = { deploy_role_arn: `${ROLE}-deploy`, triage_role_arn: `${ROLE}-triage-bedrock`, probe_role_arn: `${ROLE}-scenario-probe`, producer_role_arn: `${ROLE}-producer-bedrock`, producer_inference_profile: "us.anthropic.claude-example-p" };
 
   function vars(outputs: Record<string, string>, variables: string): { status: number | null; out: string; writes: string[] } {
-    const dir = mkdtempSync(join(scratch, "run-"));
+    const dir = mkdtempSync(join(scratch(), "run-"));
     const stub = join(dir, "stub");
     mkdirSync(stub);
-    writeFileSync(join(stub, "gh"), stubGh);
-    writeFileSync(join(stub, "terraform"), ["#!/usr/bin/env bash", log, 'cat "$STUB_OUTPUTS"', ""].join("\n"));
-    for (const name of ["gh", "terraform"]) chmodSync(join(stub, name), 0o755);
+    writeStubs(stub, { gh: stubGh, terraform: ["#!/usr/bin/env bash", log, 'cat "$STUB_OUTPUTS"', ""].join("\n") });
     writeFileSync(join(dir, "outputs.json"), JSON.stringify(Object.fromEntries(Object.entries(outputs).map(([k, v]) => [k, { value: v }]))));
     writeFileSync(join(dir, "variables"), variables);
     const env: NodeJS.ProcessEnv = {};
     for (const [key, value] of Object.entries(process.env)) if (!/^(AWS_|GH_|GITHUB_|TRIAGE_MODEL$)/.test(key)) env[key] = value;
     Object.assign(env, { PATH: `${stub}:${process.env["PATH"] ?? ""}`, STUB_DIR: stub, REPO: "o/r", TRIAGE_MODEL: PICKED, STUB_OUTPUTS: join(dir, "outputs.json"), STUB_VARIABLES: join(dir, "variables"), GH_CONFIG_DIR: dir });
     const r = spawnSync("bash", [join(process.cwd(), "scripts/bootstrap/github.sh"), "--vars"], { cwd: dir, env, input: "y\ny\n", encoding: "utf8", timeout: TIMEOUT });
-    const calls = existsSync(join(stub, "calls")) ? readFileSync(join(stub, "calls"), "utf8").split("\n").filter(Boolean) : [];
+    const calls = lines(join(stub, "calls"));
     return { status: r.status, out: `${r.stdout}${r.stderr}`, writes: calls.filter((c) => / (secret|variable) (set|delete) /.test(c)) };
   }
 

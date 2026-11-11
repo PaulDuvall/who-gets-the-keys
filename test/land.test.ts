@@ -1,14 +1,13 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { beforeAll, describe, expect, it } from "vitest";
+import { commitAll, git, lines, originRef, runScript, scratchDir, tempRepo, TIMEOUT, writeFiles, type ScriptRun, type TempRepo } from "./helpers/temp-repo.ts";
 
 // scripts/bootstrap/land.sh is how the owner lands a staged batch: one signed commit, pushed to a candidate branch,
 // and only after that branch's run passes, the same SHA to main (SPEC-001-R41). Each test runs it end to end against
 // a temporary clone with a local bare origin, a throwaway software signing key set in that clone only, and a stub gh.
 const script = join(process.cwd(), "scripts/bootstrap/land.sh");
-const TIMEOUT = 60_000;
 
 // A stand-in for gh. It logs every call, answers auth status, and for run list prints run 101 on a candidate branch
 // or 202 on main. It also records where origin's main and that branch point at that moment, so a test can see that
@@ -63,79 +62,38 @@ const BATCH: Record<string, string> = {
   "proposals/batch/scripts/new.sh": "echo new\n",
 };
 
-interface Repo { work: string; origin: string; stub: string; signers: string; env: NodeJS.ProcessEnv }
-interface Result { status: number | null; stdout: string; out: string }
+// The pre-sign preflight's tools pass here; test/land-presign.test.ts tests the preflight itself (SPEC-001-R213).
+const passingTool = '#!/usr/bin/env bash\nif [ "$*" = --version ]; then echo v24.22.2; fi\nexit 0\n';
+
+interface Repo extends TempRepo { signers: string }
 
 describe("SPEC-001-R41 land.sh lands a staged batch through a candidate branch", () => {
-  // Made in beforeAll, not here, so listing the tests (the trace check runs vitest list) leaves no directory behind.
-  let scratch = "";
+  const scratch = scratchDir("land-sh-");
   const keys = { approver: "", other: "" };
   const signerLine = (key: string) => `owner@example.com namespaces="git" ${readFileSync(`${key}.pub`, "utf8").trim().split(" ").slice(0, 2).join(" ")}\n`;
   beforeAll(() => {
-    scratch = mkdtempSync(join(tmpdir(), "land-sh-"));
-    keys.approver = join(scratch, "approver");
-    keys.other = join(scratch, "other");
+    keys.approver = join(scratch(), "approver");
+    keys.other = join(scratch(), "other");
     for (const key of Object.values(keys)) execFileSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-C", "land test", "-f", key]);
   });
-  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
-  const write = (root: string, files: Record<string, string>) => {
-    for (const [path, text] of Object.entries(files)) {
-      mkdirSync(dirname(join(root, path)), { recursive: true });
-      writeFileSync(join(root, path), text);
-    }
-  };
-  const git = (repo: Repo, ...args: string[]): string => execFileSync("git", args, { cwd: repo.work, env: repo.env, encoding: "utf8" }).trim();
-  const originRef = (repo: Repo, branch: string): string =>
-    spawnSync("git", ["--git-dir", repo.origin, "rev-parse", "-q", "--verify", `refs/heads/${branch}`], { env: repo.env, encoding: "utf8" }).stdout.trim();
-  const events = (repo: Repo): string[] => {
-    const file = join(repo.stub, "events");
-    return existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean) : [];
-  };
+  const events = (repo: Repo): string[] => lines(join(repo.stub, "events"));
   const clearEvents = (repo: Repo) => rmSync(join(repo.stub, "events"), { force: true });
 
-  // The test's own commits are unsigned; only land.sh signs, with git commit -S.
-  function commitAll(repo: Repo, message: string): string {
-    git(repo, "add", "-A");
-    git(repo, "-c", "commit.gpgsign=false", "commit", "-q", "-m", message);
-    git(repo, "push", "-q", "-u", "origin", "main");
-    return git(repo, "rev-parse", "HEAD");
-  }
-
+  // The test's own commits, commitAll's included, are unsigned; only land.sh signs, with git commit -S.
   function makeRepo(files: Record<string, string> = BATCH): Repo {
-    const dir = mkdtempSync(join(scratch, "repo-"));
-    const repo: Repo = {
-      work: join(dir, "work"), origin: join(dir, "origin.git"), stub: join(dir, "stub"), signers: join(dir, "allowed_signers"),
-      env: {
-        ...process.env, HOME: join(dir, "home"), GIT_CONFIG_GLOBAL: join(dir, "gitconfig"), GIT_CONFIG_NOSYSTEM: "1",
-        PATH: `${join(dir, "stub")}:${process.env["PATH"] ?? ""}`, STUB_DIR: join(dir, "stub"), STUB_ORIGIN: join(dir, "origin.git"), STUB_FAIL: "",
-      },
-    };
-    for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "SSH_AUTH_SOCK"]) delete repo.env[name];
-    mkdirSync(repo.stub);
-    mkdirSync(join(dir, "home"));
-    writeFileSync(join(dir, "gitconfig"), "");
-    writeFileSync(join(repo.stub, "gh"), stubGh);
-    chmodSync(join(repo.stub, "gh"), 0o755);
-    // The pre-sign preflight's tools pass here; test/land-presign.test.ts tests the preflight itself (SPEC-001-R213).
-    for (const name of ["node", "npm", "npx"]) {
-      writeFileSync(join(repo.stub, name), '#!/usr/bin/env bash\nif [ "$*" = --version ]; then echo v24.22.2; fi\nexit 0\n');
-      chmodSync(join(repo.stub, name), 0o755);
-    }
-    writeFileSync(repo.signers, signerLine(keys.approver));
-    execFileSync("git", ["init", "-q", "--bare", "-b", "main", repo.origin], { env: repo.env });
-    execFileSync("git", ["init", "-q", "-b", "main", repo.work], { env: repo.env });
-    const config = { "user.name": "Owner", "user.email": "owner@example.com", "gpg.format": "ssh", "user.signingkey": keys.approver, "commit.gpgsign": "true" };
-    for (const [key, value] of Object.entries(config)) git(repo, "config", key, value);
-    git(repo, "remote", "add", "origin", repo.origin);
-    write(repo.work, { ...BASE, "approvers.txt": signerLine(keys.approver), ...files });
-    commitAll(repo, "init");
-    return repo;
+    const repo = tempRepo(scratch(), {
+      stubs: { gh: stubGh, node: passingTool, npm: passingTool, npx: passingTool },
+      config: { "gpg.format": "ssh", "user.signingkey": keys.approver, "commit.gpgsign": "true" },
+      files: { ...BASE, "approvers.txt": signerLine(keys.approver), ...files },
+    });
+    const signers = join(repo.dir, "allowed_signers");
+    writeFileSync(signers, signerLine(keys.approver));
+    return { ...repo, signers };
   }
 
-  function land(repo: Repo, args: string[], input = "", fail = "", extra: NodeJS.ProcessEnv = {}): Result {
-    const r = spawnSync("bash", [script, ...args], { cwd: repo.work, env: { ...repo.env, STUB_FAIL: fail, ...extra }, input, encoding: "utf8", timeout: TIMEOUT });
-    return { status: r.status, stdout: r.stdout, out: `${r.stdout}${r.stderr}` };
+  function land(repo: Repo, args: string[], input = "", fail = "", extra: NodeJS.ProcessEnv = {}): ScriptRun {
+    return runScript(repo, script, args, { input, env: { STUB_FAIL: fail, ...extra } });
   }
 
   function expectUnchanged(repo: Repo, head: string) {
@@ -204,7 +162,7 @@ describe("SPEC-001-R41 land.sh lands a staged batch through a candidate branch",
       ["requires: specs/SPEC-001-delivery-pipeline.md SPEC-001-R99", /Precondition failed: specs\/SPEC-001-delivery-pipeline\.md does not contain "SPEC-001-R99"/],
     ];
     for (const [line, message] of cases) {
-      write(repo.work, { "proposals/batch/LAND.txt": `${MANIFEST.replace("message: spec: land the test batch", "message: $(touch pwned) `touch pwned`")}${line}\n` });
+      writeFiles(repo.work, { "proposals/batch/LAND.txt": `${MANIFEST.replace("message: spec: land the test batch", "message: $(touch pwned) `touch pwned`")}${line}\n` });
       const head = commitAll(repo, `test: manifest with ${line}`);
       rmSync(join(repo.stub, "calls"), { force: true });
       const r = land(repo, ["proposals/batch"], "y\ny\ny\n");
@@ -215,7 +173,7 @@ describe("SPEC-001-R41 land.sh lands a staged batch through a candidate branch",
       expect(existsSync(join(repo.work, "pwned"))).toBe(false);
       expect(r.out).not.toContain("\u001b");
     }
-    write(repo.work, { "proposals/batch/LAND.txt": MANIFEST.replace("move: scripts/new.sh scripts/tool/new.sh\n", "") });
+    writeFiles(repo.work, { "proposals/batch/LAND.txt": MANIFEST.replace("move: scripts/new.sh scripts/tool/new.sh\n", "") });
     const head = commitAll(repo, "test: manifest that leaves a file behind");
     const r = land(repo, ["proposals/batch"], "y\ny\ny\n");
     expect(r.status).toBe(1);
@@ -358,10 +316,10 @@ describe("SPEC-001-R41 land.sh lands a staged batch through a candidate branch",
       "proposals/batch/b.md": "one\nshared line\nstaged edit\n",
       "proposals/batch/new.sh": "echo new\n",
     });
-    write(repo.work, { "docs/a.md": "one\nnewer work on main\n", "docs/b.md": "one\nshared line\n" });
+    writeFiles(repo.work, { "docs/a.md": "one\nnewer work on main\n", "docs/b.md": "one\nshared line\n" });
     commitAll(repo, "docs: newer work \u001b[2K");
     // A later edit to the staged copy does not make it newer than main's work.
-    write(repo.work, { "proposals/batch/a.md": "one\nstaged edit, typo fixed\n" });
+    writeFiles(repo.work, { "proposals/batch/a.md": "one\nstaged edit, typo fixed\n" });
     const head = commitAll(repo, "agent: fix a typo in the staged copy");
 
     const no = land(repo, ["proposals/batch"], "n\n");

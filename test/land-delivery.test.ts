@@ -1,15 +1,13 @@
-import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { git, lines, originRef, runScript, scratchDir, tempRepo, TIMEOUT, type ScriptRun, type TempRepo } from "./helpers/temp-repo.ts";
 
 // scripts/bootstrap/land.sh --delivery is how the owner lands a runner producer delivery. The publish job's push, made
 // with the GITHUB_TOKEN, starts no run, and checks from a workflow_dispatch run do not count for main's ruleset, so the
 // owner pushes the same commit to candidate/<task>-owner, whose push run does, then to main (SPEC-001-R210). Each test
 // runs it against a temporary clone with a local bare origin and a stub gh. Nothing here signs, so no key is made.
 const script = join(process.cwd(), "scripts/bootstrap/land.sh");
-const TIMEOUT = 60_000;
 const BRANCH = "candidate/TASK-T1";
 const OWNER_BRANCH = "candidate/TASK-T1-owner";
 
@@ -41,61 +39,30 @@ const stubGh = [
   "",
 ].join("\n");
 
-interface Repo { work: string; origin: string; stub: string; env: NodeJS.ProcessEnv; base: string; delivery: string }
-interface Result { status: number | null; out: string }
+interface Repo extends TempRepo { base: string; delivery: string }
 
 describe("SPEC-001-R210 land.sh --delivery lands a producer delivery through the owner's own push", () => {
-  // Made in beforeAll, not here, so listing the tests (the trace check runs vitest list) leaves no directory behind.
-  let scratch = "";
-  beforeAll(() => { scratch = mkdtempSync(join(tmpdir(), "land-delivery-")); });
-  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
-
-  const gitIn = (repo: Repo, ...args: string[]): string => execFileSync("git", args, { cwd: repo.work, env: repo.env, encoding: "utf8" }).trim();
-  const originRef = (repo: Repo, branch: string): string =>
-    spawnSync("git", ["--git-dir", repo.origin, "rev-parse", "-q", "--verify", `refs/heads/${branch}`], { env: repo.env, encoding: "utf8" }).stdout.trim();
-  const events = (repo: Repo): string[] => {
-    const file = join(repo.stub, "events");
-    return existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean) : [];
-  };
+  const scratch = scratchDir("land-delivery-");
+  const events = (repo: Repo): string[] => lines(join(repo.stub, "events"));
 
   // origin's main holds one commit; candidate/TASK-T1 holds the producer's commit on top of it, as the publish job
   // pushes it: unsigned, by github-actions[bot], with the Task, Agent and Producer-Run trailers.
   function makeRepo(task = "TASK-T1", extraTrailers = ""): Repo {
-    const dir = mkdtempSync(join(scratch, "repo-"));
-    const env: NodeJS.ProcessEnv = {
-      ...process.env, HOME: join(dir, "home"), GIT_CONFIG_GLOBAL: join(dir, "gitconfig"), GIT_CONFIG_NOSYSTEM: "1",
-      PATH: `${join(dir, "stub")}:${process.env["PATH"] ?? ""}`, STUB_DIR: join(dir, "stub"), STUB_ORIGIN: join(dir, "origin.git"), STUB_FAIL: "",
-    };
-    for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "SSH_AUTH_SOCK"]) delete env[name];
-    const repo: Repo = { work: join(dir, "work"), origin: join(dir, "origin.git"), stub: join(dir, "stub"), env, base: "", delivery: "" };
-    mkdirSync(repo.stub);
-    mkdirSync(join(dir, "home"));
-    writeFileSync(join(dir, "gitconfig"), "");
-    writeFileSync(join(repo.stub, "gh"), stubGh);
-    chmodSync(join(repo.stub, "gh"), 0o755);
-    execFileSync("git", ["init", "-q", "--bare", "-b", "main", repo.origin], { env });
-    execFileSync("git", ["init", "-q", "-b", "main", repo.work], { env });
-    for (const [key, value] of Object.entries({ "user.name": "Owner", "user.email": "owner@example.com", "commit.gpgsign": "false" })) gitIn(repo, "config", key, value);
-    gitIn(repo, "remote", "add", "origin", repo.origin);
-    writeFileSync(join(repo.work, "a.md"), "one\n");
-    gitIn(repo, "add", "-A");
-    gitIn(repo, "commit", "-q", "-m", "base");
-    gitIn(repo, "push", "-q", "origin", "main");
-    repo.base = gitIn(repo, "rev-parse", "HEAD");
+    const repo = tempRepo(scratch(), { stubs: { gh: stubGh }, files: { "a.md": "one\n" }, message: "base" });
+    const base = git(repo, "rev-parse", "HEAD");
     writeFileSync(join(repo.work, "a.md"), "two\n");
-    gitIn(repo, "add", "-A");
-    gitIn(repo, "-c", "user.name=github-actions[bot]", "commit", "-q", "-m", "Add a line", "-m",
+    git(repo, "add", "-A");
+    git(repo, "-c", "user.name=github-actions[bot]", "commit", "-q", "-m", "Add a line", "-m",
       `Task: ${task}\n${extraTrailers}Agent: Claude Code\nProducer-Run: https://github.com/o/r/actions/runs/1/attempts/1`);
-    repo.delivery = gitIn(repo, "rev-parse", "HEAD");
-    gitIn(repo, "push", "-q", "origin", `HEAD:refs/heads/${BRANCH}`);
-    gitIn(repo, "reset", "-q", "--hard", repo.base);
-    return repo;
+    const delivery = git(repo, "rev-parse", "HEAD");
+    git(repo, "push", "-q", "origin", `HEAD:refs/heads/${BRANCH}`);
+    git(repo, "reset", "-q", "--hard", base);
+    return { ...repo, base, delivery };
   }
 
   // The first answer is "Show the full diff in a pager?", the second is the push question.
-  function deliver(repo: Repo, branch: string, input: string, fail = "", extra: NodeJS.ProcessEnv = {}): Result {
-    const r = spawnSync("bash", [script, "--delivery", branch], { cwd: repo.work, env: { ...repo.env, STUB_FAIL: fail, ...extra }, input, encoding: "utf8", timeout: TIMEOUT });
-    return { status: r.status, out: `${r.stdout}${r.stderr}` };
+  function deliver(repo: Repo, branch: string, input: string, fail = "", extra: NodeJS.ProcessEnv = {}): ScriptRun {
+    return runScript(repo, script, ["--delivery", branch], { input, env: { STUB_FAIL: fail, ...extra } });
   }
 
   it("SPEC-001-R210 shows the delivery, pushes it to candidate/<task>-owner on a yes, waits for that run, then moves main and deletes both branches", { timeout: TIMEOUT }, () => {
@@ -144,14 +111,14 @@ describe("SPEC-001-R210 land.sh --delivery lands a producer delivery through the
     expect(originRef(twice, OWNER_BRANCH)).toBe("");
 
     const landed = makeRepo();
-    gitIn(landed, "push", "-q", "origin", `${landed.delivery}:refs/heads/main`);
+    git(landed, "push", "-q", "origin", `${landed.delivery}:refs/heads/main`);
     const l = deliver(landed, BRANCH, "y\ny\n");
     expect([l.status, l.out]).toEqual([1, expect.stringContaining("main is already at ")]);
     expect(originRef(landed, OWNER_BRANCH)).toBe("");
 
     const moved = makeRepo();
-    gitIn(moved, "commit", "-q", "--allow-empty", "-m", "main moved");
-    gitIn(moved, "push", "-q", "origin", "main");
+    git(moved, "commit", "-q", "--allow-empty", "-m", "main moved");
+    git(moved, "push", "-q", "origin", "main");
     const m = deliver(moved, BRANCH, "y\ny\n");
     expect([m.status, m.out]).toEqual([1, expect.stringContaining("main has moved since the producer made")]);
     expect(originRef(moved, OWNER_BRANCH)).toBe("");
@@ -159,13 +126,13 @@ describe("SPEC-001-R210 land.sh --delivery lands a producer delivery through the
 
   it("SPEC-001-R210 refuses a candidate/<task>-owner branch that holds another commit, and reuses one that holds the delivery", { timeout: TIMEOUT }, () => {
     const taken = makeRepo();
-    gitIn(taken, "push", "-q", "origin", `${taken.base}:refs/heads/${OWNER_BRANCH}`);
+    git(taken, "push", "-q", "origin", `${taken.base}:refs/heads/${OWNER_BRANCH}`);
     const r = deliver(taken, BRANCH, "y\ny\n");
     expect([r.status, r.out]).toEqual([1, expect.stringContaining(`${OWNER_BRANCH} already holds`)]);
     expect([originRef(taken, "main"), originRef(taken, OWNER_BRANCH)]).toEqual([taken.base, taken.base]);
 
     const again = makeRepo();
-    gitIn(again, "push", "-q", "origin", `${again.delivery}:refs/heads/${OWNER_BRANCH}`);
+    git(again, "push", "-q", "origin", `${again.delivery}:refs/heads/${OWNER_BRANCH}`);
     const a = deliver(again, BRANCH, "n\ny\n");
     expect([a.status, originRef(again, "main"), originRef(again, BRANCH), originRef(again, OWNER_BRANCH)]).toEqual([0, again.delivery, "", ""]);
   });
@@ -204,11 +171,11 @@ describe("SPEC-001-R210 land.sh --delivery lands a producer delivery through the
   it("SPEC-001-R210 says to delete both branches, and never to reset the clone, when main refuses the push", { timeout: TIMEOUT }, () => {
     const repo = makeRepo();
     writeFileSync(join(repo.work, "b.md"), "other\n");
-    gitIn(repo, "add", "-A");
-    gitIn(repo, "commit", "-q", "-m", "someone else's commit");
-    const sibling = gitIn(repo, "rev-parse", "HEAD");
-    gitIn(repo, "reset", "-q", "--hard", repo.base);
-    gitIn(repo, "push", "-q", "origin", `${sibling}:refs/heads/scratch`);
+    git(repo, "add", "-A");
+    git(repo, "commit", "-q", "-m", "someone else's commit");
+    const sibling = git(repo, "rev-parse", "HEAD");
+    git(repo, "reset", "-q", "--hard", repo.base);
+    git(repo, "push", "-q", "origin", `${sibling}:refs/heads/scratch`);
     const r = deliver(repo, BRANCH, "n\ny\n", "", { STUB_MOVE_RUN: "101", STUB_MOVE: `refs/heads/main ${sibling}` });
     expect([r.status, originRef(repo, "main"), originRef(repo, BRANCH), originRef(repo, OWNER_BRANCH)]).toEqual([1, sibling, repo.delivery, repo.delivery]);
     expect(r.out).toContain(`git push origin --delete ${OWNER_BRANCH} ${BRANCH}`);
