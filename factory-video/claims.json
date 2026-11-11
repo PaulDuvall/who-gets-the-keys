@@ -32,11 +32,10 @@
     {
       "id": "C04",
       "claim": "The agent works in a cloud session, one run per task",
-      "note": "Built as the runner producer: one dispatched run per signed task file (SPEC-001-R64), on a GitHub-hosted runner, not a Claude Code cloud session. The cloud session's setup script is not versioned yet",
+      "note": "Built as the runner producer: one dispatched run per signed task file (SPEC-001-R64), on a GitHub-hosted runner, not a Claude Code cloud session. The cloud session's setup script is versioned since 2026-11-09 (SPEC-001-R211)",
       "labels": ["cloud session one run per task"],
       "narration": [2],
-      "built": ["SPEC-001-R83", "SPEC-001-R85", "SPEC-001-R66"],
-      "open": ["who-gets-the-keys-j5t"]
+      "built": ["SPEC-001-R83", "SPEC-001-R85", "SPEC-001-R66", "SPEC-001-R211"]
     },
     {
       "id": "C05",

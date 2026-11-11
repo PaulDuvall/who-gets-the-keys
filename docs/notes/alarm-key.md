@@ -1,6 +1,6 @@
 # The break-glass alarm key
 
-Status: staged in `proposals/alarm-key/`, not landed. Backlog `who-gets-the-keys-q2n`. Amends SPEC-001-R217.
+Status: landed and verified. Backlog `who-gets-the-keys-q2n`, closed 2026-11-11. Amends SPEC-001-R217. The outcome, and two corrections to the steps below, are in "What happened" at the end.
 
 ## Why
 
@@ -127,3 +127,15 @@ An independent review by the `validator` subagent, given the files, the spec row
 | Whether SNS returns `KmsMasterKeyId` as the ARN Terraform set; a different form would leave a diff in every plan | cannot be decided from the files | Not fixed; step 5 checks it, and `alias/aws/sns` round-tripped with no diff before |
 | The expected plan assumes a reproducible Lambda zip | low | Recorded in step 3 |
 | The key policy's events grant is unscoped | low, accepted | AWS supports no scoping there; the key encrypts only alarm messages |
+
+## What happened, 2026-11-10 and 2026-11-11
+
+| Step | Result |
+|---|---|
+| 1. Staging change | `ac72331` on `main`; its deploy planned no change |
+| 2. The batch | `b9f6432`, owner-signed. `main`'s run then failed the sca check on GHSA-6cv4-p8m7-4r25 (node-forge 1.4.2), an advisory published at 21:16 UTC on 2026-11-10, after the candidate run's check and before `main`'s. No deploy ran. The fix, `d750b3e` (node-forge 1.4.3), was an owner-signed lockfile change: an unsigned staging change could not pass the sca check either |
+| 3. `aws-setup.sh` | The `infra/sandbox` plan was **1 to add, 2 to change**, not the "1 to change" step 3 said. `data.aws_iam_policy_document.deploy` names the topic's ARN, so Terraform read it only during the apply ("depends on a resource or a module with changes pending"), and `aws_iam_role_policy.deploy` showed `policy … -> (known after apply)`. At apply the read gave the same JSON and that update became a no-op: `Apply complete! Resources: 1 added, 1 changed, 0 destroyed.` No `PutRolePolicy` call was made, so the SCP was not involved. The first attempt stopped before any change on a DNS failure resolving the SSO portal |
+| 4. The alarm | Four boundary calls at 21:59 to 22:00 UTC on 2026-11-10 gave the four required answers. Three emailed both subscriptions: the user's refused `AssumeRole`, its refused `ListBuckets`, and the assumption with a code. The old route, the admin role's refused `AssumeRole`, emailed nothing: CloudTrail records a refused `AssumeRole` with `requestParameters` `null`, so the rule's `roleArn` pattern cannot match it. That also accounts for the 3 matches of 2026-11-09. Backlog `who-gets-the-keys-r3m` |
+| 5. The deploy | `d750b3e`'s deploy, run 43080816688, planned no change: the deploy role reads the new key through `DeployReads`, and SNS returns the key ARN as Terraform set it |
+
+Corrections to the steps above: step 3's expected plan should have been "1 to add, 2 to change, the second being the deploy role's policy with `(known after apply)` only". Step 4 should have expected three emails, not four, until `who-gets-the-keys-r3m` lands. The alarm email also carries the assumed session's access key ID and session token, though not its secret key; `who-gets-the-keys-r3m` sends a trimmed message instead.

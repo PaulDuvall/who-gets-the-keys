@@ -1,6 +1,6 @@
 # 0007. Break-glass is assumed only by its own IAM user, with a TOTP code from the owner's YubiKey
 
-- Status: Proposed. Staged in `proposals/break-glass-mfa/`, not landed. Drafted 2026-11-07 as SPEC-001-R210 on a branch from before the history rewrite; restaged 2026-11-08 on today's `main` as SPEC-001-R217, because `main` has used R210 for `land.sh --delivery` since T3. Account IDs, emails and policy IDs in this record are placeholders
+- Status: Accepted. Landed 2026-11-09 in the owner-signed `b8483f2`, enrolled the same day; the alarm topic's own key landed 2026-11-10 in `b9f6432` (`docs/notes/alarm-key.md`). Proposed until then: drafted 2026-11-07 as SPEC-001-R210 on a branch from before the history rewrite; restaged 2026-11-08 on `main` as SPEC-001-R217, because `main` has used R210 for `land.sh --delivery` since T3. Account IDs, emails and policy IDs in this record are placeholders
 - Date: 2026-11-07
 - Requirements: SPEC-001-R217, new. The deploy role's producer entry deferred by SPEC-001-R86 lands with it
 - Follows: `docs/verification.md`, row "Break-glass from IAM Identity Center"; `docs/notes/tracer-2-t2-producer.md`, "Not verified" item 11
@@ -67,9 +67,9 @@ The talk's question is who holds a credential that can act, and whether the pipe
 
 | Question | Answer | Confidence |
 |---|---|---|
-| Does its OATH-TOTP application work for the AWS CLI? | Yes, as an AWS virtual MFA device: AWS asks for a TOTP app "that produces a six-digit OTP", and the YubiKey OATH application implements "OATH-TOTP (standard RFC6238)" with the defaults SHA1, 6 digits, 30 s. No Yubico or AWS page names the pairing | Inference, medium-high. `enable-mfa-device` accepting two codes from it proves it, in step 5 of `aws-setup.sh` |
+| Does its OATH-TOTP application work for the AWS CLI? | Yes, as an AWS virtual MFA device: AWS asks for a TOTP app "that produces a six-digit OTP", and the YubiKey OATH application implements "OATH-TOTP (standard RFC6238)" with the defaults SHA1, 6 digits, 30 s. No Yubico or AWS page names the pairing | Verified 2026-11-09: `enable-mfa-device` accepted two codes from it in step 5 of `aws-setup.sh`, and the profile assumed break-glass with a third |
 | Register it as an authenticator app or as a hardware TOTP token? | Authenticator app. AWS hardware tokens from other sources "will not function with IAM" | Documented (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_mfa.html) |
-| Does the owner's YubiKey have the OATH application? | Unknown. Decision 0003 records that the owner's FIDO2 key refused `verify-required`. Run `ykman info`: OATH must be listed as enabled. If it is not, any RFC 6238 authenticator app works, at the cost of the key being on a phone | Not verified |
+| Does the owner's YubiKey have the OATH application? | Yes. Both of the owner's keys, a YubiKey 5C FIPS and a YubiKey 5C Nano, list OATH as enabled over USB (`ykman info`). The owner chose the Nano for the code, with no backup copy. The Nano also holds the approver key and stays in the laptop, so one device now guards both; moving both to the 5C FIPS with `verify-required` is a backlog candidate, not a decision | Verified 2026-11-09 |
 | Commands | `ykman oath accounts add --touch --issuer AWS who-gets-the-keys-break-glass-user "$(cat <seed file>)"`, then `ykman oath accounts code --single who-gets-the-keys-break-glass-user` for each code | Documented (https://docs.yubico.com/software/yubikey/tools/ykman/OATH_Commands.html) |
 | Backups | IAM users "can register up to eight MFA devices of any type". A second YubiKey can be added later as break-glass, from the same seed at enrollment or as a second device | Documented |
 
@@ -93,22 +93,24 @@ Every change this batch makes to break-glass, its policy and the deploy role is 
 
 ## Not verified
 
-1. That the account has a CloudTrail trail logging management events. Without one, no alarm email arrives, before or after this change. Check in the owner steps.
+1. Verified 2026-11-09: the sandbox account has one multi-Region trail of its own, logging, with management events of `ReadWriteType` `All`.
 2. That an organization trail in the management account, if that is the only trail, delivers to the sandbox account's default event bus. The CloudTrail and EventBridge pages do not say.
 3. That `aws configure export-credentials` reuses the role credentials the CLI cached in `~/.aws/cli/cache`, so the second code prompt does not appear. Either way it works; the owner enters one more code at most.
-4. That the provider retries `UpdateAssumeRolePolicy` while IAM propagates the newly made user. If the apply fails with "Invalid principal in policy", run `aws-setup.sh` again: its plan then holds only that change.
-5. The YubiKey row above.
+4. That the provider retries `UpdateAssumeRolePolicy` while IAM propagates the newly made user. Not observed: on 2026-11-09 the first apply succeeded. If the apply fails with "Invalid principal in policy", run `aws-setup.sh` again: its plan then holds only that change.
+5. Verified 2026-11-09: the YubiKey row above.
+6. Found 2026-11-09, fixed 2026-11-10: the alarm had never delivered an email. Its topic used the AWS managed key `alias/aws/sns`, which EventBridge cannot use, so every delivery failed (`docs/notes/alarm-key.md`). Since then an assumption of break-glass, and every call by its user, refused ones included, emails `ALERT_EMAIL`.
+7. Found 2026-11-10: a refused attempt by another identity to assume break-glass is not alarmed. CloudTrail records a refused `AssumeRole` with `requestParameters` `null`, so the rule's `roleArn` pattern cannot match it. Backlog `who-gets-the-keys-r3m`, which also removes the session token the alarm email now carries.
 
 ## Owner decisions open
 
 | # | Decision | Recommendation |
 |---|---|---|
-| 1 | If the account has no logging trail: add a single-Region management-events trail to `infra/sandbox` in a follow-up batch, or rely on an organization trail | A trail in `infra/sandbox`, so the alarm's dependency is in the same plan. The first copy of management events has no CloudTrail charge; check current pricing before deciding |
+| 1 | If the account has no logging trail: add a single-Region management-events trail to `infra/sandbox` in a follow-up batch, or rely on an organization trail | Closed 2026-11-09, not needed: the account has a logging trail of its own ("Not verified" item 1) |
 | 2 | Role session length: 3600 s now | Keep. A shorter `duration_seconds` in the profile is the owner's choice per use |
 | 3 | Option C, IAM Roles Anywhere with the YubiKey's PIV application, to remove the access key | Revisit after the talk |
 
 ## Docs to update once this lands
 
-- README, "Who holds which keys": add the break-glass user; the break-glass role "cannot be assumed by anyone but that user, with MFA".
-- README, "Tool choices": the break-glass row.
-- `practices.yaml` P34's note, and so `docs/practices.md`, if finding 2 should be visible there.
+- README, "Who holds which keys": add the break-glass user; the break-glass role "cannot be assumed by anyone but that user, with MFA". Done 2026-11-11.
+- README, "Tool choices": the break-glass row. Done 2026-11-11.
+- `practices.yaml` P34's note, and so `docs/practices.md`, if finding 2 should be visible there. Not done: `practices.yaml` is a protected path, so it waits for a signed batch.

@@ -1,6 +1,6 @@
 # Route B: the break-glass MFA batch
 
-Status: staged in `proposals/break-glass-mfa/`, not landed. Drafted 2026-11-07 on a branch from before the history rewrite, as SPEC-001-R210, and restaged on 2026-11-08 on today's `main` as SPEC-001-R217, last in that day's landing order. Decision, sources and alternatives: `docs/decisions/0007-break-glass-mfa.md`. The sandbox account ID, the alert email and the SCP's policy ID are placeholders: the owner keeps them outside this public repository.
+Status: landed 2026-11-09 as `b8483f2`, owner-signed, and enrolled the same day. Its deploy was approved before step 5 and failed at `CreateUser` with nothing applied; after step 5 the rerun planned no change. Step 7's four calls gave the required answers; no alarm email arrived, which led to `docs/notes/alarm-key.md`. Before landing: Drafted 2026-11-07 on a branch from before the history rewrite, as SPEC-001-R210, and restaged on 2026-11-08 on today's `main` as SPEC-001-R217, last in that day's landing order. Decision, sources and alternatives: `docs/decisions/0007-break-glass-mfa.md`. The sandbox account ID, the alert email and the SCP's policy ID are placeholders: the owner keeps them outside this public repository.
 
 ## Restaged 2026-11-08
 

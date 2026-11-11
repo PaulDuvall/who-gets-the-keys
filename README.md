@@ -7,17 +7,17 @@
 [![last commit](https://img.shields.io/github/last-commit/PaulDuvall/who-gets-the-keys/main)](https://github.com/PaulDuvall/who-gets-the-keys/commits/main)
 [![licence: MIT](https://img.shields.io/github/license/PaulDuvall/who-gets-the-keys)](LICENSE)
 
-Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code, the pipeline holds the keys, and 21 deliberately bad changes are stopped before they ship.
+Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code, the pipeline holds the keys, and 22 deliberately bad changes are stopped before they ship.
 
 | | |
 |---|---|
 | Rule demonstrated | Bad changes never reach production, because the pipeline prevents them |
 | Good scenario | `main`, always green |
-| Bad scenarios | 21 scenarios (B1 to B18, with B8 split into B8a and B8b, then B23 and B24), each failing at one named check with one expected line. 18 are patches against `main`; B9 replays an issue fixture, B11 is an AWS call and B24 is a task file alone |
+| Bad scenarios | 22 scenarios (B1 to B18, with B8 split into B8a and B8b, then B23, B24 and B81), each failing at one named check with one expected line. 19 are patches against `main`; B9 replays an issue fixture, B11 is an AWS call and B24 is a task file alone |
 | Source of record | Talk deck "Who Gets the Keys? Trust and Authority in Software Factories" (AI Native DevCon 2026), pinned at `specs/source-of-record/slides.txt` |
-| Status | All 15 checks and 18 local scenarios pass on `main`. The repo is public, and the attest job has signed builds since 2026-11-02. Each deploy to the AWS sandbox runs from `main` after the `sandbox` reviewer approves it; deploys have run since 2026-11-07. The sandbox-account scenarios (B11, B14) have not been recorded |
+| Status | All 15 checks and 19 local scenarios pass on `main`. The repo is public, and the attest job has signed builds since 2026-11-02. Each deploy to the AWS sandbox runs from `main` after the `sandbox` reviewer approves it; deploys have run since 2026-11-07. The sandbox-account scenarios (B11, B14) have not been recorded |
 
-Coding agents now change code faster than anyone can read the diffs. The talk argues that human review after the code exists was never the control, so the deployment pipeline has to hold the keys. This repo runs that argument end to end. Claude Code wrote a small export service. A pipeline of 15 checks guards it, and 21 deliberately bad changes show each control holding, from a test that asserts nothing to a poisoned GitHub issue. It is for engineering, platform and security leads deciding how far to trust agent-written code, and for anyone who saw the talk and wants to see the practices run.
+Coding agents now change code faster than anyone can read the diffs. The talk argues that human review after the code exists was never the control, so the deployment pipeline has to hold the keys. This repo runs that argument end to end. Claude Code wrote a small export service. A pipeline of 15 checks guards it, and 22 deliberately bad changes show each control holding, from a test that asserts nothing to a poisoned GitHub issue. It is for engineering, platform and security leads deciding how far to trust agent-written code, and for anyone who saw the talk and wants to see the practices run.
 
 ## Quick start
 
@@ -110,6 +110,7 @@ A check is automated. A gate is a human approval: an approver-signed commit, or 
 | B18 | Agent loosens the pipeline without a signature | signatures | 8, Q3 |
 | B23 | Change outside the task's scope | scope | 8, 11 |
 | B24 | Task citing an unapproved requirement | task | 3, 8 |
+| B81 | Agent makes npm load its own code before the checks | signatures | 8 |
 
 Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and B14 need the sandbox account and run on demand.
 
@@ -122,7 +123,8 @@ Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and
 | `pipeline.yml` deploy role | Plan and apply `infra/sandbox` from environment `sandbox` | Be assumed from any other workflow, ref or environment |
 | Triage role | Invoke Bedrock models; the triage agent returns one label from a fixed schema | Write to the repo or post text; run a shell; reach the network beyond an allowlist |
 | Scenario probe role | Read state (`ReadOnlyAccess`) | Write: its one Lambda write grant exists so B11 can show the SCP deny it |
-| Break-glass role | Write, alarmed | Be assumed by any workflow |
+| Break-glass role | Write, alarmed | Be assumed by anyone but the break-glass user, and by that user only with a TOTP code from the owner's YubiKey |
+| Break-glass user | Assume the break-glass role with a TOTP code, through `us-east-1`; every call it makes is alarmed | Anything else: its own policy denies every other action and every other role |
 
 ## Tool choices compared with the deck
 
@@ -139,7 +141,7 @@ The deck's speaker notes name example tools for each practice. Where this repo u
 | Attestation verification | [Kyverno](https://kyverno.io/) or [Sigstore policy-controller](https://github.com/sigstore/policy-controller); [cosign](https://github.com/sigstore/cosign) | [GitHub artifact attestations](https://docs.github.com/en/actions/concepts/security/artifact-attestations), verified by [`gh attestation verify`](https://cli.github.com/manual/gh_attestation_verify) before any AWS call | The deploy target is a Lambda, not Kubernetes; deploy fails closed without a valid attestation (B10) |
 | Waivers with an expiry | Snyk ignore, Trivy `expired_at`, OPA exceptions | [OSV-Scanner `ignoreUntil`](https://google.github.io/osv-scanner/configuration/) entries in `specs/sca-exceptions.toml`, owner-signed | OSV-Scanner is the SCA tool |
 | Dependency intake | [CodeArtifact](https://aws.amazon.com/codeartifact/), Artifactory or Socket; [pip `--require-hashes`](https://pip.pypa.io/en/stable/topics/secure-installs/), [`npm ci`](https://docs.npmjs.com/cli/commands/npm-ci) | `allowed-deps.txt`, lockfile hashes, [`npm ci`](https://docs.npmjs.com/cli/commands/npm-ci), [pip `--require-hashes`](https://pip.pypa.io/en/stable/topics/secure-installs/) | No private mirror in a demo repo |
-| Break-glass | [TEAM for IAM Identity Center](https://github.com/aws-samples/iam-identity-center-team); [CloudTrail](https://aws.amazon.com/cloudtrail/) plus an [EventBridge](https://aws.amazon.com/eventbridge/) alarm | A separate IAM role with MFA and an [EventBridge](https://aws.amazon.com/eventbridge/) alarm | One sandbox account, no Identity Center |
+| Break-glass | [TEAM for IAM Identity Center](https://github.com/aws-samples/iam-identity-center-team); [CloudTrail](https://aws.amazon.com/cloudtrail/) plus an [EventBridge](https://aws.amazon.com/eventbridge/) alarm | A separate IAM role, assumed only by its own IAM user with a TOTP code from a YubiKey, and an [EventBridge](https://aws.amazon.com/eventbridge/) alarm to email | One sandbox account; an Identity Center session carries no MFA flag (decision 0007) |
 | Not shown | DAST ([ZAP](https://www.zaproxy.org/), [StackHawk](https://www.stackhawk.com/)), [CloudWatch Logs data protection](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/mask-sensitive-log-data.html), [OpenTelemetry](https://opentelemetry.io/) redaction, [IAM Access Analyzer](https://aws.amazon.com/iam/access-analyzer/), [Security Hub](https://aws.amazon.com/security-hub/), [GuardDuty](https://aws.amazon.com/guardduty/), [CodeDeploy](https://aws.amazon.com/codedeploy/) or [Argo Rollouts](https://argoproj.github.io/rollouts/) | none | The repo shows the pipeline, not a running production service; see `docs/slide-reconciliation.md` |
 
 ## Repository map
@@ -194,7 +196,7 @@ It runs `aws.sh`, the two Terraform applies, the alert subscription, the break-g
 
 SPEC-001-R217, `docs/decisions/0007-break-glass-mfa.md`. The first enrollment needs the SCP lifted once: the steps are in `docs/notes/break-glass-mfa.md`.
 
-Break-glass is the only identity that can change the workload's roles once the SCP is attached. Only one principal may assume it: IAM user `who-gets-the-keys-break-glass-user`, with a TOTP code, through `us-east-1`. An IAM Identity Center session cannot: it is federated, so it carries no MFA flag. The user's access key can do nothing else, and every call it makes, and every assumption of break-glass, emails `ALERT_EMAIL`. The alert needs a CloudTrail trail that logs read and write management events.
+Break-glass is the only identity that can change the workload's roles once the SCP is attached. Only one principal may assume it: IAM user `who-gets-the-keys-break-glass-user`, with a TOTP code, through `us-east-1`. An IAM Identity Center session cannot: it is federated, so it carries no MFA flag. The user's access key can do nothing else, and every call it makes, and every assumption of break-glass, emails `ALERT_EMAIL`. The alert needs a CloudTrail trail that logs read and write management events, and its topic is encrypted with a key of its own that EventBridge may use: under the AWS managed key no alert was ever delivered, until 2026-11-10 (`docs/notes/alarm-key.md`). A refused attempt by any other identity to assume break-glass sends no email yet: CloudTrail records it without the role in its request parameters, so the rule does not match it (backlog `who-gets-the-keys-r3m`).
 
 You need a YubiKey with the OATH application enabled (`ykman info` lists it) and `ykman`. AWS takes no FIDO2 key for this. Any RFC 6238 authenticator app works instead.
 
@@ -220,7 +222,7 @@ Claude Code cloud sessions for this repository run in a claude.ai cloud environm
 
 | Setting | Value |
 |---|---|
-| Name | Full Environment (personal) |
+| Name | who-gets-the-keys (personal) |
 | Repositories | None preselected |
 | Network access | Full. The script fetches from nodejs.org, github.com release downloads, releases.hashicorp.com, PyPI and the npm registry; a limited network has not been tried |
 | Network secrets | None |
