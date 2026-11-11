@@ -1,6 +1,6 @@
 # Owner queue hand-off, 2026-11-11
 
-A cloud session worked the owner queue from 2026-11-09 to 2026-11-11 (`docs/notes/autonomous-run-2026-11-08.md`, "Hand-off", steps 8 to 14, then `proposals/alarm-key/` and the node-forge fix). The owner asked for a fresh session at about 19:45 UTC on 2026-11-11. This note is everything the next session needs. Read it whole before the first step.
+A cloud session worked the owner queue from 2026-11-09 to 2026-11-11 (`docs/notes/autonomous-run-2026-11-08.md`, "Hand-off", steps 8 to 14, then `proposals/alarm-key/` and the node-forge fix). The owner asked for a fresh session at about 22:40 UTC on 2026-11-11 (corrected: an earlier version said 19:45; the hand-off commit is from 22:40). This note is everything the next session needs. Read it whole before the first step.
 
 ## State at hand-off
 

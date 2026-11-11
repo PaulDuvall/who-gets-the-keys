@@ -1,0 +1,25 @@
+# Backlog who-gets-the-keys-k7d, lessons L23 to L30 and L32 in docs/notes/owner-queue-lessons-2026-11-10.md:
+# doctor.sh checks the owner's machine before a step, and land.sh and aws-setup.sh tell the truth. New SPEC-001-R218
+# to R225. This batch changes land.sh itself, so the land.sh that lands it is still the old one: no doctor, and a
+# watch that can report a lost connection as a failed run. Read a reported failure through GitHub before acting.
+# Nothing here changes infra/, so main's deploy plans no change.
+message: spec: check the owner's machine first, and make land.sh and aws-setup.sh tell the truth (backlog k7d)
+spec: SPEC-001-R218
+spec: SPEC-001-R219
+spec: SPEC-001-R220
+spec: SPEC-001-R221
+spec: SPEC-001-R222
+spec: SPEC-001-R223
+spec: SPEC-001-R224
+spec: SPEC-001-R225
+move: scripts/bootstrap/doctor.sh scripts/bootstrap/doctor.sh
+move: scripts/bootstrap/land.sh scripts/bootstrap/land.sh
+move: scripts/bootstrap/aws-setup.sh scripts/bootstrap/aws-setup.sh
+move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
+move: traceability.md traceability.md
+move: test/doctor.test.ts test/doctor.test.ts
+move: test/land-owner.test.ts test/land-owner.test.ts
+move: test/land.test.ts test/land.test.ts
+move: test/land-presign.test.ts test/land-presign.test.ts
+move: test/land-delivery.test.ts test/land-delivery.test.ts
+move: test/aws-setup.test.ts test/aws-setup.test.ts
