@@ -373,6 +373,12 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
     expect(r.out).not.toContain("Fix the problem above");
     expect(r.out).not.toContain("Skip infra/sandbox");
     expect(existsSync(join(repo.stub, "applied"))).toBe(false);
+    // The summary comes last, and names the choice, not a failed plan (SPEC-001-R225).
+    const summary = r.stdout.slice(r.stdout.indexOf("--- aws-setup.sh summary")).trimEnd().split("\n");
+    expect(summary[1]).toBe("result: stopped, as you chose");
+    expect(summary).toContain("infra/sandbox: not applied, by your choice");
+    expect(summary.at(-1)).toBe("---");
+    expect(r.stdout.trimEnd().endsWith("\n---")).toBe(true);
     expect(r.calls.filter((call) => / apply |sns |mgmt \| s3api (create|put)|infra\/org|variable (set|delete)|secret set/.test(call))).toEqual([]);
   }, TIMEOUT);
 

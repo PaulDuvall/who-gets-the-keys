@@ -199,8 +199,9 @@ check_key() {
     1)
       ok "one YubiKey is plugged in"
       if [ $# -gt 0 ]; then
+        # One column per interface: USB, then NFC on keys that have it. USB is the one in use here.
         info="$(ykman info 2>/dev/null || true)"
-        if printf '%s\n' "$info" | grep -Eq '^OATH[[:space:]]+Enabled[[:space:]]*$'; then
+        if printf '%s\n' "$info" | grep -Eq '^OATH[[:space:]]+Enabled([[:space:]]|$)'; then
           ok "its OATH application is enabled, for the break-glass code"
         else
           fix "That YubiKey's OATH application is not enabled, so it cannot give the break-glass code." \

@@ -156,6 +156,9 @@ describe("SPEC-001-R219 to R225 land.sh checks the machine, tells the truth abou
     expect(lost.out).not.toContain("failed, so main has not moved");
     expect(originRef(other, "main")).not.toBe(sha2);
 
+    // Without LAND_WATCH_TRIES, three watches in all.
+    const three = land(other, ["--to-main", sha2, "candidate/x"], "", { STUB_FAIL: "101" });
+    expect(three.events).toEqual(["watch 101", "watch 101", "watch 101"]);
     const failed = land(other, ["--to-main", sha2, "candidate/x"], "", { STUB_FAIL: "101", STUB_VIEW_101: "completed failure" });
     expect(failed.out).toContain("The pipeline run 101 on candidate/x failed, so main has not moved.\nGitHub records it as concluded failure.");
   });
@@ -169,6 +172,19 @@ describe("SPEC-001-R219 to R225 land.sh checks the machine, tells the truth abou
     expect(r.out).toContain("DO NOT APPROVE the sandbox deployment yet. First run scripts/bootstrap/aws-setup.sh, as your agent's step for this batch says:");
     expect(r.out).toContain("DO NOT APPROVE it until scripts/bootstrap/aws-setup.sh has finished. Then approve the sandbox deployment there.");
     expect(r.out).not.toContain("Approve the sandbox deployment in main's run");
+
+    // A fix on top of the signed commit does not hide its trailer: every commit main gains is read.
+    const fixed = makeRepo();
+    candidate(fixed, ["Owner-Apply: scripts/bootstrap/aws-setup.sh"]);
+    git(fixed, "fetch", "-q", "origin", "candidate/x");
+    git(fixed, "checkout", "-q", "FETCH_HEAD");
+    writeFileSync(join(fixed.work, "docs/b.md"), "one, fixed\n");
+    git(fixed, "commit", "-q", "-am", "docs: fix on top");
+    const tip = git(fixed, "rev-parse", "HEAD");
+    git(fixed, "push", "-q", "origin", `${tip}:refs/heads/candidate/x`);
+    git(fixed, "checkout", "-q", "main");
+    const f = land(fixed, ["--to-main", tip, "candidate/x"], "");
+    expect(f.out).toContain("DO NOT APPROVE the sandbox deployment yet. First run scripts/bootstrap/aws-setup.sh");
 
     const plain = makeRepo();
     const sha2 = candidate(plain);
@@ -187,12 +203,13 @@ describe("SPEC-001-R219 to R225 land.sh checks the machine, tells the truth abou
     expect(git(repo, "log", "-1", "--format=%(trailers:key=Owner-Apply,valueonly)", signed)).toBe("scripts/bootstrap/aws-setup.sh");
     expect(r.out).toContain("DO NOT APPROVE the sandbox deployment yet.");
 
-    for (const bad of ["owner-apply: rm.sh", "owner-apply: scripts/bootstrap/../x.sh", "owner-apply: scripts/bootstrap/aws-setup.sh\nowner-apply: scripts/bootstrap/aws-setup.sh"]) {
+    for (const bad of ["owner-apply: scripts/bootstrap/missing.sh", "owner-apply: rm.sh", "owner-apply: scripts/bootstrap/../x.sh", "owner-apply: scripts/bootstrap/aws-setup.sh\nowner-apply: scripts/bootstrap/aws-setup.sh"]) {
       const b = makeRepo(batch(`${bad}\n`));
       const head = git(b, "rev-parse", "HEAD");
       const refused = land(b, ["proposals/batch"], "n\nn\n");
       expect(refused.status).toBe(1);
-      expect(refused.out).toMatch(/LAND\.txt line \d+: (.* is not a script directly under scripts\/bootstrap\/\.|there may be at most one owner-apply line\.)/);
+      expect(refused.out).toMatch(/LAND\.txt (line \d+: (.* is not a script directly under scripts\/bootstrap\/\.|there may be at most one owner-apply line\.)|names owner-apply scripts\/bootstrap\/missing\.sh, which is neither on main nor moved by the batch\.)/);
+      expect(refused.out).not.toContain("Show the full diff");
       expect(git(b, "rev-parse", "HEAD")).toBe(head);
     }
   });
@@ -225,7 +242,9 @@ describe("SPEC-001-R219 to R225 land.sh checks the machine, tells the truth abou
     expect(r.out).not.toContain("Sign and land?");
     expect(git(repo, "rev-parse", "HEAD")).toBe(head);
     expect(readFileSync(join(repo.work, "package-lock.json"), "utf8")).toBe(LOCK);
+    expect(git(repo, "status", "--porcelain", "--untracked-files=all")).toBe("");
     expect(land(repo, ["--lockfile", "Not A Name"], "").out).toContain("Not A Name is not an npm package name.");
+    expect(land(repo, ["--lockfile", "node-forge\nevil"], "").out).toContain("is not an npm package name.");
   });
 
   it("SPEC-001-R223 cues the touch on a line of its own, notifies on macOS, and translates OpenSSH's invalid format", { timeout: TIMEOUT }, () => {
@@ -263,5 +282,12 @@ describe("SPEC-001-R219 to R225 land.sh checks the machine, tells the truth abou
     const failed = summary(bad.stdout);
     expect(failed[1]).toBe("mode: --to-main candidate/<account>");
     expect(failed[2]).toBe(`result: stopped: candidate/<account> on origin is at nothing, not ${sha2}. Pass the SHA the candidate branch holds.`);
+
+    // An exit no message names still says the run stopped, with its status.
+    const gone = makeRepo();
+    git(gone, "remote", "set-url", "origin", join(gone.dir, "no-such-origin.git"));
+    const lost = land(gone, ["--to-main", sha2, "candidate/x"], "");
+    expect(lost.status).not.toBe(0);
+    expect(summary(lost.stdout)[2]).toMatch(/^result: stopped with status \d+: read the lines above the summary$/);
   });
 });

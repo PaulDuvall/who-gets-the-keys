@@ -55,7 +55,13 @@ summary_alert="not reached"
 summary_break_glass="not reached"
 summary_org="not reached"
 summary_github="not reached"
-plan_result=""
+# plan_status <dir> <text>: the summary line of infra/sandbox or infra/org.
+plan_status() {
+  case "$1" in
+    infra/sandbox) summary_sandbox="$2" ;;
+    infra/org) summary_org="$2" ;;
+  esac
+}
 lowercase() { printf '%s' "$1" | tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz'; }
 # shown: copies its input with control characters made visible, for text that AWS or a tool returns.
 shown() { cat -v; }
@@ -127,7 +133,8 @@ print_summary() {
     [ -z "$summary_head" ] || say "commit: ${summary_head}"
     say "infra/sandbox: ${summary_sandbox}" "alert email: ${summary_alert}" "break-glass: ${summary_break_glass}" \
       "infra/org: ${summary_org}" "GitHub secrets and variables: ${summary_github}" "---"
-  } | tr -d '\000-\010\013-\037\177' | sed -E 's/(^|[^0-9A-Za-z])[0-9]{12}([^0-9A-Za-z]|$)/\1<account>\2/g' |
+  } | tr -d '\000-\010\013-\037\177' | sed -E -e 's/(^|[^0-9A-Za-z])[0-9]{12}([^0-9A-Za-z]|$)/\1<account>\2/g' \
+    -e 's/(^|[^0-9A-Za-z])[0-9]{12}([^0-9A-Za-z]|$)/\1<account>\2/g' |
     cut -c1-200 > "$work/summary"
   say ""
   cat "$work/summary"
@@ -142,15 +149,18 @@ cleanup() {
     0) [ -n "$summary_result" ] || summary_result="done" ;;
     130|143) summary_result="interrupted" ;;
   esac
-  print_summary || true
-  rm -rf "$work"
   if [ "$status" -ne 0 ] && [ -n "$chosen" ]; then
+    summary_result="stopped, as you chose"
     printf '%s\n' "" "Stopped, as you chose. The steps that finished stay done. To go on, run this again:" \
       "a rerun skips what exists." >&2
   elif [ "$status" -ne 0 ] && [ -n "$started" ]; then
     printf '%s\n' "" "Stopped. The steps that finished stay done. Fix the problem above, then run this again:" \
       "a rerun skips what exists." >&2
   fi
+  [ "$status" -eq 0 ] || [ -n "$summary_result" ] || summary_result="stopped with status ${status}: read the lines above the summary"
+  # The summary comes last, after any other line, so it is what the owner copies (SPEC-001-R225).
+  print_summary || true
+  rm -rf "$work"
   exit "$status"
 }
 trap cleanup EXIT
@@ -415,6 +425,7 @@ init_backend() {
 plan_and_apply() {
   local who="$1" account="$2" dir="$3" plan="$4" changed deletes
   shift 4
+  plan_status "$dir" "plan failed"
   say "Planning ${dir}."
   if ! "$who" terraform -chdir="$dir" plan -input=false -out="$plan" "$@" </dev/null >"$work/plan.log" 2>&1; then
     shown < "$work/plan.log"
@@ -425,7 +436,7 @@ plan_and_apply() {
   changed="$(jq '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"])] | length' "$work/plan.json")"
   changed=$((changed + $(jq '[(.output_changes // {}) | to_entries[] | select(.value.actions != ["no-op"])] | length' "$work/plan.json")))
   if [ "$changed" -eq 0 ]; then
-    plan_result="no changes"
+    plan_status "$dir" "no changes"
     say "No changes in ${dir}, so nothing to apply."
     return 0
   fi
@@ -435,18 +446,18 @@ plan_and_apply() {
     say "WARNING: THIS PLAN DELETES OR REPLACES RESOURCES IN ACCOUNT ${account}:" "$deletes" \
       "A deleted resource loses its data. A replaced one also gets a new ID." ""
     if ! ask_word delete "Type delete to apply this plan, which deletes or replaces them, or anything else to stop:"; then
-      plan_result="not applied, by your choice; skipped"
+      plan_status "$dir" "not applied, by your choice"
       declined "$dir" "Not applied: you did not type delete. Nothing in this plan changed."
       return 0
     fi
   elif ! ask "Apply this plan to account ${account}?"; then
-    plan_result="not applied, by your choice; skipped"
+    plan_status "$dir" "not applied, by your choice"
     declined "$dir" "Not applied. Nothing in this plan changed."
     return 0
   fi
-  plan_result="apply failed"
+  plan_status "$dir" "apply failed"
   "$who" terraform -chdir="$dir" apply -input=false "$plan" </dev/null
-  plan_result="applied ${changed} change(s)"
+  plan_status "$dir" "applied ${changed} change(s)"
 }
 
 # declined <dir> "<message>": the owner did not agree to a plan, so the run stops. Once the SCP is attached, the owner
@@ -489,9 +500,7 @@ if [ -n "$attached" ]; then
     "Make those through the pipeline, or as who-gets-the-keys-break-glass (scripts/bootstrap/aws.sh, step 4)." \
     "If this plan changes them, answer no, then skip infra/sandbox to go on to the later steps."
 fi
-summary_sandbox="plan failed"
 plan_and_apply sandbox "$sandbox_id" infra/sandbox "$work/sandbox.tfplan" -var "artifact_sha256=${artifact_sha256}"
-summary_sandbox="$plan_result"
 
 say "" "Step 4 of 7: break-glass alerts to ${email}."
 topic="$(sandbox terraform -chdir=infra/sandbox output -raw break_glass_topic_arn </dev/null)"
@@ -710,9 +719,7 @@ fi
 say "" "Step 6 of 7: management account ${management_id}: state bucket, by scripts/bootstrap/aws.sh --org-state, and infra/org."
 management EXPECTED_ACCOUNT_ID="$management_id" bash scripts/bootstrap/aws.sh --org-state --yes </dev/null
 init_backend management infra/org "$org_bucket"
-summary_org="plan failed"
 plan_and_apply management "$management_id" infra/org "$work/org.tfplan" -var "sandbox_account_id=${sandbox_id}"
-summary_org="$plan_result"
 
 say "" "Step 7 of 7: GitHub ${repo}, by scripts/bootstrap/github.sh --vars. Your confirm above answers its questions."
 summary_github="github.sh --vars failed"

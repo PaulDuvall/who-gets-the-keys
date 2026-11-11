@@ -83,6 +83,15 @@ describe("SPEC-001-R218 doctor.sh checks the owner's machine and prints the fix 
     expect(r.stdout.trimEnd().split("\n").at(-1)).toBe("Doctor: 1 to fix. Fix them, then run this again.");
   });
 
+  it("SPEC-001-R218 reads OATH from the USB column when ykman info also shows an NFC column, for --for aws alone", { timeout: TIMEOUT }, () => {
+    const repo = makeRepo();
+    writeStubs(repo.stub, { ykman: '#!/usr/bin/env bash\ncase "$1" in list) echo "YubiKey 5 NFC" ;; info) printf "Applications\\tUSB\\tNFC\\nOATH\\tEnabled\\tDisabled\\n" ;; esac\n' });
+    const r = doctor(repo, ["--for", "aws"]);
+    expect(r.stdout).toContain("ok    its OATH application is enabled, for the break-glass code");
+    expect(r.stdout).not.toContain("Node.js");
+    expect(r.status).toBe(0);
+  });
+
   it("SPEC-001-R218 says when ykman is missing", { timeout: TIMEOUT }, () => {
     const repo = tempRepo(scratch(), { stubs: { node, gh, ssh, "ssh-keygen": keygen }, files: PACKAGE });
     const r = runScript(repo, script, ["--for", "land"], { env: { PATH: `${repo.stub}:/usr/bin:/bin`, HOMEBREW_PREFIX: join(repo.dir, "brew") } });

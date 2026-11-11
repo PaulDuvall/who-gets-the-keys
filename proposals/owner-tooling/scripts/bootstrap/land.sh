@@ -158,6 +158,10 @@ delete_if_at() {
 finish_main() {
   local sha="$1" branch="$2" other="${3:-}" short run="" status=0 url="" deploy_wait="" apply=""
   short="$(git rev-parse --short "$sha")"
+  # A batch whose LAND.txt names an owner apply carries it as a trailer, so --to-main knows it too (SPEC-001-R221).
+  # Every commit main gains is read, not only the tip: a fix on top of the signed commit must not hide it. Read before
+  # the push, which moves refs/remotes/origin/main to the commit.
+  apply="$(owner_apply_in "$sha")"
   if ! git push origin "${sha}:refs/heads/main"; then
     if [ -n "$other" ]; then
       fail "main refused ${short}, so nothing changed on main, in this clone or on ${branch} and ${other}." \
@@ -170,11 +174,6 @@ finish_main() {
   fi
   [ -z "$other" ] || delete_if_at "$other" "$sha"
   summary_main="main moved to ${short}"
-  # A batch whose LAND.txt names an owner apply carries it as a trailer, so --to-main knows it too (SPEC-001-R221).
-  apply="$(git log -1 --format='%(trailers:key=Owner-Apply,valueonly,separator=%x2C)' "$sha" 2>/dev/null || true)"
-  if [ -n "$apply" ] && ! owner_apply_path "$apply"; then
-    apply=""
-  fi
   if [ -n "$apply" ]; then
     summary_next="run ${apply} before approving the deploy"
     say "" "main is at ${short}." \
@@ -239,6 +238,18 @@ finish_main() {
   summary_result="landed ${short} on main"
   summary_next=""
   say "Landed ${short} on main."
+}
+
+# owner_apply_in <sha>: the first valid Owner-Apply trailer value among the commits from origin/main to <sha>.
+owner_apply_in() {
+  local value
+  git log --format='%(trailers:key=Owner-Apply,valueonly,separator=%x0A)' "refs/remotes/origin/main..$1" 2>/dev/null |
+    while IFS= read -r value; do
+      if [ -n "$value" ] && owner_apply_path "$value"; then
+        printf '%s' "$value"
+        break
+      fi
+    done || true
 }
 
 # owner_apply_path <value>: a script under scripts/bootstrap/ that the owner runs before approving the deploy.
@@ -578,7 +589,8 @@ print_summary() {
     [ -z "$summary_main" ] || say "${summary_main}"
     [ -z "$summary_next" ] || say "next: ${summary_next}"
     say "---"
-  } | tr -d '\000-\010\013-\037\177' | sed -E 's/(^|[^0-9A-Za-z])[0-9]{12}([^0-9A-Za-z]|$)/\1<account>\2/g' | cut -c1-200 > "$work/summary"
+  } | tr -d '\000-\010\013-\037\177' | sed -E -e 's/(^|[^0-9A-Za-z])[0-9]{12}([^0-9A-Za-z]|$)/\1<account>\2/g' \
+    -e 's/(^|[^0-9A-Za-z])[0-9]{12}([^0-9A-Za-z]|$)/\1<account>\2/g' | cut -c1-200 > "$work/summary"
   say ""
   cat "$work/summary"
   if [ "$(uname -s 2>/dev/null || true)" = Darwin ] && command -v pbcopy >/dev/null 2>&1; then
@@ -640,11 +652,18 @@ cleanup() {
   remove_tree
   if [ "$moved" = 1 ]; then
     git reset -q --hard "$start" || true
-    [ "$mode" = lockfile ] || remove_empty_dirs dest
+    if [ "$mode" = lockfile ]; then
+      # The tree was clean before npm ran, so every untracked file now is npm's. Ignored files are left alone.
+      git clean -q -f -d -- . || true
+    else
+      remove_empty_dirs dest
+    fi
     say "Nothing was landed. The working tree and index are back as they were."
   fi
   case "$status" in
     130|143) summary_result="interrupted" ;;
+    0) ;;
+    *) [ -n "$summary_result" ] || summary_result="stopped with status ${status}: read the lines above the summary" ;;
   esac
   print_summary || true
   rm -rf "$work"
@@ -831,8 +850,8 @@ land_lockfile() {
 # Land and lockfile modes. First check everything that needs no change, so a refusal leaves the repository as it was.
 if [ "$mode" = lockfile ]; then
   # An npm package name: lowercase letters, digits, ".", "_" and "-", with an optional @scope/ (lesson L32).
-  printf '%s\n' "$package" | grep -Eq '^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$' && [ "${#package}" -le 214 ] ||
-    fail "${package} is not an npm package name."
+  package_re='^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$'
+  [[ $package =~ $package_re ]] && [ "${#package}" -le 214 ] || fail "$(printf '%s' "$package" | shown) is not an npm package name."
   name="$(printf '%s' "${package#@}" | tr '/' '-')"
   branch="candidate/lockfile-${name}"
 else
@@ -987,6 +1006,18 @@ done <<EOF
 $manifest_text
 EOF
 [ -n "$message" ] || fail "${manifest} has no message line."
+if [ -n "$owner_apply" ]; then
+  i=0
+  found=0
+  while [ "$i" -lt "$move_count" ]; do
+    [ "${move_dests[$i]}" != "$owner_apply" ] || found=1
+    i=$((i + 1))
+  done
+  case "$(file_mode "$owner_apply")" in
+    100644|100755) found=1 ;;
+  esac
+  [ "$found" = 1 ] || fail "${manifest} names owner-apply ${owner_apply}, which is neither on main nor moved by the batch."
+fi
 [ "$spec_count" -gt 0 ] || fail "${manifest} has no spec line."
 [ "$move_count" -gt 0 ] || fail "${manifest} has no move line."
 
@@ -1095,10 +1126,6 @@ done
 git rm -q -- "$manifest"
 left="$(git ls-files -- "${batch}/")"
 [ -z "$left" ] || fail "${batch} still holds tracked files after the moves:" "$left"
-
-if [ -n "$owner_apply" ] && [ ! -f "$owner_apply" ]; then
-  fail "${manifest} names owner-apply ${owner_apply}, which is not a file after the moves."
-fi
 
 i=0
 while [ "$i" -lt "$spec_count" ]; do
