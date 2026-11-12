@@ -1,29 +1,55 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="760" height="324" viewBox="0 0 760 324" role="img" aria-label="Progress against the specs">
-<style>.h{font:600 15px sans-serif;fill:#6e7781}.t{font:600 13px sans-serif;fill:#6e7781}.l{font:12px sans-serif;fill:#6e7781}</style>
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="324" viewBox="0 0 760 324" role="img" aria-labelledby="title">
+<title id="title">Built against the specs. Requirements: 106 approved in specs/, 164 drafted, not approved. Factory video claims: 12 built, 5 partly built, 6 planned, 1 open. Deck practices: 20 shown good and bad, 6 good only, 6 partial, 14 not shown. Bad changes stopped: 19 on every push, 1 on GitHub Actions only, 2 in the sandbox only. Backlog: 3 closed, 26 open.</title>
+<style>text{fill:#57606a;font-family:sans-serif}.h{font-size:15px;font-weight:600}.t{font-size:13px;font-weight:600}.l{font-size:12px}@media (prefers-color-scheme:dark){text{fill:#9198a1}}</style>
 <text x="16" y="20" class="h">Built against the specs, from npm run progress</text>
 <text x="16" y="47" class="t">Requirements</text>
-<rect x="200" y="34" width="204" height="18" fill="#2da44e"/>
-<rect x="404" y="34" width="316" height="18" fill="#d4a72c"/>
-<text x="200" y="68" class="l">106 approved in specs/ · 164 drafted, not approved</text>
+<rect x="200" y="34" width="204" height="18" fill="#1a7f37"/>
+<rect x="404" y="34" width="316" height="18" fill="#bf8700"/>
+<rect x="200" y="59" width="10" height="10" fill="#1a7f37"/>
+<text x="214" y="68" class="l">106 approved in specs/</text>
+<rect x="369" y="59" width="10" height="10" fill="#bf8700"/>
+<text x="383" y="68" class="l">164 drafted, not approved</text>
 <text x="16" y="105" class="t">Factory video claims</text>
-<rect x="200" y="92" width="260" height="18" fill="#2da44e"/>
-<rect x="460" y="92" width="108" height="18" fill="#7fc58a"/>
-<rect x="568" y="92" width="130" height="18" fill="#d4a72c"/>
+<rect x="200" y="92" width="260" height="18" fill="#1a7f37"/>
+<rect x="460" y="92" width="108" height="18" fill="#0969da"/>
+<rect x="568" y="92" width="130" height="18" fill="#bf8700"/>
 <rect x="698" y="92" width="22" height="18" fill="#cf222e"/>
-<text x="200" y="126" class="l">12 built · 5 partly built · 6 planned · 1 open</text>
+<rect x="200" y="117" width="10" height="10" fill="#1a7f37"/>
+<text x="214" y="126" class="l">12 built</text>
+<rect x="280" y="117" width="10" height="10" fill="#0969da"/>
+<text x="294" y="126" class="l">5 partly built</text>
+<rect x="398" y="117" width="10" height="10" fill="#bf8700"/>
+<text x="412" y="126" class="l">6 planned</text>
+<rect x="484" y="117" width="10" height="10" fill="#cf222e"/>
+<text x="498" y="126" class="l">1 open</text>
 <text x="16" y="163" class="t">Deck practices</text>
-<rect x="200" y="150" width="226" height="18" fill="#2da44e"/>
-<rect x="426" y="150" width="68" height="18" fill="#7fc58a"/>
-<rect x="494" y="150" width="68" height="18" fill="#d4a72c"/>
-<rect x="562" y="150" width="158" height="18" fill="#8c959f"/>
-<text x="200" y="184" class="l">20 shown good and bad · 6 good only · 6 partial · 14 not shown</text>
+<rect x="200" y="150" width="226" height="18" fill="#1a7f37"/>
+<rect x="426" y="150" width="68" height="18" fill="#0969da"/>
+<rect x="494" y="150" width="68" height="18" fill="#bf8700"/>
+<rect x="562" y="150" width="158" height="18" fill="#6e7781"/>
+<rect x="200" y="175" width="10" height="10" fill="#1a7f37"/>
+<text x="214" y="184" class="l">20 shown good and bad</text>
+<rect x="363" y="175" width="10" height="10" fill="#0969da"/>
+<text x="377" y="184" class="l">6 good only</text>
+<rect x="462" y="175" width="10" height="10" fill="#bf8700"/>
+<text x="476" y="184" class="l">6 partial</text>
+<rect x="548" y="175" width="10" height="10" fill="#6e7781"/>
+<text x="562" y="184" class="l">14 not shown</text>
 <text x="16" y="221" class="t">Bad changes stopped</text>
-<rect x="200" y="208" width="449" height="18" fill="#2da44e"/>
-<rect x="649" y="208" width="24" height="18" fill="#7fc58a"/>
-<rect x="673" y="208" width="47" height="18" fill="#d4a72c"/>
-<text x="200" y="242" class="l">19 run locally · 1 need GitHub Actions · 2 need the sandbox</text>
+<rect x="200" y="208" width="449" height="18" fill="#1a7f37"/>
+<rect x="649" y="208" width="24" height="18" fill="#0969da"/>
+<rect x="673" y="208" width="47" height="18" fill="#bf8700"/>
+<rect x="200" y="233" width="10" height="10" fill="#1a7f37"/>
+<text x="214" y="242" class="l">19 on every push</text>
+<rect x="331" y="233" width="10" height="10" fill="#0969da"/>
+<text x="345" y="242" class="l">1 on GitHub Actions only</text>
+<rect x="513" y="233" width="10" height="10" fill="#bf8700"/>
+<text x="527" y="242" class="l">2 in the sandbox only</text>
 <text x="16" y="279" class="t">Backlog</text>
-<rect x="200" y="266" width="54" height="18" fill="#2da44e"/>
-<rect x="254" y="266" width="466" height="18" fill="#8c959f"/>
-<text x="200" y="300" class="l">3 closed · 26 open</text>
+<rect x="200" y="266" width="54" height="18" fill="#1a7f37"/>
+<rect x="254" y="266" width="466" height="18" fill="#6e7781"/>
+<rect x="200" y="291" width="10" height="10" fill="#1a7f37"/>
+<text x="214" y="300" class="l">3 closed</text>
+<rect x="280" y="291" width="10" height="10" fill="#6e7781"/>
+<text x="294" y="300" class="l">26 open</text>
 </svg>

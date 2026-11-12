@@ -24,4 +24,18 @@ In a scratch worktree of this commit's tree with both batches' moves applied, on
 
 ## Review
 
-Pending.
+An independent subagent reviewed `9f57f56` against R226 to R228 and backlog p9v. It confirmed the staged `docs/progress.json` and `docs/progress.svg` byte for byte against a tree with both batches landed, every test passing, and `verify.mjs --only claims` passing with no `node_modules`.
+
+| # | Finding | Severity | Done |
+|---|---|---|---|
+| 1 | A backlog status other than open counted as closed | medium | Fixed: only `closed` counts as closed, and any other status throws. Tested |
+| 2 | Untracked or ignored markdown counted, against "committed files only" | medium | Fixed: files come from `git ls-files`. Tested with an untracked spec copy |
+| 3 | The main-module guard failed for a path with a space, so `npm run progress` could exit 0 and write nothing | medium | Fixed with `pathToFileURL` |
+| 4 | An unknown coverage or `requires` value counted in no bar | low | Fixed: it throws. Tested |
+| 5 | verify.mjs now takes drafts under `proposals/` only from `SPEC-*.md` copies | low | Kept: R226 says so. A planned ID held only in a staged decision copy now fails the ledger until the decision lands |
+| 6 | Every spec landing and backlog status change makes the record stale, so every batch must stage a regenerated record, built on the batch before it | medium | Kept, by design: that staleness is what the owner asked to see. The rule belongs in `CLAUDE.md`'s batch conventions, with batch D (backlog w2h) |
+| 7 | Tests missed file evidence, an undrafted planned ID, a draft in a staged spec copy, and the counting and throw paths of `progress()` | medium | Fixed: a fixture repository covers each |
+| 8 | The no-time check matched only ISO date-times | low | Fixed: also dates and clock times |
+| 9 | SVG: 4.16:1 text on dark, no legend swatches, two greens, no `<title>`, alt text with no numbers, "1 need" | low to medium | Fixed: dark-theme text colour, swatches, distinct hues, a `<title>` with every count, alt text that names `docs/progress.json`, reworded labels. Checked by rendering both themes |
+
+After the fixes, the preflight ran again on a tree with both batches landed: `tsc`, ESLint, the trace check and the claims check passed, and every test passed, 22 files and 335 tests, with macOS-style `seq`.
