@@ -26,6 +26,7 @@ const stubGh = [
   '      *"--json status,jobs "*) [ -n "${STUB_STATES:-}" ] || exit 1; s="$(head -n 1 "$STUB_STATES")"; echo "state $s" >> "$STUB_DIR/events"; echo "$s"',
   '        if [ "$(wc -l < "$STUB_STATES" | tr -d " ")" -gt 1 ]; then tail -n +2 "$STUB_STATES" > "$STUB_STATES.next" && mv "$STUB_STATES.next" "$STUB_STATES"; fi ;;',
   '      *"--json jobs "*) [ -n "${STUB_JOBS:-}" ] || exit 1; cat "$STUB_JOBS" ;;',
+  '      *"--json status,conclusion "*) case " ${STUB_FAIL:-} " in *" $3 "*) echo "completed failure" ;; *) echo "completed success" ;; esac ;;',
   "      *) exit 1 ;;",
   "    esac; exit 0 ;;",
   "esac",
@@ -67,6 +68,9 @@ const BATCH: Record<string, string> = {
   "proposals/batch/a.ts": "export const a = 1;\n",
 };
 
+// ykman: one YubiKey plugged in, so land.sh's doctor passes (SPEC-001-R219).
+const oneKey = '#!/usr/bin/env bash\ncase "$1" in list) echo "YubiKey 5C Nano (5.7.1) [OTP+FIDO+CCID] Serial: 123456" ;; info) printf "OATH               Enabled\\n" ;; esac\n';
+
 interface Result extends ScriptRun { calls: string[]; seen: string[] }
 
 describe("SPEC-001-R213 land.sh tests the moved tree before it asks to sign, and explains main's run", () => {
@@ -75,7 +79,9 @@ describe("SPEC-001-R213 land.sh tests the moved tree before it asks to sign, and
   // Signing is configured but never reached: every land-mode test answers no at the signing prompt.
   function makeRepo(files: Record<string, string> = BATCH): Repo {
     return tempRepo(scratch(), {
-      stubs: { gh: stubGh, node: stubTool, npm: stubTool, npx: stubTool }, env: { LAND_POLL_SECONDS: "0" },
+      stubs: { gh: stubGh, node: stubTool, npm: stubTool, npx: stubTool, ykman: oneKey },
+      // An empty Homebrew prefix, so a Mac's own node@24 does not stand in for the stub node (SPEC-001-R219).
+      env: { LAND_POLL_SECONDS: "0", HOMEBREW_PREFIX: join(scratch(), "no-brew") },
       config: { "gpg.format": "ssh", "user.signingkey": join(scratch(), "no-such-key") }, files: { ...BASE, ...files },
     });
   }
@@ -157,7 +163,9 @@ describe("SPEC-001-R213 land.sh tests the moved tree before it asks to sign, and
     const repo = makeRepo();
     const r = land(repo, ["proposals/batch"], "n\n", { STUB_NODE_VERSION: "v24.11.0-pre" });
     expect(r.status).toBe(1);
-    expect(r.out).toContain("Preflight failed: Node.js 24.11.0-pre is a pre-release or not a version.");
+    // The doctor refuses it before the preflight starts (SPEC-001-R219); the preflight's own check stays behind it.
+    expect(r.out).toContain("fix   No Node.js in >=24.11.0 <25: the node on PATH is v24.11.0-pre, not a release version, and Homebrew has no node@24.");
+    expect(r.out).toContain("The doctor found something to fix on this machine.");
     expect(r.out).not.toContain("integer expression");
     expect(r.calls).toEqual([]);
   });
@@ -168,7 +176,9 @@ describe("SPEC-001-R213 land.sh tests the moved tree before it asks to sign, and
       const head = git(repo, "rev-parse", "HEAD");
       const r = land(repo, ["proposals/batch"], "n\n", { STUB_NODE_VERSION: version });
       expect(r.status).toBe(1);
-      expect(r.out).toContain(`Preflight failed: Node.js ${plain} is outside package.json's engines range, >=24.11.0 <25.`);
+      // The doctor refuses it before the preflight starts (SPEC-001-R219); the preflight's own check stays behind it.
+      expect(r.out).toContain(`fix   No Node.js in >=24.11.0 <25: the node on PATH is ${plain}, and Homebrew has no node@24.`);
+      expect(r.out).toContain("The doctor found something to fix on this machine.");
       expect(r.calls).toEqual([]);
       expectUnchanged(repo, head);
     });

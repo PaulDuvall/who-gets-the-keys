@@ -85,6 +85,14 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R215 | `test/checks.test.ts` | workflows | — |
 | SPEC-001-R216 | `test/scenarios.test.ts` | signatures | B81 |
 | SPEC-001-R217 | `test/break-glass.test.ts`, `test/aws-setup.test.ts` | test | — |
+| SPEC-001-R218 | `test/doctor.test.ts` | test | — |
+| SPEC-001-R219 | `test/land-owner.test.ts`, `test/land-presign.test.ts` | test | — |
+| SPEC-001-R220 | `test/land-owner.test.ts`, `test/land.test.ts` | test | — |
+| SPEC-001-R221 | `test/land-owner.test.ts` | test | — |
+| SPEC-001-R222 | `test/land-owner.test.ts` | test | — |
+| SPEC-001-R223 | `test/land-owner.test.ts`, `test/land.test.ts` | test | — |
+| SPEC-001-R224 | `test/aws-setup.test.ts` | test | — |
+| SPEC-001-R225 | `test/land-owner.test.ts`, `test/aws-setup.test.ts` | test | — |
 | SPEC-002-R1 | `test/video.test.ts` | test | — |
 | SPEC-002-R2 | `test/video.test.ts` | test | — |
 | SPEC-002-R3 | `test/video.test.ts` | test | — |

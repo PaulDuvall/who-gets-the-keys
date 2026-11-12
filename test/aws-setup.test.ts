@@ -181,6 +181,8 @@ const READS = [
   /^aws {2}\| s3api create-bucket --generate-cli-skeleton input$/,
   /^terraform {2}\| version -json$/,
   /^gh {2}\| auth status$/,
+  // The sign-in hint reads a profile's source_profile (SPEC-001-R224).
+  /^aws {2}\| configure get source_profile --profile \S+$/,
 ];
 const isRead = (call: string) => READS.some((read) => read.test(call));
 
@@ -319,11 +321,20 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
     expect(r.stdout).toContain("Done. To check the repository secrets and variables:\ngh secret list --repo o/r\ngh variable list --repo o/r\n");
     expect(r.stdout).toContain(`Next, approve the sandbox deploy in main's tip run, for ${head.slice(0, 12)}, in GitHub.`);
     expect(r.stdout).toContain("Never approve the deploy of an older run: it would deploy an older commit.");
-    expect(r.stdout.trimEnd().split("\n").slice(-3)).toEqual([
+    const [body = "", summary = ""] = r.stdout.split("--- aws-setup.sh summary: paste this to the agent ---\n");
+    expect(body.trimEnd().split("\n").slice(-3)).toEqual([
       `gh run list --workflow pipeline.yml --branch main --commit ${head} --limit 1`,
       "If that run's deploy already failed, because it ran before this setup, rerun its failed jobs, then approve:",
       "gh run rerun <run ID> --failed",
     ]);
+    // The summary: at most 10 lines with its markers, each step's result, and no account ID (SPEC-001-R225).
+    expect(summary.trimEnd().split("\n")).toEqual([
+      "result: done", `commit: ${head.slice(0, 10)}`, "infra/sandbox: applied 2 change(s)",
+      "alert email: subscribed; waiting for you to confirm the email",
+      `break-glass: usable; check it once with aws sts get-caller-identity --profile ${BG_PROFILE}`,
+      "infra/org: applied 2 change(s)", "GitHub secrets and variables: set by github.sh --vars", "---",
+    ]);
+    expect(summary).not.toMatch(/\d{12}/);
     // Commands printed for a person to paste carry no comments.
     expect(r.stdout.split("\n").filter((line) => /^(gh|aws|terraform|git) /.test(line) && line.includes("#"))).toEqual([]);
     expect(git(repo, "status", "--porcelain")).toBe("");
@@ -362,6 +373,12 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
     expect(r.out).not.toContain("Fix the problem above");
     expect(r.out).not.toContain("Skip infra/sandbox");
     expect(existsSync(join(repo.stub, "applied"))).toBe(false);
+    // The summary comes last, and names the choice, not a failed plan (SPEC-001-R225).
+    const summary = r.stdout.slice(r.stdout.indexOf("--- aws-setup.sh summary")).trimEnd().split("\n");
+    expect(summary[1]).toBe("result: stopped, as you chose");
+    expect(summary).toContain("infra/sandbox: not applied, by your choice");
+    expect(summary.at(-1)).toBe("---");
+    expect(r.stdout.trimEnd().endsWith("\n---")).toBe(true);
     expect(r.calls.filter((call) => / apply |sns |mgmt \| s3api (create|put)|infra\/org|variable (set|delete)|secret set/.test(call))).toEqual([]);
   }, TIMEOUT);
 
@@ -502,6 +519,24 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
     expectNothingChanged(repo, r);
     expect(r.out).toMatch(message);
     expect(r.out).not.toContain("Go ahead?");
+  }, TIMEOUT);
+
+  it("SPEC-001-R224 names the SSO source profile to sign in to when a role profile has no credentials, and ends with the summary", () => {
+    const repo = makeRepo();
+    writeFileSync(join(repo.stub, "config"), "missing source_profile org-management\n");
+    const r = run(repo, "1\ny\ny\n\ny\n", { SANDBOX_PROFILE: "missing" });
+    expectNothingChanged(repo, r);
+    expect(r.out).toContain("Profile missing takes its credentials from profile org-management. Sign in to that one, then run this again:\naws sso login --profile org-management\n");
+    expect(r.out).not.toContain("aws sso login --profile missing");
+    const plain = run(makeRepo(), "1\ny\ny\n\ny\n", { MANAGEMENT_PROFILE: "missing" });
+    expect(plain.out).toContain("Sign in to it, then run this again:\naws sso login --profile missing\n");
+    // A refusal ends with the summary too: its result, and the steps not reached (SPEC-001-R225).
+    const summary = r.stdout.split("--- aws-setup.sh summary: paste this to the agent ---\n")[1] ?? "";
+    expect(summary.trimEnd().split("\n")).toEqual([
+      "result: refused, nothing changed: Profile missing has no working credentials: The config profile (missing) could not be found",
+      `commit: ${git(repo, "rev-parse", "HEAD").slice(0, 10)}`, "infra/sandbox: not reached", "alert email: not reached", "break-glass: not reached", "infra/org: not reached",
+      "GitHub secrets and variables: not reached", "---",
+    ]);
   }, TIMEOUT);
 
   // .gitignore ignores *.tfvars and *.tfvars.json, so git status cannot see them, yet Terraform loads some on its own.
@@ -665,7 +700,8 @@ describe("SPEC-001-R30 aws-setup.sh sets up the sandbox member account, its SCP 
     expect(existsSync(seedPath)).toBe(false);
     expect(r.out).not.toContain(SEED);
     expect(r.out).not.toContain(SECRET);
-    expect(r.stdout).toContain(`ykman oath accounts add --touch --issuer AWS ${BG_USER} "$(cat ${seedPath})"`);
+    // Copy-safe: the directory and the command on lines of their own (SPEC-001-R224, lesson L23).
+    expect(r.stdout).toContain(`\ncd ${dirname(seedPath)}\nykman oath accounts add -t -i AWS ${BG_USER} "$(cat totp-seed)"\n`);
     expect(r.stdout).toContain(`ykman oath accounts code --single ${BG_USER}`);
     expect(config(repo)).toEqual([
       `${USER_PROFILE} aws_access_key_id AKIASTUBNEWKEY`, `${USER_PROFILE} aws_secret_access_key ${SECRET}`,

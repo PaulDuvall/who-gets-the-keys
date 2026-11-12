@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Lands one staged batch of protected files as one approver-signed commit, through a candidate branch (SPEC-001-R41),
 # or one runner producer delivery, unsigned, through the owner's own push (SPEC-001-R210). Before it asks to sign, it
-# tests the moved tree as the candidate run will, and it says where to approve the deploy (SPEC-001-R213).
+# tests the moved tree as the candidate run will, and it says where to approve the deploy (SPEC-001-R213). It checks
+# the machine with doctor.sh first (SPEC-001-R219), reports a run as failed only when GitHub says so (SPEC-001-R220),
+# says when not to approve yet (SPEC-001-R221), lands a lockfile-only fix (SPEC-001-R222), cues every touch
+# (SPEC-001-R223), and ends with a short summary to paste to the agent (SPEC-001-R225).
 # Runs on macOS's bash 3.2 and on Linux: no mapfile, no associative arrays, no case-changing expansions, and every
 # array is either known to be non-empty or read by index under a counter.
 set -euo pipefail
@@ -10,6 +13,7 @@ usage() {
   echo "usage: scripts/bootstrap/land.sh <batch dir> [--stop-before-main]"
   echo "       scripts/bootstrap/land.sh --to-main <sha> <candidate branch>"
   echo "       scripts/bootstrap/land.sh --delivery candidate/<task>"
+  echo "       scripts/bootstrap/land.sh --lockfile <package>"
   echo "  Lands one staged batch, for example proposals/phase-1, as one signed commit. It reads <batch dir>/LAND.txt,"
   echo "  moves each file into place, tests the moved tree in a temporary worktree (Node.js version, npm ci, tsc, ESLint"
   echo "  on the moved code, every test, the trace check and the scenario patches that touch a moved file), shows the"
@@ -22,17 +26,40 @@ usage() {
   echo "  --delivery          land a runner producer delivery: show it, and on a yes push the same commit to"
   echo "                      candidate/<task>-owner, whose push run reports the checks main counts, then finish as"
   echo "                      --to-main does. The producer's own push starts no run (SPEC-001-R210)"
+  echo "  --lockfile          update only <package> in package-lock.json with npm update --package-lock-only, show"
+  echo "                      the diff, test and sign it, push it to candidate/lockfile-<package> and finish as"
+  echo "                      --to-main does. It refuses when npm changes anything else"
+  echo "  It first runs scripts/bootstrap/doctor.sh, and refuses until the doctor finds nothing to fix."
   echo "  LAND.txt is plain ASCII data, one \"key: value\" per line. Blank lines and lines that start with # are skipped."
   echo "  message: <commit subject>              exactly one"
   echo "  spec: <requirement ID>                 one or more; each becomes a Spec: trailer"
   echo "  requires: <file> <fixed string>        optional; the file must contain the string before anything moves"
   echo "  move: <source in the batch> <path>     one per file; the batch must hold no other tracked file"
+  echo "  owner-apply: scripts/bootstrap/<x>.sh  optional; the owner runs that script before approving main's deploy,"
+  echo "                                         because the deploy role cannot apply the batch's change alone"
   echo "  Nothing in the batch or the manifest is ever run."
 }
 
 say() { printf '%s\n' "$@"; }
-fail() { printf '%s\n' "$@" >&2; exit 1; }
+# fail: prints its lines to standard error and exits 1. Its first line becomes the summary's result.
+fail() {
+  local first
+  for first in "$@"; do
+    [ -z "$first" ] || break
+  done
+  summary_result="stopped: ${first:-}"
+  printf '%s\n' "$@" >&2
+  exit 1
+}
 usage_error() { usage >&2; exit 2; }
+
+# Set as the run goes, and printed by the summary when the script ends (SPEC-001-R225).
+summary_mode=""
+summary_result=""
+summary_commit=""
+summary_candidate=""
+summary_main=""
+summary_next=""
 
 # shown: copies its input with control characters made visible (^[ for an escape), for text from git that a commit can
 # set, such as commit subjects and file lines, so none of it can redraw the screen.
@@ -129,8 +156,12 @@ delete_if_at() {
 # finish_main <sha> <candidate branch> [<other branch>]: moves main to that exact commit, deletes <other branch> if
 # given, watches main's run, then deletes the candidate branch.
 finish_main() {
-  local sha="$1" branch="$2" other="${3:-}" short run="" status=0 url="" deploy_wait=""
+  local sha="$1" branch="$2" other="${3:-}" short run="" status=0 url="" deploy_wait="" apply=""
   short="$(git rev-parse --short "$sha")"
+  # A batch whose LAND.txt names an owner apply carries it as a trailer, so --to-main knows it too (SPEC-001-R221).
+  # Every commit main gains is read, not only the tip: a fix on top of the signed commit must not hide it. Read before
+  # the push, which moves refs/remotes/origin/main to the commit.
+  apply="$(owner_apply_in "$sha")"
   if ! git push origin "${sha}:refs/heads/main"; then
     if [ -n "$other" ]; then
       fail "main refused ${short}, so nothing changed on main, in this clone or on ${branch} and ${other}." \
@@ -142,10 +173,20 @@ finish_main() {
       "$(drop_commands "$branch")"
   fi
   [ -z "$other" ] || delete_if_at "$other" "$sha"
-  say "" "main is at ${short}." \
-    "The deploy to the sandbox now waits for your approval in GitHub: approve the sandbox deployment in main's run."
+  summary_main="main moved to ${short}"
+  if [ -n "$apply" ]; then
+    summary_next="run ${apply} before approving the deploy"
+    say "" "main is at ${short}." \
+      "DO NOT APPROVE the sandbox deployment yet. First run ${apply}, as your agent's step for this batch says:" \
+      "the deploy role cannot apply this batch's change alone, and a deploy approved first fails."
+  else
+    summary_next="approve the sandbox deploy"
+    say "" "main is at ${short}." \
+      "The deploy to the sandbox now waits for your approval in GitHub: approve the sandbox deployment in main's run."
+  fi
   if run="$(find_run main "$sha")"; then
     url="$(run_url "$run")"
+    summary_main="main run ${run} for ${short}: watching"
     say "Pipeline run ${run} on main. To open it in a browser:" "gh run view ${run} --web" \
       "Watching it until the deploy finishes. If you stop watching, delete the candidate branch afterwards:" \
       "git push origin --delete ${branch}"
@@ -153,31 +194,105 @@ finish_main() {
       say "Waiting until its deploy job, ${deploy_job}, waits for your approval."
       deploy_wait="$(wait_for_deploy "$run")"
       if [ "$deploy_wait" = waiting ]; then
-        say "" "Approve the sandbox deployment in main's run ${run}: ${url}" \
-          "This waits until you approve or reject it, then watches the deploy." ""
+        if [ -n "$apply" ]; then
+          say "" "The deploy in main's run ${run} waits: ${url}" \
+            "DO NOT APPROVE it until ${apply} has finished. Then approve the sandbox deployment there." \
+            "This waits until you approve or reject it, then watches the deploy." ""
+        else
+          say "" "Approve the sandbox deployment in main's run ${run}: ${url}" \
+            "This waits until you approve or reject it, then watches the deploy." ""
+        fi
         wait_for_approval "$run"
       fi
     fi
-    gh run watch "$run" --exit-status || status=1
+    watch_run "$run" || status=$?
     [ -z "$url" ] || say "" "main's run ${run}: ${url}"
   else
     say "No pipeline run on main for ${short} after 5 minutes. To look for it:" \
       "gh run list --workflow pipeline.yml --branch main"
+    summary_main="main moved to ${short}; no run found after 5 minutes"
     status=2
   fi
   delete_if_at "$branch" "$sha"
   case "$status" in
     1)
+      summary_main="main run ${run} for ${short}: concluded ${run_conclusion}"
+      summary_result="on main, but main's run did not pass"
       if explain_failure "$run" "$short"; then
         exit 1
       fi
-      say "main's run did not pass. The commit is on main, so fix the problem in a new commit on top." \
+      say "GitHub records main's run ${run} as concluded ${run_conclusion}." \
+        "main's run did not pass. The commit is on main, so fix the problem in a new commit on top." \
         "Never amend a pushed commit. To see why it failed:" "gh run view ${run} --log-failed"
       exit 1
       ;;
-    2) exit 1 ;;
+    2) summary_result="on main; its run was not found"; exit 1 ;;
+    3)
+      summary_main="main run ${run} for ${short}: lost contact, end not read"
+      summary_result="on main; lost contact with main's run, which may still pass"
+      say "${short} is on main. Read the run's result before you act on it:" "gh run view ${run}"
+      exit 3
+      ;;
   esac
+  summary_main="main run ${run} for ${short}: success"
+  summary_result="landed ${short} on main"
+  summary_next=""
   say "Landed ${short} on main."
+}
+
+# owner_apply_in <sha>: the first valid Owner-Apply trailer value among the commits from origin/main to <sha>.
+owner_apply_in() {
+  local value
+  git log --format='%(trailers:key=Owner-Apply,valueonly,separator=%x0A)' "refs/remotes/origin/main..$1" 2>/dev/null |
+    while IFS= read -r value; do
+      if [ -n "$value" ] && owner_apply_path "$value"; then
+        printf '%s' "$value"
+        break
+      fi
+    done || true
+}
+
+# owner_apply_path <value>: a script under scripts/bootstrap/ that the owner runs before approving the deploy.
+owner_apply_path() {
+  plain_path "$1" || return 1
+  case "$1" in
+    scripts/bootstrap/*/*) return 1 ;;
+    scripts/bootstrap/?*.sh) return 0 ;;
+  esac
+  return 1
+}
+
+# watch_run <run>: watches the run to its end. gh run watch also exits nonzero when only its connection dropped (lesson
+# L29), so a nonzero exit is checked against GitHub's record of the run (SPEC-001-R220). Returns 0 when the run
+# concluded success, 1 when it concluded anything else, in run_conclusion, and 3 when its end cannot be read after
+# LAND_WATCH_TRIES watches, default 3.
+watch_run() {
+  local tries=0 state
+  run_conclusion=""
+  while :; do
+    if gh run watch "$1" --exit-status; then
+      return 0
+    fi
+    state="$(gh run view "$1" --json status,conclusion --jq '.status + " " + (.conclusion // "")' 2>/dev/null || true)"
+    case "$state" in
+      "completed success")
+        say "gh run watch stopped with an error, but GitHub records run $1 as completed with conclusion success."
+        return 0
+        ;;
+      completed\ ?*)
+        run_conclusion="${state#completed }"
+        return 1
+        ;;
+    esac
+    tries=$((tries + 1))
+    if [ "$tries" -ge "${LAND_WATCH_TRIES:-3}" ]; then
+      say "" "Lost contact with run $1: gh run watch stopped, and GitHub's record of the run reads \"${state:-nothing}\"." \
+        "This is not a failed run. To watch it again:" "gh run watch $1 --exit-status"
+      return 3
+    fi
+    say "Lost contact with run $1, which GitHub records as \"${state:-unreadable}\". Watching it again."
+    sleep "${LAND_POLL_SECONDS:-10}"
+  done
 }
 
 # watch_candidate <branch> <sha>: waits for the candidate run and watches it; on failure says how to go on and exits.
@@ -194,13 +309,26 @@ watch_candidate() {
     fi
     say "Pipeline run ${run} on ${branch}. If you stop watching, finish later with the same command:" \
       "scripts/bootstrap/land.sh --delivery ${delivery_branch}"
-    if ! gh run watch "$run" --exit-status; then
-      fail "" "The pipeline run ${run} on ${branch} failed, so main has not moved." \
-        "The delivery is the producer's patch, so do not fix it with a commit on top. To see why it failed:" \
-        "gh run view ${run} --log-failed" \
-        "Then delete both branches and dispatch the task again with a corrected prompt:" \
-        "git push origin --delete ${branch} ${delivery_branch}"
-    fi
+    summary_candidate="candidate run ${run} on ${branch}: watching"
+    watched=0
+    watch_run "$run" || watched=$?
+    case "$watched" in
+      1)
+        summary_candidate="candidate run ${run} on ${branch}: concluded ${run_conclusion}"
+        fail "The pipeline run ${run} on ${branch} failed, so main has not moved." \
+          "GitHub records it as concluded ${run_conclusion}." \
+          "The delivery is the producer's patch, so do not fix it with a commit on top. To see why it failed:" \
+          "gh run view ${run} --log-failed" \
+          "Then delete both branches and dispatch the task again with a corrected prompt:" \
+          "git push origin --delete ${branch} ${delivery_branch}"
+        ;;
+      3)
+        summary_candidate="candidate run ${run} on ${branch}: lost contact, end not read"
+        fail "Lost contact with the pipeline run ${run} on ${branch}, so main has not moved. It may still pass." \
+          "When it has passed, finish with the same command:" "scripts/bootstrap/land.sh --delivery ${delivery_branch}"
+        ;;
+    esac
+    summary_candidate="candidate run ${run} on ${branch}: success"
     candidate_run="$run"
     return 0
   fi
@@ -210,14 +338,27 @@ watch_candidate() {
   fi
   say "Pipeline run ${run} on ${branch}. If you stop watching, finish later with:" \
     "scripts/bootstrap/land.sh --to-main ${sha} ${branch}"
-  if ! gh run watch "$run" --exit-status; then
-    fail "" "The pipeline run ${run} on ${branch} failed, so main has not moved." \
-      "Fix the problem in a new commit on top of ${short} and push it to ${branch}." \
-      "Never amend: a pushed commit stays, and the branch refuses force pushes." \
-      "To see why it failed:" "gh run view ${run} --log-failed" \
-      "When the new commit on top has passed, finish with:" \
-      "scripts/bootstrap/land.sh --to-main \"\$(git rev-parse HEAD)\" ${branch}"
-  fi
+  summary_candidate="candidate run ${run} on ${branch}: watching"
+  watched=0
+  watch_run "$run" || watched=$?
+  case "$watched" in
+    1)
+      summary_candidate="candidate run ${run} on ${branch}: concluded ${run_conclusion}"
+      fail "The pipeline run ${run} on ${branch} failed, so main has not moved." \
+        "GitHub records it as concluded ${run_conclusion}." \
+        "Fix the problem in a new commit on top of ${short} and push it to ${branch}." \
+        "Never amend: a pushed commit stays, and the branch refuses force pushes." \
+        "To see why it failed:" "gh run view ${run} --log-failed" \
+        "When the new commit on top has passed, finish with:" \
+        "scripts/bootstrap/land.sh --to-main \"\$(git rev-parse HEAD)\" ${branch}"
+      ;;
+    3)
+      summary_candidate="candidate run ${run} on ${branch}: lost contact, end not read"
+      fail "Lost contact with the pipeline run ${run} on ${branch}, so main has not moved. It may still pass." \
+        "When it has passed, finish with:" "scripts/bootstrap/land.sh --to-main ${sha} ${branch}"
+      ;;
+  esac
+  summary_candidate="candidate run ${run} on ${branch}: success"
   candidate_run="$run"
 }
 
@@ -392,17 +533,80 @@ explain_failure() {
   esac
 }
 
-need_tools() {
-  local version major minor
-  command -v gh >/dev/null 2>&1 || fail "This needs the GitHub CLI, gh. Install it, sign in with gh auth login, then run this again."
-  gh auth status >/dev/null 2>&1 || fail "gh is not signed in. Run gh auth login, then run this again."
-  version="$(git --version | sed -n 's/^git version \([0-9]*\)\.\([0-9]*\).*/\1 \2/p')"
-  read -r major minor <<< "${version:-0 0}"
-  if [ "$major" -lt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -lt 34 ]; }; then
-    fail "This needs git 2.34 or later, for SSH signatures and commit trailers. This git is ${major}.${minor}."
+# run_doctor <for>: checks this machine with doctor.sh, beside this script, before anything else (SPEC-001-R219). For
+# a mode that signs, a Node.js in package.json's engines range goes first on PATH, Homebrew's node@<major> when the
+# node on PATH is out of range (lesson L25), so the preflight and npm use it.
+run_doctor() {
+  local dir
+  if ! bash "$here/doctor.sh" --for "$1"; then
+    fail "The doctor found something to fix on this machine. Fix each item it lists, then run this again. Nothing changed."
+  fi
+  if [ "$1" = land ]; then
+    dir="$(bash "$here/doctor.sh" --node-bin)" || fail "The doctor found no Node.js in package.json's engines range. Nothing changed."
+    case ":${PATH}:" in
+      ":${dir}:"*) ;;
+      *) PATH="${dir}:${PATH}"; export PATH; say "Using Node.js from ${dir}." ;;
+    esac
+  fi
+  say ""
+}
+
+# on_macos_terminal: true on macOS while standard output is a terminal, so a test run, such as the preflight's, never
+# takes over the owner's clipboard or shows a notification. OWNER_SCRIPT_DESKTOP=always makes it true without a
+# terminal, for the tests of the clipboard and the notification themselves.
+on_macos_terminal() {
+  [ "$(uname -s 2>/dev/null || true)" = Darwin ] || return 1
+  [ -t 1 ] || [ "${OWNER_SCRIPT_DESKTOP:-}" = always ]
+}
+
+# touch_cue "<what is signed>": a line of its own just before each signature, and on macOS a notification, so the
+# owner touches the key while it blinks (lesson L30, SPEC-001-R223).
+touch_cue() {
+  say "" "==> TOUCH YOUR SECURITY KEY NOW. It blinks to sign: $1" ""
+  if on_macos_terminal && command -v osascript >/dev/null 2>&1; then
+    osascript -e 'display notification "Touch your security key now to sign." with title "land.sh"' >/dev/null 2>&1 || true
   fi
 }
 
+# sign_commit <message> [git commit options]: commits the index, signed, after the touch cue. OpenSSH reports a touch
+# that never came, or a touch on the wrong key, as "Couldn't sign message: invalid format?", so that is translated.
+sign_commit() {
+  local subject="$1"
+  shift
+  touch_cue "$subject"
+  if git commit -q -S -m "$subject" "$@" 2>"$work/sign.err"; then
+    return 0
+  fi
+  if grep -q 'invalid format' "$work/sign.err"; then
+    fail "No touch in time, or the wrong key was touched: nothing was committed." \
+      "Run the same command again, and touch the key while it blinks, after the TOUCH line."
+  fi
+  shown < "$work/sign.err" >&2
+  fail "Signing failed, so nothing was committed." "Run the same command again, and touch your security key when it blinks."
+}
+
+# print_summary: at most 10 lines for the owner to paste to the agent, also copied to the clipboard on macOS
+# (SPEC-001-R225). It names no AWS account: twelve digits that stand alone, as in an ARN, are replaced.
+print_summary() {
+  [ -n "$summary_mode" ] || return 0
+  {
+    say "--- land.sh summary: paste this to the agent ---" "mode: ${summary_mode}" "result: ${summary_result:-ended}"
+    # Ten characters of a SHA can never be twelve digits, which the next step would take for an account ID.
+    [ -z "$summary_commit" ] || say "commit: ${summary_commit}"
+    [ -z "$summary_candidate" ] || say "${summary_candidate}"
+    [ -z "$summary_main" ] || say "${summary_main}"
+    [ -z "$summary_next" ] || say "next: ${summary_next}"
+    say "---"
+  } | tr -d '\000-\010\013-\037\177' | sed -E -e 's/(^|[^0-9A-Za-z])[0-9]{12}([^0-9A-Za-z]|$)/\1<account>\2/g' \
+    -e 's/(^|[^0-9A-Za-z])[0-9]{12}([^0-9A-Za-z]|$)/\1<account>\2/g' | cut -c1-200 > "$work/summary"
+  say ""
+  cat "$work/summary"
+  if on_macos_terminal && command -v pbcopy >/dev/null 2>&1; then
+    pbcopy < "$work/summary" 2>/dev/null && say "(copied to the clipboard)" || true
+  fi
+}
+
+here="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 top="$(git rev-parse --show-toplevel 2>/dev/null)" || fail "Run this inside the repository."
 cd "$top"
 export GIT_LITERAL_PATHSPECS=1
@@ -423,6 +627,11 @@ case "${1:-}" in
     mode=delivery
     branch="$2"
     ;;
+  --lockfile)
+    [ $# -eq 2 ] || usage_error
+    mode=lockfile
+    package="$2"
+    ;;
   ""|-*) usage_error ;;
   *)
     mode=land
@@ -435,11 +644,13 @@ case "${1:-}" in
     ;;
 esac
 
-need_tools
 candidate_run=""
+run_conclusion=""
 deploy_job="deploy to sandbox"
 npm_cache=""
 delivery_branch=""
+move_count=0
+move_dests=()
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/land.XXXXXX")"
 moved=0
@@ -449,15 +660,37 @@ cleanup() {
   remove_tree
   if [ "$moved" = 1 ]; then
     git reset -q --hard "$start" || true
-    remove_empty_dirs dest
+    if [ "$mode" = lockfile ]; then
+      # The tree was clean before npm ran, so every untracked file now is npm's. Ignored files are left alone.
+      git clean -q -f -d -- . || true
+    else
+      remove_empty_dirs dest
+    fi
     say "Nothing was landed. The working tree and index are back as they were."
   fi
+  case "$status" in
+    130|143) summary_result="interrupted" ;;
+    0) ;;
+    *) [ -n "$summary_result" ] || summary_result="stopped with status ${status}: read the lines above the summary" ;;
+  esac
+  print_summary || true
   rm -rf "$work"
   exit "$status"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+case "$mode" in
+  to-main) summary_mode="--to-main ${branch}" ;;
+  delivery) summary_mode="--delivery ${branch}" ;;
+  lockfile) summary_mode="--lockfile ${package}" ;;
+  *) summary_mode="${batch}" ;;
+esac
+case "$mode" in
+  to-main|delivery) run_doctor push ;;
+  *) run_doctor land ;;
+esac
 
 if [ "$mode" = to-main ]; then
   case "$sha" in
@@ -479,6 +712,7 @@ if [ "$mode" = to-main ]; then
     fail "main has moved since ${sha} was made, so main cannot move to it." \
       "Land the batch again from the new main. First drop this attempt:" "$(drop_commands "$branch")"
   fi
+  summary_commit="${sha:0:10}"
   watch_candidate "$branch" "$sha"
   finish_main "$sha" "$branch"
   exit 0
@@ -527,21 +761,118 @@ if [ "$mode" = delivery ]; then
     fail "The push to ${owner_branch} failed, so nothing changed. Run the same command again."
   fi
   delivery_branch="$branch"
+  summary_commit="${sha:0:10}"
   watch_candidate "$owner_branch" "$sha"
   finish_main "$sha" "$owner_branch" "$branch"
   exit 0
 fi
 
-# Land mode. First check everything that needs no change, so a refusal leaves the repository as it was.
-batch="${batch#./}"
-batch="${batch%/}"
-plain_path "$batch" || fail "${batch} is not a plain relative path."
-case "$batch" in
-  proposals/?*) ;;
-  *) fail "The batch must be a directory under proposals/, for example proposals/phase-1." ;;
-esac
-name="${batch##*/}"
-branch="candidate/land-${name}"
+# lock_script: run with node -e, given the lockfile before and after npm and the package name. It passes only when
+# every change is to an entry of that package, and prints each entry's old and new version.
+lock_script='
+const fs = require("node:fs");
+const [before, after, name] = process.argv.slice(1);
+const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
+const a = read(before);
+const b = read(after);
+const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+const own = (key) => key === "node_modules/" + name || key.endsWith("/node_modules/" + name);
+const bad = [];
+const changed = [];
+for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+  if (key !== "packages" && !same(a[key], b[key])) bad.push(key);
+}
+const pa = a.packages || {};
+const pb = b.packages || {};
+for (const key of new Set([...Object.keys(pa), ...Object.keys(pb)])) {
+  if (same(pa[key], pb[key])) continue;
+  if (own(key)) changed.push("  " + key + ": " + ((pa[key] || {}).version || "none") + " -> " + ((pb[key] || {}).version || "none"));
+  else bad.push("  packages[" + JSON.stringify(key) + "]");
+}
+if (bad.length > 0) { console.log(bad.slice(0, 10).join("\n")); process.exit(1); }
+if (changed.length === 0) { console.log("  no entry of " + name + " changed"); process.exit(1); }
+console.log(changed.join("\n"));
+'
+
+# verify_signature <sha>: the signatures check reads approvers.txt as of the parent. A commit that fails it cannot be
+# fixed on top, so the signature is checked before anything is pushed.
+verify_signature() {
+  if git cat-file -e "${start}:approvers.txt" 2>/dev/null; then
+    git show "${start}:approvers.txt" > "$work/allowed_signers"
+    if ! git -c gpg.ssh.allowedSignersFile="$work/allowed_signers" verify-commit "$1" >/dev/null 2>&1; then
+      fail "The signature on $(git rev-parse --short "$1") does not verify against approvers.txt, so the signatures check would refuse it." \
+        "Check that user.signingkey is the approver key that approvers.txt lists."
+    fi
+  fi
+}
+
+# land_lockfile: updates only $package in package-lock.json, shows the change, tests the tree, signs it and lands it
+# as --to-main does (SPEC-001-R222, lesson L32). If npm changes anything else, it refuses, and the cleanup puts the
+# tree back. npm runs with --ignore-scripts, so no package's install script runs.
+land_lockfile() {
+  local changed lock_check subject
+  if git ls-remote --exit-code origin "refs/heads/${branch}" >/dev/null 2>&1; then
+    fail "${branch} already exists on origin. If it holds an earlier attempt, delete it first:" "git push origin --delete ${branch}"
+  fi
+  case "$(file_mode package-lock.json)" in
+    100644|100755) ;;
+    *) fail "package-lock.json is not a tracked file on main." ;;
+  esac
+  git show HEAD:package-lock.json > "$work/lock-before.json"
+  subject="deps: update ${package} in package-lock.json"
+  moved=1
+  say "Updating only ${package} in package-lock.json:" "npm update ${package} --package-lock-only --ignore-scripts"
+  npm update "$package" --package-lock-only --ignore-scripts --no-audit --no-fund || fail "npm update failed, so nothing was landed."
+  changed="$(git status --porcelain --untracked-files=all)"
+  [ -n "$changed" ] || fail "npm changed nothing: ${package} is already at the newest version that package.json allows."
+  [ "$changed" = " M package-lock.json" ] || fail "npm changed more than package-lock.json, so nothing was landed:" "$changed" \
+    "Remove any new file it lists."
+  lock_check="$(node -e "$lock_script" "$work/lock-before.json" package-lock.json "$package" 2>&1)" ||
+    fail "npm changed more than ${package}'s entries in package-lock.json, so nothing was landed:" "$lock_check"
+  git add package-lock.json
+  move_count=1
+  move_dests=(package-lock.json)
+  say "" "Staged for one signed commit on top of main at ${start:0:12}:" "Message: ${subject}" "Changed entries:" "$lock_check"
+  git --no-pager diff --cached --stat
+  say ""
+  if ask "Show the full diff in a pager?"; then
+    git diff --cached || true
+  fi
+  preflight
+  ask "Sign and land?" || fail "You chose not to sign."
+  sign_commit "$subject"
+  sha="$(git rev-parse HEAD)"
+  short="$(git rev-parse --short HEAD)"
+  summary_commit="${sha:0:10}"
+  verify_signature "$sha"
+  moved=0
+  say "Signed ${short}: ${subject}"
+  if ! git push origin "${sha}:refs/heads/${branch}"; then
+    fail "The push to ${branch} failed. The signed commit ${short} is on your local branch. To try again:" \
+      "git push origin ${sha}:refs/heads/${branch}" "scripts/bootstrap/land.sh --to-main ${sha} ${branch}"
+  fi
+  watch_candidate "$branch" "$sha"
+  finish_main "$sha" "$branch"
+}
+
+# Land and lockfile modes. First check everything that needs no change, so a refusal leaves the repository as it was.
+if [ "$mode" = lockfile ]; then
+  # An npm package name: lowercase letters, digits, ".", "_" and "-", with an optional @scope/ (lesson L32).
+  package_re='^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$'
+  [[ $package =~ $package_re ]] && [ "${#package}" -le 214 ] || fail "$(printf '%s' "$package" | shown) is not an npm package name."
+  name="$(printf '%s' "${package#@}" | tr '/' '-')"
+  branch="candidate/lockfile-${name}"
+else
+  batch="${batch#./}"
+  batch="${batch%/}"
+  plain_path "$batch" || fail "${batch} is not a plain relative path."
+  case "$batch" in
+    proposals/?*) ;;
+    *) fail "The batch must be a directory under proposals/, for example proposals/phase-1." ;;
+  esac
+  name="${batch##*/}"
+  branch="candidate/land-${name}"
+fi
 git check-ref-format "refs/heads/${branch}" || fail "${name} cannot name a branch. Rename the batch directory."
 
 [ "$(git config --get gpg.format || true)" = ssh ] && [ -n "$(git config --get user.signingkey || true)" ] || {
@@ -570,6 +901,11 @@ start="$(git rev-parse HEAD)"
 [ "$start" = "$(git rev-parse refs/remotes/origin/main)" ] ||
   not_on_main "HEAD is not origin/main after git pull." "Check out main, then run this again."
 
+if [ "$mode" = lockfile ]; then
+  land_lockfile
+  exit 0
+fi
+
 manifest="${batch}/LAND.txt"
 case "$(file_mode "$manifest")" in
   100644|100755) ;;
@@ -587,6 +923,7 @@ bad_line="$(git show "HEAD:${manifest}" | LC_ALL=C grep -a -n -v -m 1 "^[[:print
 
 # Parse the manifest. Values are only compared and passed as arguments, never evaluated.
 message=""
+owner_apply=""
 spec_count=0
 specs=()
 require_count=0
@@ -666,12 +1003,29 @@ while IFS= read -r line || [ -n "$line" ]; do
       move_dests[$move_count]="$dest"
       move_count=$((move_count + 1))
       ;;
-    *) fail "${manifest} line ${line_no} has the unknown key \"${key}\". The keys are message, spec, requires and move." ;;
+    owner-apply)
+      [ -z "$owner_apply" ] || fail "${manifest} line ${line_no}: there may be at most one owner-apply line."
+      owner_apply_path "$value" || fail "${manifest} line ${line_no}: ${value} is not a script directly under scripts/bootstrap/."
+      owner_apply="$value"
+      ;;
+    *) fail "${manifest} line ${line_no} has the unknown key \"${key}\". The keys are message, spec, requires, move and owner-apply." ;;
   esac
 done <<EOF
 $manifest_text
 EOF
 [ -n "$message" ] || fail "${manifest} has no message line."
+if [ -n "$owner_apply" ]; then
+  i=0
+  found=0
+  while [ "$i" -lt "$move_count" ]; do
+    [ "${move_dests[$i]}" != "$owner_apply" ] || found=1
+    i=$((i + 1))
+  done
+  case "$(file_mode "$owner_apply")" in
+    100644|100755) found=1 ;;
+  esac
+  [ "$found" = 1 ] || fail "${manifest} names owner-apply ${owner_apply}, which is neither on main nor moved by the batch."
+fi
 [ "$spec_count" -gt 0 ] || fail "${manifest} has no spec line."
 [ "$move_count" -gt 0 ] || fail "${manifest} has no move line."
 
@@ -812,6 +1166,7 @@ while [ "$i" -lt "$spec_count" ]; do
   say "Spec: ${specs[$i]}"
   i=$((i + 1))
 done
+[ -z "$owner_apply" ] || say "Owner apply: run ${owner_apply} before approving main's deploy. land.sh will say when."
 say "Moves:"
 i=0
 while [ "$i" -lt "$move_count" ]; do
@@ -842,22 +1197,15 @@ while [ "$i" -lt "$spec_count" ]; do
   trailers[$((i * 2 + 1))]="Spec: ${specs[$i]}"
   i=$((i + 1))
 done
-say "Tap your security key when it blinks."
-if ! git commit -q -S -m "$message" "${trailers[@]}"; then
-  fail "Signing failed, so nothing was committed." "Run the same command again, and tap your security key when it blinks."
+if [ -n "$owner_apply" ]; then
+  trailers[$((spec_count * 2))]="--trailer"
+  trailers[$((spec_count * 2 + 1))]="Owner-Apply: ${owner_apply}"
 fi
+sign_commit "$message" "${trailers[@]}"
 sha="$(git rev-parse HEAD)"
 short="$(git rev-parse --short HEAD)"
-
-# The signatures check reads approvers.txt as of the parent. A commit that fails it cannot be fixed on top, so check
-# the signature before anything is pushed.
-if git cat-file -e "${start}:approvers.txt" 2>/dev/null; then
-  git show "${start}:approvers.txt" > "$work/allowed_signers"
-  if ! git -c gpg.ssh.allowedSignersFile="$work/allowed_signers" verify-commit "$sha" >/dev/null 2>&1; then
-    fail "The signature on ${short} does not verify against approvers.txt, so the signatures check would refuse it." \
-      "Check that user.signingkey is the approver key that approvers.txt lists."
-  fi
-fi
+summary_commit="${sha:0:10}"
+verify_signature "$sha"
 moved=0
 remove_empty_dirs src
 say "Signed ${short}: ${message}"
@@ -869,6 +1217,8 @@ fi
 watch_candidate "$branch" "$sha"
 
 if [ "$stop" = 1 ]; then
+  summary_result="stopped before main, as asked; the candidate run passed"
+  summary_next="scripts/bootstrap/land.sh --to-main ${sha} ${branch}"
   say "" "Stopped before main, as asked. Run ${candidate_run} passed on ${branch} for ${short}." \
     "When you are ready, move main to this commit with:" "scripts/bootstrap/land.sh --to-main ${sha} ${branch}"
   exit 0

@@ -31,11 +31,16 @@ const stubGh = [
   '    case " ${STUB_FAIL:-} " in *" $3 "*) echo "run $3 failed"; exit 1 ;; esac',
   '    echo "run $3 passed"',
   "    exit 0 ;;",
+  // land.sh reads a run's conclusion after a watch that exits nonzero (SPEC-001-R220).
+  '  "run view") case " ${STUB_FAIL:-} " in *" $3 "*) echo "completed failure" ;; *) echo "completed success" ;; esac; exit 0 ;;',
   "esac",
   'echo "unexpected gh call: $*" >&2',
   "exit 2",
   "",
 ].join("\n");
+
+// ykman: one YubiKey plugged in, so land.sh's doctor passes (SPEC-001-R219).
+const oneKey = '#!/usr/bin/env bash\ncase "$1" in list) echo "YubiKey 5C Nano (5.7.1) [OTP+FIDO+CCID] Serial: 123456" ;; info) printf "OATH               Enabled\\n" ;; esac\n';
 
 const MANIFEST = [
   "# A test batch: one file replaces a workflow, one goes to a directory that does not exist yet.",
@@ -83,7 +88,7 @@ describe("SPEC-001-R41 land.sh lands a staged batch through a candidate branch",
   // The test's own commits, commitAll's included, are unsigned; only land.sh signs, with git commit -S.
   function makeRepo(files: Record<string, string> = BATCH): Repo {
     const repo = tempRepo(scratch(), {
-      stubs: { gh: stubGh, node: passingTool, npm: passingTool, npx: passingTool },
+      stubs: { gh: stubGh, node: passingTool, npm: passingTool, npx: passingTool, ykman: oneKey },
       config: { "gpg.format": "ssh", "user.signingkey": keys.approver, "commit.gpgsign": "true" },
       files: { ...BASE, "approvers.txt": signerLine(keys.approver), ...files },
     });
@@ -140,7 +145,7 @@ describe("SPEC-001-R41 land.sh lands a staged batch through a candidate branch",
     expect(spawnSync("git", ["-c", `gpg.ssh.allowedSignersFile=${repo.signers}`, "verify-commit", "HEAD"], { cwd: repo.work, env: repo.env }).status).toBe(0);
     expect(r.out).toContain("Precondition met: specs/SPEC-001-delivery-pipeline.md contains \"SPEC-001-R41\".");
     expect(r.out).toContain("Sign and land? [y/N]");
-    expect(r.out).toContain("Tap your security key when it blinks.");
+    expect(r.out).toContain("==> TOUCH YOUR SECURITY KEY NOW. It blinks to sign: spec: land the test batch");
     expect(r.out).toContain("The deploy to the sandbox now waits for your approval in GitHub");
     expect(r.out).toContain("Deleted candidate/land-batch.");
   }, TIMEOUT);
@@ -256,8 +261,11 @@ describe("SPEC-001-R41 land.sh lands a staged batch through a candidate branch",
     expect(originRef(repo, "candidate/land-batch")).toBe(sha);
     expect(events(repo)).toEqual([`list candidate/land-batch ${sha} main=${before} branch=${sha}`, "watch 101"]);
     expect(stopped.out).toContain(`Stopped before main, as asked. Run 101 passed on candidate/land-batch for ${sha.slice(0, 7)}.`);
-    const command = stopped.stdout.trim().split("\n").at(-1) ?? "";
+    // The last line before the summary is the command, and the summary names it as the next step (SPEC-001-R225).
+    const [body = "", summary = ""] = stopped.stdout.split("--- land.sh summary: paste this to the agent ---");
+    const command = body.trim().split("\n").at(-1) ?? "";
     expect(command).toBe(`scripts/bootstrap/land.sh --to-main ${sha} candidate/land-batch`);
+    expect(summary).toContain(`next: ${command}`);
 
     clearEvents(repo);
     const wrong = land(repo, ["--to-main", before, "candidate/land-batch"]);

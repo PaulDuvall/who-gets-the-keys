@@ -36,9 +36,32 @@ usage() {
 }
 
 say() { printf '%s\n' "$@"; }
-fail() { printf '%s\n' "$@" >&2; exit 1; }
+# first_line <lines...>: the first non-empty argument, for the summary's result.
+first_line() {
+  local line
+  for line in "$@"; do
+    [ -z "$line" ] || { printf '%s' "$line"; return 0; }
+  done
+}
+fail() { summary_result="stopped: $(first_line "$@")"; printf '%s\n' "$@" >&2; exit 1; }
 # refuse: a failed check before the confirm, so nothing has changed.
-refuse() { printf '%s\n' "$@" "Nothing changed." >&2; exit 1; }
+refuse() { summary_result="refused, nothing changed: $(first_line "$@")"; printf '%s\n' "$@" "Nothing changed." >&2; exit 1; }
+
+# The summary's lines, set as the run goes and printed when it ends (SPEC-001-R225).
+summary_result=""
+summary_head=""
+summary_sandbox="not reached"
+summary_alert="not reached"
+summary_break_glass="not reached"
+summary_org="not reached"
+summary_github="not reached"
+# plan_status <dir> <text>: the summary line of infra/sandbox or infra/org.
+plan_status() {
+  case "$1" in
+    infra/sandbox) summary_sandbox="$2" ;;
+    infra/org) summary_org="$2" ;;
+  esac
+}
 lowercase() { printf '%s' "$1" | tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz'; }
 # shown: copies its input with control characters made visible, for text that AWS or a tool returns.
 shown() { cat -v; }
@@ -101,16 +124,51 @@ started=""
 # chosen: set when the owner said no to a plan, so the run stopped by choice and not on a problem.
 chosen=""
 work="$(mktemp -d "${TMPDIR:-/tmp}/aws-setup.XXXXXX")"
+# on_macos_terminal: true on macOS while standard output is a terminal, so a test run, such as the preflight's, never
+# takes over the owner's clipboard or shows a notification. OWNER_SCRIPT_DESKTOP=always makes it true without a
+# terminal, for the tests of the clipboard and the notification themselves.
+on_macos_terminal() {
+  [ "$(uname -s 2>/dev/null || true)" = Darwin ] || return 1
+  [ -t 1 ] || [ "${OWNER_SCRIPT_DESKTOP:-}" = always ]
+}
+
+# print_summary: at most 10 lines for the owner to paste to the agent, also copied to the clipboard on macOS
+# (SPEC-001-R225). It names no AWS account: twelve digits that stand alone, as in an ARN, are replaced.
+print_summary() {
+  {
+    say "--- aws-setup.sh summary: paste this to the agent ---" "result: ${summary_result:-ended}"
+    # Ten characters of a SHA can never be twelve digits, which the next step would take for an account ID.
+    [ -z "$summary_head" ] || say "commit: ${summary_head}"
+    say "infra/sandbox: ${summary_sandbox}" "alert email: ${summary_alert}" "break-glass: ${summary_break_glass}" \
+      "infra/org: ${summary_org}" "GitHub secrets and variables: ${summary_github}" "---"
+  } | tr -d '\000-\010\013-\037\177' | sed -E -e 's/(^|[^0-9A-Za-z])[0-9]{12}([^0-9A-Za-z]|$)/\1<account>\2/g' \
+    -e 's/(^|[^0-9A-Za-z])[0-9]{12}([^0-9A-Za-z]|$)/\1<account>\2/g' |
+    cut -c1-200 > "$work/summary"
+  say ""
+  cat "$work/summary"
+  if on_macos_terminal && command -v pbcopy >/dev/null 2>&1; then
+    pbcopy < "$work/summary" 2>/dev/null && say "(copied to the clipboard)" || true
+  fi
+}
+
 cleanup() {
   local status=$?
-  rm -rf "$work"
+  case "$status" in
+    0) [ -n "$summary_result" ] || summary_result="done" ;;
+    130|143) summary_result="interrupted" ;;
+  esac
   if [ "$status" -ne 0 ] && [ -n "$chosen" ]; then
+    summary_result="stopped, as you chose"
     printf '%s\n' "" "Stopped, as you chose. The steps that finished stay done. To go on, run this again:" \
       "a rerun skips what exists." >&2
   elif [ "$status" -ne 0 ] && [ -n "$started" ]; then
     printf '%s\n' "" "Stopped. The steps that finished stay done. Fix the problem above, then run this again:" \
       "a rerun skips what exists." >&2
   fi
+  [ "$status" -eq 0 ] || [ -n "$summary_result" ] || summary_result="stopped with status ${status}: read the lines above the summary"
+  # The summary comes last, after any other line, so it is what the owner copies (SPEC-001-R225).
+  print_summary || true
+  rm -rf "$work"
   exit "$status"
 }
 trap cleanup EXIT
@@ -216,6 +274,7 @@ tfvars="$(git ls-files --others --ignored --exclude-standard -- infra/sandbox in
   "$tfvars" "Move them out of the repository, then run this again."
 git fetch -q origin 2>"$work/err" || refuse "git fetch origin failed: $(last_error)"
 head="$(git rev-parse HEAD)"
+summary_head="${head:0:10}"
 main="$(git rev-parse -q --verify refs/remotes/origin/main || true)"
 [ "$head" = "$main" ] || refuse "HEAD is ${head:0:12}, but origin/main is ${main:0:12}." \
   "What you apply must be what the pipeline deploys from main. Check out main and pull it, then run this again."
@@ -223,13 +282,25 @@ main="$(git rev-parse -q --verify refs/remotes/origin/main || true)"
 say "Checking both accounts."
 # identity <profile function>: prints "<account> <ARN>" for that profile's credentials.
 identity() { "$1" aws sts get-caller-identity --query '[Account,Arn]' --output text 2>"$work/err"; }
+# sign_in_hint <profile>: a role profile takes its credentials from its source_profile, so that is the profile to sign
+# in to; aws sso login on the role profile itself fails (lesson L28, SPEC-001-R224).
+sign_in_hint() {
+  local source
+  source="$(aws configure get source_profile --profile "$1" 2>/dev/null || true)"
+  if [ -n "$source" ] && [ "$source" != "$1" ]; then
+    printf '%s\n' "Profile $1 takes its credentials from profile ${source}. Sign in to that one, then run this again:" \
+      "aws sso login --profile ${source}"
+  else
+    printf '%s\n' "Sign in to it, then run this again:" "aws sso login --profile $1"
+  fi
+}
 sandbox_identity="$(identity sandbox)" || refuse "Profile ${sandbox_profile} has no working credentials: $(last_error)" \
-  "Sign in to it, for example with aws sso login --profile ${sandbox_profile}, then run this again."
+  "$(sign_in_hint "$sandbox_profile")"
 read -r sandbox_actual sandbox_arn <<EOF
 $sandbox_identity
 EOF
 management_identity="$(identity management)" || refuse "Profile ${management_profile} has no working credentials: $(last_error)" \
-  "Sign in to it, for example with aws sso login --profile ${management_profile}, then run this again."
+  "$(sign_in_hint "$management_profile")"
 read -r management_id management_arn <<EOF
 $management_identity
 EOF
@@ -362,6 +433,7 @@ init_backend() {
 plan_and_apply() {
   local who="$1" account="$2" dir="$3" plan="$4" changed deletes
   shift 4
+  plan_status "$dir" "plan failed"
   say "Planning ${dir}."
   if ! "$who" terraform -chdir="$dir" plan -input=false -out="$plan" "$@" </dev/null >"$work/plan.log" 2>&1; then
     shown < "$work/plan.log"
@@ -372,6 +444,7 @@ plan_and_apply() {
   changed="$(jq '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"])] | length' "$work/plan.json")"
   changed=$((changed + $(jq '[(.output_changes // {}) | to_entries[] | select(.value.actions != ["no-op"])] | length' "$work/plan.json")))
   if [ "$changed" -eq 0 ]; then
+    plan_status "$dir" "no changes"
     say "No changes in ${dir}, so nothing to apply."
     return 0
   fi
@@ -381,14 +454,18 @@ plan_and_apply() {
     say "WARNING: THIS PLAN DELETES OR REPLACES RESOURCES IN ACCOUNT ${account}:" "$deletes" \
       "A deleted resource loses its data. A replaced one also gets a new ID." ""
     if ! ask_word delete "Type delete to apply this plan, which deletes or replaces them, or anything else to stop:"; then
+      plan_status "$dir" "not applied, by your choice"
       declined "$dir" "Not applied: you did not type delete. Nothing in this plan changed."
       return 0
     fi
   elif ! ask "Apply this plan to account ${account}?"; then
+    plan_status "$dir" "not applied, by your choice"
     declined "$dir" "Not applied. Nothing in this plan changed."
     return 0
   fi
+  plan_status "$dir" "apply failed"
   "$who" terraform -chdir="$dir" apply -input=false "$plan" </dev/null
+  plan_status "$dir" "applied ${changed} change(s)"
 }
 
 # declined <dir> "<message>": the owner did not agree to a plan, so the run stops. Once the SCP is attached, the owner
@@ -452,8 +529,9 @@ while IFS="$tab" read -r endpoint arn; do
 done < "$work/subscriptions"
 email_reminder=""
 case "$subscription" in
-  confirmed) say "${email} already has a confirmed subscription to ${topic}. Skipped." ;;
+  confirmed) summary_alert="confirmed"; say "${email} already has a confirmed subscription to ${topic}. Skipped." ;;
   pending)
+    summary_alert="waiting for you to confirm the email"
     email_reminder="yes"
     say "${email} already has a subscription to ${topic}, still waiting for confirmation." \
       "SNS deletes an unconfirmed subscription after 48 hours. If you cannot find the email, run this again after then."
@@ -464,6 +542,7 @@ case "$subscription" in
     sandbox aws sns subscribe --region "$region" --topic-arn "$topic" --protocol email --notification-endpoint "$email" \
       --query SubscriptionArn --output text >/dev/null
     email_reminder="yes"
+    summary_alert="subscribed; waiting for you to confirm the email"
     say "Subscribed ${email} to ${topic}. AWS has sent it a confirmation email." \
       "Confirm within 48 hours, or SNS deletes the subscription and break-glass alerts reach no one."
     pause "Click Confirm subscription in the email from AWS Notifications, then press Enter."
@@ -512,8 +591,10 @@ add_totp() {
   fi
   say "Created TOTP device ${serial}." \
     "Its secret is in ${work}/totp-seed, readable only by you. It is deleted when this step ends, and never printed." \
-    "Add it to your YubiKey's OATH application, with a touch required for every code. In a second terminal:" \
-    "ykman oath accounts add --touch --issuer AWS ${bg_user} \"\$(cat ${work}/totp-seed)\"" \
+    "Add it to your YubiKey's OATH application, with a touch required for every code. In a second terminal," \
+    "copy and run these two commands, one at a time. Each fits on one line, so it copies whole (lesson L23):" \
+    "cd ${work}" \
+    "ykman oath accounts add -t -i AWS ${bg_user} \"\$(cat totp-seed)\"" \
     "AWS takes it as an authenticator app. It accepts no FIDO2 security key or passkey for AssumeRole."
   pause "When the YubiKey holds it, press Enter."
   for attempt in 1 2 3; do
@@ -637,16 +718,24 @@ else
   fi
 fi
 
+if [ -n "$bg_status" ]; then
+  summary_break_glass="not usable yet: ${bg_status}"
+else
+  summary_break_glass="usable; check it once with aws sts get-caller-identity --profile ${bg_profile}"
+fi
+
 say "" "Step 6 of 7: management account ${management_id}: state bucket, by scripts/bootstrap/aws.sh --org-state, and infra/org."
 management EXPECTED_ACCOUNT_ID="$management_id" bash scripts/bootstrap/aws.sh --org-state --yes </dev/null
 init_backend management infra/org "$org_bucket"
 plan_and_apply management "$management_id" infra/org "$work/org.tfplan" -var "sandbox_account_id=${sandbox_id}"
 
 say "" "Step 7 of 7: GitHub ${repo}, by scripts/bootstrap/github.sh --vars. Your confirm above answers its questions."
+summary_github="github.sh --vars failed"
 sandbox TRIAGE_MODEL="$model" bash scripts/bootstrap/github.sh --vars <<'ANSWERS'
 y
 y
 ANSWERS
+summary_github="set by github.sh --vars"
 
 say "" "Done. To check the repository secrets and variables:" "gh secret list --repo ${repo}" "gh variable list --repo ${repo}"
 if [ -n "$bg_status" ]; then

@@ -33,6 +33,8 @@ const stubGh = [
   '    case " ${STUB_FAIL:-} " in *" $3 "*) echo "run $3 failed"; exit 1 ;; esac',
   '    echo "run $3 passed"',
   "    exit 0 ;;",
+  // land.sh reads a run's conclusion after a watch that exits nonzero (SPEC-001-R220).
+  '  "run view") case " ${STUB_FAIL:-} " in *" $3 "*) echo "completed failure" ;; *) echo "completed success" ;; esac; exit 0 ;;',
   "esac",
   'echo "unexpected gh call: $*" >&2',
   "exit 2",
