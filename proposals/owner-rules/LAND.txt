@@ -1,6 +1,6 @@
 # Backlog who-gets-the-keys-w2h, lessons L21 to L23, L30 and L33: owner-step rules in CLAUDE.md, and a hook that
 # refuses a git worktree inside the checkout (new SPEC-001-R230). The owner chose worktrees outside the checkout over
-# a gitleaks exclusion on 2026-11-12. The batch also closes w2h in the backlog and carries the progress record
+# a gitleaks exclusion on 2026-11-12. The batch also closes w2h, k7d and p9v in the backlog and carries the progress record
 # computed for the tree after it lands, so the progress test passes. Nothing here changes infra/: no change to plan.
 message: spec: owner-step rules in CLAUDE.md, and no git worktree inside the checkout (backlog w2h)
 spec: SPEC-001-R230
