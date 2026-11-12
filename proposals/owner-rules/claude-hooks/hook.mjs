@@ -2,7 +2,7 @@
 // Reads the hook's JSON from stdin. Exit 2 blocks (PreToolUse) or reports back (PostToolUse).
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync, statSync } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
 const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const input = JSON.parse(readFileSync(0, "utf8"));
@@ -125,28 +125,118 @@ const hooks = {
   },
   // PreToolUse on Bash: refuse a git worktree inside the checkout (SPEC-001-R230, lesson L33). There, gitleaks-staged
   // scans the worktree's untracked files, finds the B5 scenario's synthetic secret in its scenarios/, and blocks every
-  // commit until the worktree is removed. The path is resolved from the command's working directory after any cd or
-  // git -C, as no-session-link resolves message files. Like the hooks above, it reads command text only.
+  // commit until the worktree is removed. It splits the command into simple commands, as a shell would, with quoted
+  // text and heredoc bodies kept as words, so a commit message that names the command is not one. It follows each cd
+  // in order, a subshell's cd only inside it, and git's -C and other global options. A path or directory that names a
+  // variable or ~ is not judged. Like the hooks above, it reads command text only.
   "no-inner-worktree"() {
-    const command = typeof tool.command === "string" ? tool.command.replace(/\\\n/g, " ") : "";
-    let dir = typeof input.cwd === "string" && input.cwd !== "" ? input.cwd : root;
-    const cd = [...command.matchAll(/(?:^|[;&|]\s*)cd\s+(["']?)([^\s"';&|]+)\1/g)].at(-1)?.[2];
-    if (cd !== undefined) dir = isAbsolute(cd) ? cd : join(dir, cd);
+    const text = typeof tool.command === "string" ? tool.command : "";
+    const start = typeof input.cwd === "string" && input.cwd !== "" ? input.cwd : root;
+    const tokens = [];
+    let word = null;
+    let i = 0;
+    const heredocs = [];
+    const push = () => {
+      if (word !== null) tokens.push({ word: word.text, plain: !word.quoted });
+      word = null;
+    };
+    const add = (ch, quoted = false) => {
+      word ??= { text: "", quoted: false };
+      word.text += ch;
+      if (quoted) word.quoted = true;
+    };
+    while (i < text.length) {
+      const ch = text[i];
+      if (ch === "\\" && text[i + 1] === "\n") { i += 2; continue; }
+      if (ch === "\\") { add(text[i + 1] ?? "", true); i += 2; continue; }
+      if (ch === "'") {
+        const close = text.indexOf("'", i + 1);
+        const stop = close === -1 ? text.length : close;
+        add(text.slice(i + 1, stop), true);
+        i = stop + 1;
+        continue;
+      }
+      if (ch === '"') {
+        let j = i + 1;
+        let body = "";
+        while (j < text.length && text[j] !== '"') {
+          if (text[j] === "\\" && j + 1 < text.length) { body += text[j + 1]; j += 2; } else body += text[j++];
+        }
+        add(body, true);
+        i = j + 1;
+        continue;
+      }
+      if (ch === "<" && text[i + 1] === "<" && text[i + 2] !== "<") {
+        push();
+        const m = /^<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/.exec(text.slice(i));
+        if (m) { heredocs.push(m[2]); i += m[0].length; continue; }
+      }
+      if (ch === "\n") {
+        push();
+        tokens.push({ op: ";" });
+        i++;
+        for (const tag of heredocs.splice(0)) {
+          const rest = text.slice(i);
+          const close = new RegExp(`^[\\t]*${tag}$`, "m").exec(rest);
+          i += close ? close.index + close[0].length : rest.length;
+        }
+        continue;
+      }
+      if (/[;&|()]/.test(ch)) { push(); tokens.push({ op: ch }); i++; continue; }
+      if (/\s/.test(ch)) { push(); i++; continue; }
+      add(ch);
+      i++;
+    }
+    push();
+
+    const unknown = (w) => w.includes("$") || w.startsWith("~") || w.includes("`");
+    const at = (dir, w) => (dir === null || unknown(w) ? null : resolve(dir, w));
     const inside = [];
-    for (const m of command.matchAll(/\bgit((?:\s+-C\s+(["']?)[^\s"']+\2)?)\s+worktree\s+add\b([^\n;&|]*)/g)) {
-      const gitC = /-C\s+(["']?)([^\s"']+)\1/.exec(m[1] ?? "")?.[2];
-      const base = gitC === undefined ? dir : isAbsolute(gitC) ? gitC : join(dir, gitC);
-      const words = (m[3] ?? "").trim().split(/\s+/).filter(Boolean).map((w) => w.replace(/^(["'])(.*)\1$/, "$2"));
+    const stack = [];
+    let dir = start;
+    let simple = [];
+    const judge = () => {
+      const words = simple;
+      simple = [];
+      let k = 0;
+      while (k < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[k].word) && words[k].plain) k++;
+      const name = words[k]?.word;
+      if (name === "cd") {
+        const target = words[k + 1]?.word;
+        dir = target === undefined ? null : at(dir, target);
+        return;
+      }
+      if (name !== "git" && !/\/git$/.test(name ?? "")) return;
+      let base = dir;
+      k++;
+      while (k < words.length && words[k].word.startsWith("-")) {
+        const opt = words[k].word;
+        if (opt === "-C") { base = at(base, words[k + 1]?.word ?? "$"); k += 2; }
+        else if (opt === "-c" || opt === "--git-dir" || opt === "--work-tree" || opt === "--namespace" || opt === "--exec-path" || opt === "--config-env") k += 2;
+        else k++;
+      }
+      if (words[k]?.word !== "worktree" || words[k + 1]?.word !== "add") return;
+      k += 2;
       let path;
-      for (let i = 0; i < words.length && path === undefined; i++) {
-        const w = words[i] ?? "";
-        if (["-b", "-B", "--reason", "--orphan"].includes(w)) i++;
+      for (; k < words.length && path === undefined; k++) {
+        const w = words[k].word;
+        if (w === "--") { path = words[k + 1]?.word; break; }
+        if (["-b", "-B", "--reason"].includes(w)) k++;
         else if (!w.startsWith("-")) path = w;
       }
-      if (path === undefined) continue;
-      const rel = relative(resolve(root), resolve(base, path));
-      if (!rel.startsWith("..") && !isAbsolute(rel)) inside.push(path);
+      if (path === undefined) return;
+      const target = at(base, path);
+      if (target === null) return;
+      const rel = relative(resolve(root), target);
+      if (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) inside.push(path);
+    };
+    for (const t of tokens) {
+      if (t.op === undefined) { simple.push(t); continue; }
+      judge();
+      if (t.op === "(") stack.push(dir);
+      if (t.op === ")") dir = stack.length ? stack.pop() : dir;
     }
+    judge();
     if (!inside.length) return 0;
     process.stderr.write(`Blocked: git worktree ${inside.join(", ")} would sit inside the checkout, where the gitleaks-staged hook finds the B5 scenario's synthetic secret and blocks every commit. Make it outside the checkout, under your scratchpad directory, and never use EnterWorktree or an agent's worktree isolation, which put it under .claude/worktrees/ (SPEC-001-R230).\n`);
     return 2;

@@ -173,6 +173,20 @@ describe("SPEC-001-R230 the no-inner-worktree hook", () => {
       "git -C sub worktree add ../inner main",
       `git worktree add ${join(project, "deep/wt")}`,
       "git status && git worktree add wt",
+      "git worktree add .",
+      "git worktree add .claude/worktrees/x && cd /tmp",
+      "git worktree add .claude/worktrees/x; cd /tmp",
+      "git worktree add --detach ..wt",
+      "git worktree add --orphan .claude/worktrees/x",
+      "git -c core.x=1 worktree add inner",
+      "git --no-pager worktree add inner",
+      "git -C . -C sub worktree add inner",
+      `git -C ${project} worktree add inner`,
+      "FOO=1 git worktree add inner",
+      "git worktree add -- inner",
+      "echo $(git worktree add inner)",
+      "echo hi\ngit worktree add inner",
+      "(cd /tmp) && git worktree add inner",
     ];
     for (const command of blocked) expect([command, hook(command).status]).toEqual([command, 2]);
     expect(hook("git worktree add wt").stderr).toContain("Make it outside the checkout, under your scratchpad directory");
@@ -189,6 +203,15 @@ describe("SPEC-001-R230 the no-inner-worktree hook", () => {
       "git worktree remove --force wt",
       "git worktree prune",
       "echo git worktree",
+      "(cd /tmp && git worktree add inner)",
+      "echo hi\ncd /tmp\ngit worktree add inner",
+      "cd '/tmp/a b' && git worktree add inner",
+      "git worktree add --lock --reason \"a b\" /tmp/wt",
+      'git worktree add "$TMPDIR/wt"',
+      'git -C "$HOME" worktree add wt',
+      "git worktree add ~/wt",
+      'git commit -m "git worktree add x"',
+      "git commit -F - <<'EOF'\nmsg\ngit worktree add inner\nEOF",
     ];
     for (const command of allowed) expect([command, hook(command).status]).toEqual([command, 0]);
   });

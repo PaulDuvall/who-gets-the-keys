@@ -57,7 +57,7 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 - Say "check" for automated verification and "gate" only for a human approval: an approver's signature or a required reviewer.
 - Commands written for a human to paste carry no `#` comments.
 - Make git worktrees outside the checkout, under the session's scratchpad directory, never under `.claude/worktrees/`, and never with EnterWorktree or an agent's worktree isolation, which put them there. Inside the checkout, gitleaks finds the B5 scenario's synthetic secret and the `gitleaks-staged` hook blocks every commit; the `no-inner-worktree` hook refuses `git worktree add` there (SPEC-001-R230).
-- A commit that changes `specs/`, `docs/decisions/`, a staged `SPEC-*.md`, `factory-video/claims.json`, `practices.yaml`, `scenarios/scenarios.yaml` or `.tasks/backlog.jsonl` runs `npm run progress` and commits `docs/progress.json` and `docs/progress.svg` with it, or the test check fails (SPEC-001-R227).
+- A commit that changes `specs/`, `docs/decisions/`, a staged `SPEC-*.md`, `factory-video/claims.json`, `factory-video/verify.mjs`, `scripts/progress.ts`, `practices.yaml`, `scenarios/scenarios.yaml` or `.tasks/backlog.jsonl` runs `npm run progress` and commits `docs/progress.json` and `docs/progress.svg` with it, or the test check fails (SPEC-001-R227).
 - A delivered video is named `walkthrough-<short SHA>-<UTC build time>.mp4`, for example `walkthrough-7f5c682-20261023T1554Z.mp4`. The SHA is the commit in `build/video/report.json`; the time is the video file's own write time, not the time it is sent.
 
 ## Batches
@@ -75,7 +75,7 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 - Every owner step names the terminal, the exact command, the one line that means success, and what to do on anything else.
 - One step at a time. Give the next step only after reading the previous step's result yourself.
 - Never push to `main` while any `main` deploy waits for approval. Check with the Actions API before each push.
-- Before the first landing step of a batch, run its preflight once against the owner's machine as `docs/notes/owner-queue-handoff-2026-11-11.md` describes it: Homebrew's `node@<major>` present, and `seq` behaving as macOS's does on 0. CI and the cloud container run Linux, so two failures on 2026-11-12 showed only on the owner's Mac.
+- Before the first landing step of a batch, simulate the owner's Mac in the preflight's scratch worktree: a Homebrew-style `node@<major>` under `/opt/homebrew/opt/`, and a `seq` first on PATH that prints `1` and `0` for `seq 0`, as macOS's BSD `seq` does. CI and the cloud container run Linux, so two failures on 2026-11-12 showed only on the owner's Mac.
 - Write commands for the owner's zsh: a glob that matches nothing fails the whole command, so wrap bash-only syntax in `bash -c`.
 - No command to copy runs past 120 characters on one line: put a long path in a `cd` line of its own, or split a long command at `\` line ends.
 - A step that signs gives the touch its own line before the command, and names the line `land.sh` prints when it is time to touch.
