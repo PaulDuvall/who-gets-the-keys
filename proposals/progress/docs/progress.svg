@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="324" viewBox="0 0 760 324" role="img" aria-label="Progress against the specs">
+<style>.h{font:600 15px sans-serif;fill:#6e7781}.t{font:600 13px sans-serif;fill:#6e7781}.l{font:12px sans-serif;fill:#6e7781}</style>
+<text x="16" y="20" class="h">Built against the specs, from npm run progress</text>
+<text x="16" y="47" class="t">Requirements</text>
+<rect x="200" y="34" width="204" height="18" fill="#2da44e"/>
+<rect x="404" y="34" width="316" height="18" fill="#d4a72c"/>
+<text x="200" y="68" class="l">106 approved in specs/ · 164 drafted, not approved</text>
+<text x="16" y="105" class="t">Factory video claims</text>
+<rect x="200" y="92" width="260" height="18" fill="#2da44e"/>
+<rect x="460" y="92" width="108" height="18" fill="#7fc58a"/>
+<rect x="568" y="92" width="130" height="18" fill="#d4a72c"/>
+<rect x="698" y="92" width="22" height="18" fill="#cf222e"/>
+<text x="200" y="126" class="l">12 built · 5 partly built · 6 planned · 1 open</text>
+<text x="16" y="163" class="t">Deck practices</text>
+<rect x="200" y="150" width="226" height="18" fill="#2da44e"/>
+<rect x="426" y="150" width="68" height="18" fill="#7fc58a"/>
+<rect x="494" y="150" width="68" height="18" fill="#d4a72c"/>
+<rect x="562" y="150" width="158" height="18" fill="#8c959f"/>
+<text x="200" y="184" class="l">20 shown good and bad · 6 good only · 6 partial · 14 not shown</text>
+<text x="16" y="221" class="t">Bad changes stopped</text>
+<rect x="200" y="208" width="449" height="18" fill="#2da44e"/>
+<rect x="649" y="208" width="24" height="18" fill="#7fc58a"/>
+<rect x="673" y="208" width="47" height="18" fill="#d4a72c"/>
+<text x="200" y="242" class="l">19 run locally · 1 need GitHub Actions · 2 need the sandbox</text>
+<text x="16" y="279" class="t">Backlog</text>
+<rect x="200" y="266" width="54" height="18" fill="#2da44e"/>
+<rect x="254" y="266" width="466" height="18" fill="#8c959f"/>
+<text x="200" y="300" class="l">3 closed · 26 open</text>
+</svg>
