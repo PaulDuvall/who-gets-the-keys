@@ -25,6 +25,7 @@
     "check:mutation": "node scripts/checks.ts mutation",
     "check:irreversible": "node scripts/checks.ts irreversible",
     "practices": "node scripts/checks.ts practices-md",
+    "progress": "node scripts/progress.ts",
     "scenarios": "node scenarios/run.ts",
     "scenario": "node scenarios/run.ts",
     "video": "node video/build.ts",

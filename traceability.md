@@ -93,6 +93,10 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R223 | `test/land-owner.test.ts`, `test/land.test.ts` | test | — |
 | SPEC-001-R224 | `test/aws-setup.test.ts` | test | — |
 | SPEC-001-R225 | `test/land-owner.test.ts`, `test/aws-setup.test.ts` | test | — |
+| SPEC-001-R226 | `test/progress.test.ts` | test | — |
+| SPEC-001-R227 | `test/progress.test.ts` | test | — |
+| SPEC-001-R228 | `test/progress.test.ts` | test | — |
+| SPEC-001-R229 | `test/progress.test.ts` | test | — |
 | SPEC-002-R1 | `test/video.test.ts` | test | — |
 | SPEC-002-R2 | `test/video.test.ts` | test | — |
 | SPEC-002-R3 | `test/video.test.ts` | test | — |
