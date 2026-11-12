@@ -17,6 +17,7 @@ const ykman = [
   'case "$1" in',
   '  list) for n in $(seq "${STUB_KEYS:-1}"); do echo "YubiKey 5C Nano (5.7.1) [OTP+FIDO+CCID] Serial: 12345$n"; done ;;',
   '  info) printf "Applications\\nYubico OTP         Enabled\\nOATH               %s\\n" "${STUB_OATH:-Enabled}" ;;',
+  '  oath) [ "$2 $3" = "accounts list" ] && printf "%s\\n" ${STUB_ACCOUNTS:-} ;;',
   "esac",
   "",
 ].join("\n");
@@ -90,6 +91,14 @@ describe("SPEC-001-R218 doctor.sh checks the owner's machine and prints the fix 
     expect(r.stdout).toContain("ok    its OATH application is enabled, for the break-glass code");
     expect(r.stdout).not.toContain("Node.js");
     expect(r.status).toBe(0);
+  });
+
+  it("SPEC-001-R218 notes, without failing, when the one YubiKey also holds the break-glass code", { timeout: TIMEOUT }, () => {
+    const repo = makeRepo();
+    const both = doctor(repo, ["--for", "aws"], { STUB_ACCOUNTS: "AWS:who-gets-the-keys-break-glass-user" });
+    expect(both.status).toBe(0);
+    expect(both.stdout).toContain("note  This YubiKey holds the break-glass code, and it is the one plugged in to sign: one device for both.");
+    expect(doctor(repo, ["--for", "aws"]).stdout).not.toContain("one device for both");
   });
 
   it("SPEC-001-R218 says when ykman is missing", { timeout: TIMEOUT }, () => {

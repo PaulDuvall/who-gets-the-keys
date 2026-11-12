@@ -31,7 +31,7 @@ New tests are in `test/doctor.test.ts` and `test/land-owner.test.ts`. The existi
 ## Not done, and why
 
 - `aws-setup.sh` still refuses a Node.js outside 24.11 or later on its own, rather than finding `node@24`. The criterion names `land.sh` only. Running `aws-setup.sh` after `doctor.sh` shows the fix.
-- The doctor does not refuse when the approver key and the break-glass code are on one device. That is k7d's open question; the owner decides.
+- The doctor does not refuse when the approver key and the break-glass code are on one device. The owner answered k7d's open question on 2026-11-12: a note, not a refusal. The doctor prints that note when the one YubiKey plugged in also holds the break-glass OATH account.
 - GitHub run IDs are 11 digits today. When they reach 12, the summary will mask them as `<account>`. That is acceptable: the run's URL is printed above the summary.
 
 ## Preflight

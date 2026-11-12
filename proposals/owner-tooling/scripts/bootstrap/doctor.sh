@@ -203,6 +203,12 @@ check_key() {
         info="$(ykman info 2>/dev/null || true)"
         if printf '%s\n' "$info" | grep -Eq '^OATH[[:space:]]+Enabled([[:space:]]|$)'; then
           ok "its OATH application is enabled, for the break-glass code"
+          # With one key plugged in, the key land.sh signs with is this one. The owner chose a note, not a refusal,
+          # while there is one device (k7d's open question, 2026-11-12).
+          if ykman oath accounts list 2>/dev/null | grep -q 'who-gets-the-keys-break-glass'; then
+            note "This YubiKey holds the break-glass code, and it is the one plugged in to sign: one device for both." \
+              "Losing it loses the approver key and break-glass together. A second key with its own copies removes that."
+          fi
         else
           fix "That YubiKey's OATH application is not enabled, so it cannot give the break-glass code." \
             "ykman config usb --enable OATH"
