@@ -77,3 +77,9 @@ Before giving the landing step, the agent checked how the batch's own tests woul
 
 What would have caught it earlier: running the preflight once with the owner's machine's layout simulated, here a Homebrew `node@24`, before the first landing step. That belongs with batch D's owner-step rules (backlog w2h).
 
+
+## Found in the owner's preflight: BSD seq
+
+The owner's first `land.sh proposals/owner-tooling` stopped at its preflight on 2026-11-12, as designed, with nothing signed: one test failed, "names the fix for no YubiKey". The test's `ykman` stand-in counted keys with `seq "$STUB_KEYS"`. GNU `seq 0` prints nothing; macOS's BSD `seq 0` counts down and prints `1` and `0`, so the stand-in reported two keys. Linux CI and the cloud container both have GNU `seq`, so neither caught it. Fixed with a `while` loop, and the suite passed with a `seq` that behaves as BSD's does on `0`: 21 files, 328 tests.
+
+What would have caught it earlier: a check that test stand-ins avoid commands whose GNU and BSD behaviour differs (`seq` with 0, `sed -i` without a suffix, `date -d`, `stat -c`, `readlink -f`), or running the preflight once on macOS. Both belong with batch D's owner-step rules (backlog w2h).

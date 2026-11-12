@@ -15,7 +15,8 @@ const keygen = "#!/usr/bin/env bash\nexit 0\n";
 const ykman = [
   "#!/usr/bin/env bash",
   'case "$1" in',
-  '  list) for n in $(seq "${STUB_KEYS:-1}"); do echo "YubiKey 5C Nano (5.7.1) [OTP+FIDO+CCID] Serial: 12345$n"; done ;;',
+  // A while loop, not seq: BSD seq 0 on macOS counts down and prints 1 and 0, GNU seq 0 prints nothing.
+  '  list) n=0; while [ "$n" -lt "${STUB_KEYS:-1}" ]; do n=$((n + 1)); echo "YubiKey 5C Nano (5.7.1) [OTP+FIDO+CCID] Serial: 12345$n"; done ;;',
   '  info) printf "Applications\\nYubico OTP         Enabled\\nOATH               %s\\n" "${STUB_OATH:-Enabled}" ;;',
   '  oath) [ "$2 $3" = "accounts list" ] && printf "%s\\n" ${STUB_ACCOUNTS:-} ;;',
   "esac",
