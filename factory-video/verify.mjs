@@ -507,7 +507,13 @@ async function guidedChecks(browser) {
       const el = document.getElementById('stage');
       return el.getAttribute('viewBox') + '|' + el.innerHTML;
     };
-    return { D, n, back, zOut, out, shots, seam: frameOf(0) === frameOf(D), t0: window.__debug(0).T, t1: window.__debug(D).T, lines, words, tooShort, badCaption, unsafe, cap, texts: window.GUIDED_SHOTS.map((s) => s.text).filter(Boolean), narration: window.GUIDED_SHOTS.map((s) => s.seconds) };
+    // The story ends where it began; the end card then holds that frame with its outlines on top (SPEC-001-R229).
+    const card = window.GUIDED_SHOTS.find((s) => s.endcard);
+    const storyEnd = card ? card.g0 - 1e-3 : D;
+    window.render(card ? (card.g0 + card.g1) / 2 : D);
+    const tags = [...document.querySelectorAll('#end-card rect[data-status]')].map((t) => t.getAttribute('data-status'));
+    const endCaption = document.querySelector('#caption span').textContent;
+    return { D, n, back, zOut, out, shots, seam: frameOf(0) === frameOf(storyEnd), card: !!card, tags, endCaption, t0: window.__debug(0).T, t1: window.__debug(D).T, lines, words, tooShort, badCaption, unsafe, cap, texts: window.GUIDED_SHOTS.map((s) => s.text).filter(Boolean), narration: window.GUIDED_SHOTS.map((s) => s.seconds) };
   }, MP4_FPS);
   await ctx.close();
   if (r.missing) return record('Guided timing', false, 'guided.html exposes no DURATION_SECONDS, GUIDED_SHOTS or __debug');
@@ -544,7 +550,11 @@ async function guidedChecks(browser) {
     record('Narration audio matches narration.js', !stale.length && got.length === r.narration.length,
       stale.length ? `stale: ${short(stale)}` : `${got.filter(Boolean).length} rendered lines, ${got.reduce((a, b) => a + b, 0).toFixed(1)} s of speech, each within ${tol} s of narration.js`);
   }
-  record('Guided seam', r.seam, r.seam ? 'the first and last frames are identical: the overview at loop time 0 (and 54)' : 'the first and last frames differ');
+  record('Guided seam', r.seam, r.seam ? 'the first frame and the last frame before the end card are identical: the overview at loop time 0 (and 54)' : 'the first frame and the last frame before the end card differ');
+  const cardOk = r.card && r.tags.length > 0 && /^Built so far: \d+ of \d+ claims/.test(r.endCaption);
+  record('Guided end card', cardOk, cardOk
+    ? `${r.tags.length} outlined labels (${[...new Set(r.tags)].join(', ')}); caption: ${r.endCaption}`
+    : `end card ${r.card ? 'present' : 'missing'}, ${r.tags.length} outlined labels, caption "${r.endCaption}"`);
   const net = log.requests.filter((u) => !u.startsWith('file://'));
   const errs = [...log.errors, ...log.console];
   record('Offline + no errors (guided)', !net.length && !errs.length, `${log.requests.length} requests${net.length ? `, non-file: ${short(net)}` : ', all file://'}, ${errs.length} errors`);

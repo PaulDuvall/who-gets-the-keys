@@ -55,7 +55,7 @@ gh workflow run factory-video.yml --repo PaulDuvall/who-gets-the-keys --ref main
 | `factory-guided-clean.mp4` | 1920×900, the same video with no burned-in captions, and the captions as a soft `mov_text` track: for platforms that draw their own |
 | `factory-guided.srt` | The captions as SubRip cues, a sentence or half-sentence at a time, timed to the voice: to upload alongside the clean video |
 | `claims-report.md` | Every claim the video makes, with its status in this repository at the build commit: built, partly built, planned, open or illustrative |
-| `factory-guided.mp4` | 1920×1080, H.264, yuv420p, 30 fps, AAC voiceover, 118.8 s: one narrated, captioned pass with a camera, for video rather than the deck. See [The guided video](#the-guided-video) |
+| `factory-guided.mp4` | 1920×1080, H.264, yuv420p, 30 fps, AAC voiceover, 124.8 s: one narrated, captioned pass with a camera, for video rather than the deck. See [The guided video](#the-guided-video) |
 | `contact-sheet.png` | Six frames of one loop, at 0, 3, 6, 9, 12 and 15 s, with what each shows |
 | `poster.png`, `poster.pdf` | 3840×2160 static poster and a one-page vector PDF with every font embedded |
 | `probe/t-*.png` | Local only. Frames at each story beat, written by `verify.mjs` for review |
@@ -145,10 +145,11 @@ Three runs share the conveyor, staggered so it is never empty: T-0042 (the signe
 | 101.9–109.1 s | "A separate security account watches the pipeline and production for drift. The pipeline can't touch it." | Security account, 1.8× |
 | 109.1–116.0 s | "One engineer signs each spec, two sign the factory, and the pipeline decides every change." | Overview |
 | 116.0–118.8 s | "No evidence, no deploy." | Overview |
+| 118.8–124.8 s | (silent) End card: built so far, and what is left | Overview |
 
 The narration sets the pace. Each shot lasts at least its line plus 0.4 s before and 0.5 s after, and the loop slows to fit; parts no shot follows still play at 2–4× in overview. Each line is also its shot's caption, in a strip below the picture, so the frame is 1920×1080 and captions never cover the scene. The voice is Kokoro-82M (Apache-licensed weights, "trained exclusively on permissive/non-copyrighted audio data") with `af_heart`, the only grade-A voice in Kokoro's own table, at speed 0.9: about 167 words a minute. Kokoro renders byte-identical audio for the same line on one machine; between CPUs a line's length can differ by a few hundredths of a second. `narration.js` stores each line's length and a key over its text, the voice, the speed and the model. The build fails if a key no longer matches its line, or a length is off by more than 0.1 s. To change a line or the voice (`VOICE` in `narrate.py`), edit it, then run `narrate.py update` with the Kokoro python.
 
-The camera zooms by changing the SVG `viewBox`, so text stays vector-sharp and is never smaller than in the loop. Speed changes ramp over 0.5 s. The video starts and ends on the same overview frame. The GIF keeps a fixed camera: the same camera track made a test GIF of 23.5 MB, against 3.6 MB without it and a 5 MB limit.
+The camera zooms by changing the SVG `viewBox`, so text stays vector-sharp and is never smaller than in the loop. Speed changes ramp over 0.5 s. The story starts and ends on the same overview frame. A silent end card then holds that frame: each label of a claim not yet built is outlined, amber for planned, red for open, purple for partly built, a planned or open one is faded, and the caption counts claims built, partly built, planned and open, and requirements approved and drafted. `build.sh` writes the counts with `scripts/progress.ts`, the code behind the README's progress picture, so the two agree (SPEC-001-R229). Blue stays for the places a human decides. The GIF keeps a fixed camera: the same camera track made a test GIF of 23.5 MB, against 3.6 MB without it and a 5 MB limit.
 
 ## Checks
 
@@ -174,7 +175,8 @@ For the guided video, `verify.mjs` checks:
 | The narration digests are current | Each line's `digest` in `narration.js` is the SHA-256 of the model files' hashes, the voice, the speed and its text (`narrate.py check`), so any edit since the last `narrate.py update` fails |
 | The narration lengths are current | Each line's rendered length is within 0.1 s of the length stored in `narration.js` (`TOLERANCE` in `narrate.py`) |
 | The camera frames each beat | Every frame: once the camera settles, the shot's focus box is fully in frame; zoom stays between 1.0 and 2.0; every zoomed shot holds at least 1 s |
-| It starts and ends on the overview | The first and last frames are identical |
+| The story starts and ends on the overview | The first frame and the last frame before the end card are identical |
+| The end card shows what is left | It outlines at least one label, and its caption starts "Built so far:" with the counts |
 | The MP4 matches the page | 1920×1080, H.264, yuv420p, 30 fps, an AAC voiceover as long as the video, and a duration within 0.05 s of the page's |
 | The claims ledger is complete | Every on-screen label and narration line belongs to a claim in `claims.json`; every cited requirement is in `specs/`, every draft in `docs/decisions/` or `proposals/`, every backlog ID in `.tasks/backlog.jsonl`, every file string in its file. Gaps do not fail; they go in `out/claims-report.md` |
 | Captions stay in the safe area | Every caption keeps to the middle 80% of the width and to its strip, in at most three lines, so a player that crops the sides still shows all of it |
@@ -329,6 +331,7 @@ Revision 4, the factory model:
 | 18 | The issue schema on screen, AI checks that can only fail, captions in a safe area, a clean video and an SRT; 118.8 s |
 | 19 | A factory frame around the sandbox, triage and pipeline; specs, the security account, the release sign-off and Production outside |
 | 20 | Moved to who-gets-the-keys: built by the `factory-video` workflow, one artifact kept, no new dependency |
+| 21 | A silent end card: what is built and what is left, from `scripts/progress.ts`; 124.8 s |
 
 ## Poster sources
 

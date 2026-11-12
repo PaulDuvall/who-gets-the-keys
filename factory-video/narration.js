@@ -27,6 +27,7 @@ window.NARRATION =
   {"cam": "telemetryCard", "text": "Only an alarm named in the signed policy can start an approved task.", "seconds": 4.288, "digest": "00f7c1cea418"},
   {"cam": "monitor", "text": "A separate security account watches the pipeline and production for drift. The pipeline can't touch it.", "seconds": 6.272, "digest": "0f9dba0faa36"},
   {"cam": "overview", "text": "One engineer signs each spec, two sign the factory, and the pipeline decides every change.", "seconds": 5.995, "digest": "f9cd07d7e321"},
-  {"cam": "overview", "text": "No evidence, no deploy.", "seconds": 1.877, "digest": "0540b713a2d9"}
+  {"cam": "overview", "text": "No evidence, no deploy.", "seconds": 1.877, "digest": "0540b713a2d9"},
+  {"cam": "overview", "text": "", "seconds": 0.0, "digest": "ef9368e01a0d"}
 ]
 ;

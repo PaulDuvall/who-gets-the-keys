@@ -1,4 +1,4 @@
-// How far the repository has got against what its specs and decisions describe (SPEC-001-R226 to R228). One source
+// How far the repository has got against what its specs and decisions describe (SPEC-001-R226 to R229). One source
 // for the README's progress visual and badges, and for the factory video's claim statuses (factory-video/verify.mjs
 // imports claimStatus and ledgerProblems). It reads only committed files and writes no commit SHA or time, so the
 // same tree always gives the same bytes, and the test check can tell when the committed copy is stale.
@@ -197,6 +197,29 @@ export function progressSvg(p: Progress): string {
   ].join("\n");
 }
 
+export interface VideoData {
+  claims: Progress["claims"];
+  requirements: { approved: number; drafted: number };
+  /** Each claim not yet fully built, with its on-screen labels in ledger order. The end card tags one label per claim. */
+  unbuilt: { id: string; status: ClaimStatus; labels: string[] }[];
+}
+
+/**
+ * What the factory video's end card shows: the counts, and each claim not yet fully built (SPEC-001-R229). It uses no
+ * package, because the video's build job installs none at the repository root, and it counts as progress() does.
+ */
+export function videoData(root = "."): VideoData {
+  const { approved, drafted } = requirementSets(root);
+  const { claims } = JSON.parse(readFileSync(join(root, "factory-video", "claims.json"), "utf8")) as { claims: (Claim & { labels?: string[] })[] };
+  const problems = ledgerProblems(root, claims);
+  if (problems.length) throw new Error(`factory-video/claims.json no longer matches the repository:\n${problems.join("\n")}`);
+  const statuses = claims.map(claimStatus);
+  const unbuilt = claims
+    .map((c, i) => ({ id: c.id, status: statuses[i] ?? claimStatus(c), labels: c.labels ?? [] }))
+    .filter((c) => c.status === "planned" || c.status === "open" || c.status === "partly built");
+  return { claims: { ...count(CLAIM_STATUSES, statuses), total: claims.length }, requirements: { approved: approved.size, drafted: drafted.size }, unbuilt };
+}
+
 /** The two files npm run progress writes, by path. */
 export async function progressFiles(root = "."): Promise<Record<string, string>> {
   const p = await progress(root);
@@ -204,6 +227,10 @@ export async function progressFiles(root = "."): Promise<Record<string, string>>
 }
 
 // pathToFileURL encodes a path with a space or a percent sign as import.meta.url does.
+//   node scripts/progress.ts --video-data <file>   writes the end card's data as a script, for factory-video/build.sh
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  for (const [path, text] of Object.entries(await progressFiles("."))) writeFileSync(path, text);
+  const [flag, out] = process.argv.slice(2);
+  if (flag === "--video-data" && out) writeFileSync(out, `window.PROGRESS = ${JSON.stringify(videoData("."), null, 2)};\n`);
+  else if (flag === undefined) for (const [path, text] of Object.entries(await progressFiles("."))) writeFileSync(path, text);
+  else throw new Error("usage: node scripts/progress.ts [--video-data <file>]");
 }

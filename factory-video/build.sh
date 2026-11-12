@@ -21,6 +21,8 @@ ffmpeg -y -v error -stream_loop 9 -i frames/loop.mp4 -c copy -movflags +faststar
 NARRATE_PYTHON="${NARRATE_PYTHON:-python3}"
 mkdir -p frames/guided frames/narration
 "$NARRATE_PYTHON" narrate.py render frames/narration
+# The end card's counts and tags, from the same code as the README's progress picture (SPEC-001-R229).
+(cd .. && node scripts/progress.ts --video-data factory-video/frames/progress.js)
 node render.mjs guided.html frames/guided 30
 "$NARRATE_PYTHON" narrate.py mix frames/narration frames/guided/shots.json frames/narration/narration.wav
 ffmpeg -y -v error -framerate 30 -i frames/guided/f_%04d.png -i frames/narration/narration.wav \

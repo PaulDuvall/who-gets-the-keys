@@ -22,6 +22,8 @@
 <div id="caption"><span></span></div>
 <script src="scene.js"></script>
 <script src="narration.js"></script>
+<!-- The end card's counts: build.sh writes this file with scripts/progress.ts before it renders (SPEC-001-R229). -->
+<script src="frames/progress.js"></script>
 <script>window.__EMBED_LOOP__ = true;</script>
 <script src="loop.js"></script>
 <script>
@@ -39,11 +41,16 @@
  *            T-0043, and T-0043's receipt reads "untrusted issue"
  *   pass 3   telemetry: the alarm becomes task T-0044, a trusted signal with no human; then the
  *            security account that watches the pipeline and Production for drift
+ *   end card the whole factory once more: each label of a claim not yet built is outlined, amber
+ *            for planned, red for open, purple for partly built (blue is kept for humans), a planned or open one is faded, and
+ *            the caption counts what is built and what is left, from scripts/progress.ts
+ *            (SPEC-001-R229). It is silent.
  *
  * Two tracks drive the loop. The speed track slows each beat (0.7-0.9x) and fast-forwards
  * through the parts no shot follows (2-4x, in overview). The camera zooms by changing the
  * SVG viewBox, so text stays vector-sharp and is never smaller than in the loop (zoom >= 1).
- * The video starts and ends on the same overview frame: loop time 0, which is also 54.
+ * The story starts and ends on the same overview frame: loop time 0, which is also 54. The end card
+ * holds that frame with its outlines on top.
  *
  * Narration (narration.js) sets the pace: each shot lasts at least its line's length plus
  * LEAD before it and TAIL after it, and its speed slows to fit. The line is also the shot's
@@ -100,6 +107,7 @@
     { T: [51.0, 52.5], speed: 0.6, cam: 'monitor', beat: 'A separate security account watches for drift; the pipeline cannot touch it' },
     { T: [52.5, 54.0], speed: 1, cam: 'overview', beat: 'Back to the whole factory' },
     { hold: 2.5, T: 54, cam: 'overview', beat: 'The whole factory' },
+    { hold: 6.0, T: 54, cam: 'overview', beat: 'Built so far, and what is left', endcard: true },
   ];
   const LEAD = 0.4; // seconds from a shot's start to its line's first word
   const TAIL = 0.5; // seconds of quiet after the line before the next shot
@@ -192,17 +200,74 @@
   const q6 = (x) => Math.round(x * 1e6) / 1e6;
   const svg = document.getElementById('stage');
   window.DURATION_SECONDS = DURATION;
-  window.GUIDED_SHOTS = SHOTS.map((s) => ({ beat: s.beat, cam: s.cam, g0: s.g0, g1: s.g1, T: [s.Ta, s.Tb], speed: s.speed || 0, text: s.text, seconds: s.seconds, voiceStart: s.voiceStart }));
+  window.GUIDED_SHOTS = SHOTS.map((s) => ({ beat: s.beat, cam: s.cam, g0: s.g0, g1: s.g1, T: [s.Ta, s.Tb], speed: s.speed || 0, text: s.text, seconds: s.seconds, voiceStart: s.voiceStart, endcard: !!s.endcard }));
   window.GUIDED_TIMING = { lead: LEAD, tail: TAIL };
   window.FRAME_SIZE = { width: 2400, height: 1350 }; // render.js sets this viewport: scene plus captions
   const caption = document.querySelector('#caption span');
+
+  // The end card (SPEC-001-R229). Labels are found in the frame the loop just drew, so no position is copied
+  // from scene.js. A label drawn as one text element matches by its text; one split over lines matches as up
+  // to three text elements in a row, joined by spaces.
+  const NS = 'http://www.w3.org/2000/svg';
+  const OUTLINE = { planned: '#9a6700', open: '#cf222e', 'partly built': '#8250df' };
+  function labelBoxes(label) {
+    const texts = [...svg.querySelectorAll('text')];
+    const words = texts.map((t) => t.textContent.trim());
+    for (let i = 0; i < texts.length; i++) {
+      for (let n = 1; n <= 3 && i + n <= texts.length; n++) {
+        if (words.slice(i, i + n).join(' ') === label) return texts.slice(i, i + n).map(userBox);
+      }
+    }
+    return [];
+  }
+  function userBox(el) {
+    const m = svg.getScreenCTM().inverse().multiply(el.getScreenCTM());
+    const b = el.getBBox();
+    const xs = [b.x, b.x + b.width].flatMap((x) => [b.y, b.y + b.height].map((y) => x * m.a + y * m.c + m.e));
+    const ys = [b.x, b.x + b.width].flatMap((x) => [b.y, b.y + b.height].map((y) => x * m.b + y * m.d + m.f));
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  }
+  function endCard(u) {
+    const P = window.PROGRESS;
+    if (!P) return 'The end card has no data: build.sh writes frames/progress.js with scripts/progress.ts.';
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('id', 'end-card');
+    g.setAttribute('opacity', u.toFixed(3));
+    // Each label of a claim not yet built gets an outline in its status colour, which covers no text. A planned or
+    // open label is also faded. The caption names each colour.
+    for (const c of P.unbuilt) {
+      for (const [x1, y1, x2, y2] of c.labels.flatMap(labelBoxes)) {
+        const box = { x: x1 - 6, y: y1 - 4, width: x2 - x1 + 12, height: y2 - y1 + 8, rx: 6 };
+        if (c.status !== 'partly built') {
+          const fade = document.createElementNS(NS, 'rect');
+          Object.entries({ ...box, fill: '#f4f1ea', opacity: 0.6 }).forEach(([k, v]) => fade.setAttribute(k, v));
+          g.appendChild(fade);
+        }
+        const line = document.createElementNS(NS, 'rect');
+        Object.entries({ ...box, fill: 'none', stroke: OUTLINE[c.status], 'stroke-width': 4, 'data-status': c.status }).forEach(([k, v]) => line.setAttribute(k, v));
+        g.appendChild(line);
+      }
+    }
+    svg.appendChild(g);
+    const k = P.claims;
+    const counted = k.built + k['partly built'] + k.planned + k.open;
+    return `Built so far: ${k.built} of ${counted} claims, ${k['partly built']} partly (outlined purple). ` +
+      `Still to build: ${k.planned} planned (amber), ${k.open} open (red). Requirements: ${P.requirements.approved} approved, ${P.requirements.drafted} drafted.`;
+  }
+
   window.render = function render(x) {
     const gx = q6(Math.min(DURATION, Math.max(0, x)));
     const c = camera(gx);
     svg.innerHTML = loop.draw(storyTime(gx));
     svg.setAttribute('viewBox', c.vb.map((v) => v.toFixed(3)).join(' '));
-    // The shot's line, faded in and out over 0.2 s at the shot's edges.
+    // The shot's line, faded in and out over 0.2 s at the shot's edges. The end card fades in over 0.6 s.
     const s = SHOTS[c.i];
+    if (s.endcard) {
+      const u = Math.min(1, (gx - s.g0) / 0.6);
+      caption.textContent = endCard(u);
+      caption.style.opacity = u.toFixed(3);
+      return;
+    }
     caption.textContent = s.text;
     caption.style.opacity = s.text ? Math.min(1, (gx - s.g0) / 0.2, (s.g1 - gx) / 0.2).toFixed(3) : '0';
   };

@@ -2,13 +2,13 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { claimStatus, ledgerProblems, progress, progressFiles, progressSvg, requirementSets, type Claim } from "../scripts/progress.ts";
+import { claimStatus, ledgerProblems, progress, progressFiles, progressSvg, requirementSets, videoData, type Claim } from "../scripts/progress.ts";
 import { scratchDir } from "./helpers/temp-repo.ts";
 
 // The README's progress visual and the factory video's claim statuses come from scripts/progress.ts, from committed
 // files only. The test check fails when the committed copy is stale or a claim no longer matches the repository
 // (SPEC-001-R226 to R228).
-describe("SPEC-001-R226 to R228 the progress record is generated, current, and shown in the README", () => {
+describe("SPEC-001-R226 to R229 the progress record is generated, current, and shown in the README", () => {
   const scratch = scratchDir("progress-");
 
   it("SPEC-001-R227 docs/progress.json and docs/progress.svg are what npm run progress writes for this tree", async () => {
@@ -127,5 +127,28 @@ describe("SPEC-001-R226 to R228 the progress record is generated, current, and s
     for (const key of ["requirements", "claims"]) expect(readme).toContain(`url=${raw}&query=%24.badges.${key}&`);
     const p = JSON.parse(readFileSync("docs/progress.json", "utf8")) as { badges: Record<string, string> };
     expect(Object.keys(p.badges)).toEqual(expect.arrayContaining(["requirements", "claims"]));
+  });
+  it("SPEC-001-R229 gives the end card the counts and each claim not fully built, counted as the README counts them", async () => {
+    const v = videoData(".");
+    const p = await progress(".");
+    expect(v.claims).toEqual(p.claims);
+    expect(v.requirements).toEqual({ approved: p.requirements.approved, drafted: p.requirements.drafted });
+    expect(v.unbuilt.length).toBe(p.claims["partly built"] + p.claims.planned + p.claims.open);
+    for (const c of v.unbuilt) expect(["partly built", "planned", "open"]).toContain(c.status);
+  });
+
+  it("SPEC-001-R229 ends the guided video on a silent end card, built from progress.ts, with blue kept for humans", () => {
+    const guided = readFileSync("factory-video/guided.html", "utf8");
+    expect(guided).toContain('<script src="frames/progress.js"></script>');
+    expect(guided).toMatch(/\{ hold: [\d.]+, T: 54, cam: 'overview', beat: 'Built so far, and what is left', endcard: true \},\n {2}\];/);
+    expect(guided).toContain("const OUTLINE = { planned: '#9a6700', open: '#cf222e', 'partly built': '#8250df' };");
+    expect(guided).toContain("return `Built so far: ${k.built} of ${counted} claims");
+    const build = readFileSync("factory-video/build.sh", "utf8");
+    const data = build.indexOf("node scripts/progress.ts --video-data factory-video/frames/progress.js");
+    expect(data).toBeGreaterThan(-1);
+    expect(data).toBeLessThan(build.indexOf("node render.mjs guided.html"));
+    const narration = readFileSync("factory-video/narration.js", "utf8");
+    const lines = JSON.parse(narration.slice(narration.indexOf("[", narration.indexOf("window.NARRATION")), narration.lastIndexOf("]") + 1)) as { cam: string; text: string }[];
+    expect(lines.at(-1)).toMatchObject({ cam: "overview", text: "" });
   });
 });

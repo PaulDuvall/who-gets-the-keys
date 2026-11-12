@@ -1,12 +1,13 @@
 # Backlog who-gets-the-keys-p9v: one generated progress record, docs/progress.json and docs/progress.svg, shown in
 # the README, and a test that fails when it, docs/practices.md or the factory video's claims ledger is stale. New
-# SPEC-001-R226 to R228. scripts/progress.ts and factory-video/verify.mjs landed unsigned before this batch.
+# SPEC-001-R226 to R229, and the factory video's end card. scripts/progress.ts and factory-video/ landed unsigned first.
 # Built on proposals/owner-tooling/'s spec and traceability copies, which land first. docs/progress.json and
 # docs/progress.svg are computed for the tree after both batches land, so the test passes in the preflight.
 message: spec: show what is built against the specs, generated and kept current by a test (backlog p9v)
 spec: SPEC-001-R226
 spec: SPEC-001-R227
 spec: SPEC-001-R228
+spec: SPEC-001-R229
 requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R225 |
 requires: traceability.md | SPEC-001-R225 |
 move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
