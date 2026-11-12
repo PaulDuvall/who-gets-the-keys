@@ -227,6 +227,13 @@ def srt(shots_json, out_srt):
     shots = json.loads(Path(shots_json).read_text())["shots"]
     blocks = []
     for s in shots:
+        if s.get("caption"):
+            # A silent end card's caption: one cue for its whole shot, cut at sentences (SPEC-001-R229).
+            parts = cues(s["caption"])
+            span = (s["g1"] - s["g0"]) / len(parts)
+            for k, p in enumerate(parts):
+                blocks.append((s["g0"] + k * span, s["g0"] + (k + 1) * span, wrap(p)))
+            continue
         if not s["text"]:
             continue
         parts = cues(s["text"])
@@ -242,7 +249,7 @@ def srt(shots_json, out_srt):
             t0 = t1
     body = "".join(f"{i}\n{stamp(a)} --> {stamp(b)}\n{t}\n\n" for i, (a, b, t) in enumerate(blocks, 1))
     Path(out_srt).write_text(body, encoding="utf-8")
-    print(f"{out_srt}: {len(blocks)} cues from {sum(1 for s in shots if s['text'])} lines")
+    print(f"{out_srt}: {len(blocks)} cues from {sum(1 for s in shots if s['text'])} lines and {sum(1 for s in shots if s.get('caption'))} end card")
 
 
 if __name__ == "__main__":

@@ -41,10 +41,10 @@
  *            T-0043, and T-0043's receipt reads "untrusted issue"
  *   pass 3   telemetry: the alarm becomes task T-0044, a trusted signal with no human; then the
  *            security account that watches the pipeline and Production for drift
- *   end card the whole factory once more: each label of a claim not yet built is outlined, amber
- *            for planned, red for open, purple for partly built (blue is kept for humans), a planned or open one is faded, and
- *            the caption counts what is built and what is left, from scripts/progress.ts
- *            (SPEC-001-R229). It is silent.
+ *   end card the whole factory once more: each label of a claim not yet built is outlined, solid
+ *            amber for planned, solid red for open, dashed amber for partly built (blue is kept for
+ *            humans), a planned or open label is faded, and the caption, also an SRT cue, counts what
+ *            is built and what is left, from scripts/progress.ts (SPEC-001-R229). It is silent.
  *
  * Two tracks drive the loop. The speed track slows each beat (0.7-0.9x) and fast-forwards
  * through the parts no shot follows (2-4x, in overview). The camera zooms by changing the
@@ -133,6 +133,8 @@
     s.g1 = g;
   });
   const DURATION = Math.round(g * 1000) / 1000;
+  // The end card's caption is fixed for the build, so it goes in shots.json and narrate.py writes it as an SRT cue.
+  SHOTS.forEach((s) => { if (s.endcard) s.caption = endCardCaption(); });
 
   // Speed track: T as a function of g, piecewise linear, then box-filtered so each speed
   // change ramps over SMOOTH seconds. Tabulated at 1 ms; the holds at both ends keep
@@ -200,7 +202,7 @@
   const q6 = (x) => Math.round(x * 1e6) / 1e6;
   const svg = document.getElementById('stage');
   window.DURATION_SECONDS = DURATION;
-  window.GUIDED_SHOTS = SHOTS.map((s) => ({ beat: s.beat, cam: s.cam, g0: s.g0, g1: s.g1, T: [s.Ta, s.Tb], speed: s.speed || 0, text: s.text, seconds: s.seconds, voiceStart: s.voiceStart, endcard: !!s.endcard }));
+  window.GUIDED_SHOTS = SHOTS.map((s) => ({ beat: s.beat, cam: s.cam, g0: s.g0, g1: s.g1, T: [s.Ta, s.Tb], speed: s.speed || 0, text: s.text, seconds: s.seconds, voiceStart: s.voiceStart, endcard: !!s.endcard, caption: s.caption || '' }));
   window.GUIDED_TIMING = { lead: LEAD, tail: TAIL };
   window.FRAME_SIZE = { width: 2400, height: 1350 }; // render.js sets this viewport: scene plus captions
   const caption = document.querySelector('#caption span');
@@ -209,13 +211,13 @@
   // from scene.js. A label drawn as one text element matches by its text; one split over lines matches as up
   // to three text elements in a row, joined by spaces.
   const NS = 'http://www.w3.org/2000/svg';
-  const OUTLINE = { planned: '#9a6700', open: '#cf222e', 'partly built': '#8250df' };
-  function labelBoxes(label) {
+  const OUTLINE = { planned: ['#9a6700', 'none'], open: ['#cf222e', 'none'], 'partly built': ['#9a6700', '10 6'] };
+  function labelElements(label) {
     const texts = [...svg.querySelectorAll('text')];
     const words = texts.map((t) => t.textContent.trim());
     for (let i = 0; i < texts.length; i++) {
       for (let n = 1; n <= 3 && i + n <= texts.length; n++) {
-        if (words.slice(i, i + n).join(' ') === label) return texts.slice(i, i + n).map(userBox);
+        if (words.slice(i, i + n).join(' ') === label) return texts.slice(i, i + n);
       }
     }
     return [];
@@ -227,32 +229,39 @@
     const ys = [b.x, b.x + b.width].flatMap((x) => [b.y, b.y + b.height].map((y) => x * m.b + y * m.d + m.f));
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
   }
-  function endCard(u) {
+  // The end card's caption: the counts and what each outline means, from frames/progress.js.
+  function endCardCaption() {
     const P = window.PROGRESS;
     if (!P) return 'The end card has no data: build.sh writes frames/progress.js with scripts/progress.ts.';
+    const k = P.claims;
+    const counted = k.built + k['partly built'] + k.planned + k.open;
+    return `Built so far: ${k.built} of ${counted} claims, ${k['partly built']} partly (dashed amber). ` +
+      `Still to build: ${k.planned} planned (amber), ${k.open} open (red). Requirements: ${P.requirements.approved} approved, ${P.requirements.drafted} drafted.`;
+  }
+  // Each label of a claim not yet built is outlined: solid amber for planned, solid red for open, dashed amber for
+  // partly built. The text of a planned or open label is faded. Blue stays for humans. window.END_CARD_MISSING lists
+  // each claim whose labels are not in the frame, so verify.mjs fails rather than show a claim with no outline.
+  function endCard(u) {
+    const P = window.PROGRESS;
+    window.END_CARD_MISSING = [];
+    if (!P) return;
     const g = document.createElementNS(NS, 'g');
     g.setAttribute('id', 'end-card');
     g.setAttribute('opacity', u.toFixed(3));
-    // Each label of a claim not yet built gets an outline in its status colour, which covers no text. A planned or
-    // open label is also faded. The caption names each colour.
     for (const c of P.unbuilt) {
-      for (const [x1, y1, x2, y2] of c.labels.flatMap(labelBoxes)) {
-        const box = { x: x1 - 6, y: y1 - 4, width: x2 - x1 + 12, height: y2 - y1 + 8, rx: 6 };
-        if (c.status !== 'partly built') {
-          const fade = document.createElementNS(NS, 'rect');
-          Object.entries({ ...box, fill: '#f4f1ea', opacity: 0.6 }).forEach(([k, v]) => fade.setAttribute(k, v));
-          g.appendChild(fade);
-        }
+      const found = c.labels.flatMap(labelElements);
+      if (c.labels.length && !found.length) window.END_CARD_MISSING.push(c.id);
+      for (const el of found) {
+        if (c.status !== 'partly built') el.setAttribute('opacity', (1 - 0.55 * u).toFixed(3));
+        const [x1, y1, x2, y2] = userBox(el);
         const line = document.createElementNS(NS, 'rect');
-        Object.entries({ ...box, fill: 'none', stroke: OUTLINE[c.status], 'stroke-width': 4, 'data-status': c.status }).forEach(([k, v]) => line.setAttribute(k, v));
+        const [colour, dash] = OUTLINE[c.status];
+        Object.entries({ x: x1 - 4, y: y1 - 1, width: x2 - x1 + 8, height: y2 - y1 + 2, rx: 5, fill: 'none', stroke: colour,
+          'stroke-width': 3, 'stroke-dasharray': dash, 'data-status': c.status }).forEach(([k, v]) => line.setAttribute(k, v));
         g.appendChild(line);
       }
     }
     svg.appendChild(g);
-    const k = P.claims;
-    const counted = k.built + k['partly built'] + k.planned + k.open;
-    return `Built so far: ${k.built} of ${counted} claims, ${k['partly built']} partly (outlined purple). ` +
-      `Still to build: ${k.planned} planned (amber), ${k.open} open (red). Requirements: ${P.requirements.approved} approved, ${P.requirements.drafted} drafted.`;
   }
 
   window.render = function render(x) {
@@ -264,7 +273,8 @@
     const s = SHOTS[c.i];
     if (s.endcard) {
       const u = Math.min(1, (gx - s.g0) / 0.6);
-      caption.textContent = endCard(u);
+      endCard(u);
+      caption.textContent = s.caption;
       caption.style.opacity = u.toFixed(3);
       return;
     }

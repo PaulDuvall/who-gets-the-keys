@@ -200,7 +200,7 @@ export function progressSvg(p: Progress): string {
 export interface VideoData {
   claims: Progress["claims"];
   requirements: { approved: number; drafted: number };
-  /** Each claim not yet fully built, with its on-screen labels in ledger order. The end card tags one label per claim. */
+  /** Each claim not yet fully built, with its on-screen labels in ledger order. The end card outlines every one. */
   unbuilt: { id: string; status: ClaimStatus; labels: string[] }[];
 }
 

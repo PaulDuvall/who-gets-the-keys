@@ -141,8 +141,14 @@ describe("SPEC-001-R226 to R229 the progress record is generated, current, and s
     const guided = readFileSync("factory-video/guided.html", "utf8");
     expect(guided).toContain('<script src="frames/progress.js"></script>');
     expect(guided).toMatch(/\{ hold: [\d.]+, T: 54, cam: 'overview', beat: 'Built so far, and what is left', endcard: true \},\n {2}\];/);
-    expect(guided).toContain("const OUTLINE = { planned: '#9a6700', open: '#cf222e', 'partly built': '#8250df' };");
+    // Amber and red only, solid or dashed: no blue, which the video keeps for the places a human decides.
+    expect(guided).toContain("const OUTLINE = { planned: ['#9a6700', 'none'], open: ['#cf222e', 'none'], 'partly built': ['#9a6700', '10 6'] };");
     expect(guided).toContain("return `Built so far: ${k.built} of ${counted} claims");
+    // The caption also goes in shots.json, so narrate.py writes it as an SRT cue for the clean video.
+    expect(guided).toContain("SHOTS.forEach((s) => { if (s.endcard) s.caption = endCardCaption(); });");
+    expect(readFileSync("factory-video/narrate.py", "utf8")).toContain('if s.get("caption"):');
+    // A claim whose labels are not in the frame fails the build rather than lose its outline.
+    expect(readFileSync("factory-video/verify.mjs", "utf8")).toContain("!r.unoutlined.length");
     const build = readFileSync("factory-video/build.sh", "utf8");
     const data = build.indexOf("node scripts/progress.ts --video-data factory-video/frames/progress.js");
     expect(data).toBeGreaterThan(-1);
