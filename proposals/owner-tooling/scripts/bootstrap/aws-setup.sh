@@ -124,6 +124,14 @@ started=""
 # chosen: set when the owner said no to a plan, so the run stopped by choice and not on a problem.
 chosen=""
 work="$(mktemp -d "${TMPDIR:-/tmp}/aws-setup.XXXXXX")"
+# on_macos_terminal: true on macOS while standard output is a terminal, so a test run, such as the preflight's, never
+# takes over the owner's clipboard or shows a notification. OWNER_SCRIPT_DESKTOP=always makes it true without a
+# terminal, for the tests of the clipboard and the notification themselves.
+on_macos_terminal() {
+  [ "$(uname -s 2>/dev/null || true)" = Darwin ] || return 1
+  [ -t 1 ] || [ "${OWNER_SCRIPT_DESKTOP:-}" = always ]
+}
+
 # print_summary: at most 10 lines for the owner to paste to the agent, also copied to the clipboard on macOS
 # (SPEC-001-R225). It names no AWS account: twelve digits that stand alone, as in an ARN, are replaced.
 print_summary() {
@@ -138,7 +146,7 @@ print_summary() {
     cut -c1-200 > "$work/summary"
   say ""
   cat "$work/summary"
-  if [ "$(uname -s 2>/dev/null || true)" = Darwin ] && command -v pbcopy >/dev/null 2>&1; then
+  if on_macos_terminal && command -v pbcopy >/dev/null 2>&1; then
     pbcopy < "$work/summary" 2>/dev/null && say "(copied to the clipboard)" || true
   fi
 }

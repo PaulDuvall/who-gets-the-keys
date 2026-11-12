@@ -81,10 +81,13 @@ max=""
 
 # keg_node: prints the bin directory of Homebrew's node@<major> for the engines range's highest major, when that node
 # is in range. Homebrew installs node@<major> keg-only, so it is on PATH only where a shell profile puts it there.
+# brew shellenv sets HOMEBREW_PREFIX; when it is set, only that prefix is searched, so the tests can point it at an
+# empty directory on a Mac that has Homebrew's node@<major>. Unset, the two standard prefixes are searched.
 keg_node() {
-  local major prefix dir
+  local major prefix dir prefixes
   major=$((max - 1))
-  for prefix in "${HOMEBREW_PREFIX:-}" /opt/homebrew /usr/local; do
+  prefixes="${HOMEBREW_PREFIX:-/opt/homebrew /usr/local}"
+  for prefix in $prefixes; do
     [ -n "$prefix" ] || continue
     dir="${prefix}/opt/node@${major}/bin"
     if [ -x "$dir/node" ] && in_range "$(node_version "$dir/node")"; then

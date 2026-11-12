@@ -252,7 +252,10 @@ describe("SPEC-001-R219 to R225 land.sh checks the machine, tells the truth abou
     const ssh = '#!/usr/bin/env bash\n[ "$*" = "-Q key" ] && echo sk-ssh-ed25519@openssh.com\nexit 0\n';
     const repo = makeRepo(batch(""), { "ssh-keygen": keygen, ssh, ...darwin });
     const head = git(repo, "rev-parse", "HEAD");
-    const r = land(repo, ["proposals/batch"], "n\ny\n");
+    // Without a terminal, no notification, so a test run on the owner's Mac shows none.
+    land(repo, ["proposals/batch"], "n\ny\n");
+    expect(lines(join(repo.stub, "notified"))).toEqual([]);
+    const r = land(repo, ["proposals/batch"], "n\ny\n", { OWNER_SCRIPT_DESKTOP: "always" });
     expect(r.status).toBe(1);
     expect(r.stdout).toContain("\n\n==> TOUCH YOUR SECURITY KEY NOW. It blinks to sign: spec: land the test batch\n\n");
     expect(lines(join(repo.stub, "notified"))).toEqual(['-e display notification "Touch your security key now to sign." with title "land.sh"']);
@@ -265,7 +268,7 @@ describe("SPEC-001-R219 to R225 land.sh checks the machine, tells the truth abou
   it("SPEC-001-R225 ends with a summary of at most 10 lines, with no account ID, copied to the clipboard on macOS", { timeout: TIMEOUT }, () => {
     const repo = makeRepo({}, darwin);
     const sha = candidate(repo);
-    const r = land(repo, ["--to-main", sha, "candidate/x"], "");
+    const r = land(repo, ["--to-main", sha, "candidate/x"], "", { OWNER_SCRIPT_DESKTOP: "always" });
     const block = summary(r.stdout);
     expect(block.length).toBeGreaterThan(3);
     expect(block.length).toBeLessThanOrEqual(10);
@@ -274,6 +277,10 @@ describe("SPEC-001-R219 to R225 land.sh checks the machine, tells the truth abou
       `commit: ${sha.slice(0, 10)}`, "candidate run 101 on candidate/x: success", `main run 202 for ${sha.slice(0, 7)}: success`, "---",
     ]);
     expect(readFileSync(join(repo.stub, "clipboard"), "utf8")).toBe(`${block.join("\n")}\n`);
+
+    // Without a terminal, the clipboard is left alone, so a test run on the owner's Mac does not overwrite it.
+    const quiet = land(makeRepo({}, darwin), ["--to-main", sha, "candidate/x"], "");
+    expect(quiet.stdout).not.toContain("(copied to the clipboard)");
 
     // A refusal ends with the summary too, its first line as the result, and an account ID, twelve digits standing
     // alone, never passes. Twelve digits inside a longer word, such as a SHA, are left alone.

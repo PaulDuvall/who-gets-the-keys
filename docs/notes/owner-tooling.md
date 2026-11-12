@@ -70,3 +70,10 @@ An independent subagent reviewed the staged files against SPEC-001-R218 to R225 
 | 12, 13 | Clauses without a test | | Added: three watches by default, the trailer below the tip, a missing owner-apply script, a clean tree after `--lockfile`, a newline in a name, the NFC column, `--for aws` alone, the declined summary. Still untested: the `@scope/pkg` branch name, the macOS clipboard for `aws-setup.sh`, and the signature check after `--lockfile` signs |
 
 After the fixes, the preflight above ran again: `tsc`, ESLint, the trace, slides and secrets checks passed, and every test passed, 21 files and 327 tests.
+
+## Found before landing: the owner's Mac
+
+Before giving the landing step, the agent checked how the batch's own tests would run in `land.sh`'s preflight on the owner's Mac. Three tests assumed no Homebrew `node@24` exists, but the doctor also searched `/opt/homebrew`, where the owner's `node@24` lives. Reproduced in the container by placing a `node@24` there: 6 tests failed. Fixed on 2026-11-12: when `HOMEBREW_PREFIX` is set, the doctor searches only that prefix, and the tests point it at an empty directory. Also, the summary's clipboard copy and the touch notification now happen only when standard output is a terminal, so the preflight's test runs never overwrite the owner's clipboard or show notifications. With a `node@24` in `/opt/homebrew`, every test passed: 21 files, 328 tests. `tsc`, ESLint and the trace, slides and secrets checks passed.
+
+What would have caught it earlier: running the preflight once with the owner's machine's layout simulated, here a Homebrew `node@24`, before the first landing step. That belongs with batch D's owner-step rules (backlog w2h).
+

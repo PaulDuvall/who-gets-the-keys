@@ -79,7 +79,9 @@ describe("SPEC-001-R213 land.sh tests the moved tree before it asks to sign, and
   // Signing is configured but never reached: every land-mode test answers no at the signing prompt.
   function makeRepo(files: Record<string, string> = BATCH): Repo {
     return tempRepo(scratch(), {
-      stubs: { gh: stubGh, node: stubTool, npm: stubTool, npx: stubTool, ykman: oneKey }, env: { LAND_POLL_SECONDS: "0" },
+      stubs: { gh: stubGh, node: stubTool, npm: stubTool, npx: stubTool, ykman: oneKey },
+      // An empty Homebrew prefix, so a Mac's own node@24 does not stand in for the stub node (SPEC-001-R219).
+      env: { LAND_POLL_SECONDS: "0", HOMEBREW_PREFIX: join(scratch(), "no-brew") },
       config: { "gpg.format": "ssh", "user.signingkey": join(scratch(), "no-such-key") }, files: { ...BASE, ...files },
     });
   }

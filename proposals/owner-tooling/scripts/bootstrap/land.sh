@@ -551,11 +551,19 @@ run_doctor() {
   say ""
 }
 
+# on_macos_terminal: true on macOS while standard output is a terminal, so a test run, such as the preflight's, never
+# takes over the owner's clipboard or shows a notification. OWNER_SCRIPT_DESKTOP=always makes it true without a
+# terminal, for the tests of the clipboard and the notification themselves.
+on_macos_terminal() {
+  [ "$(uname -s 2>/dev/null || true)" = Darwin ] || return 1
+  [ -t 1 ] || [ "${OWNER_SCRIPT_DESKTOP:-}" = always ]
+}
+
 # touch_cue "<what is signed>": a line of its own just before each signature, and on macOS a notification, so the
 # owner touches the key while it blinks (lesson L30, SPEC-001-R223).
 touch_cue() {
   say "" "==> TOUCH YOUR SECURITY KEY NOW. It blinks to sign: $1" ""
-  if [ "$(uname -s 2>/dev/null || true)" = Darwin ] && command -v osascript >/dev/null 2>&1; then
+  if on_macos_terminal && command -v osascript >/dev/null 2>&1; then
     osascript -e 'display notification "Touch your security key now to sign." with title "land.sh"' >/dev/null 2>&1 || true
   fi
 }
@@ -593,7 +601,7 @@ print_summary() {
     -e 's/(^|[^0-9A-Za-z])[0-9]{12}([^0-9A-Za-z]|$)/\1<account>\2/g' | cut -c1-200 > "$work/summary"
   say ""
   cat "$work/summary"
-  if [ "$(uname -s 2>/dev/null || true)" = Darwin ] && command -v pbcopy >/dev/null 2>&1; then
+  if on_macos_terminal && command -v pbcopy >/dev/null 2>&1; then
     pbcopy < "$work/summary" 2>/dev/null && say "(copied to the clipboard)" || true
   fi
 }
