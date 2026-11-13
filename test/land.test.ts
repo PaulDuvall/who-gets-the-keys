@@ -146,7 +146,7 @@ describe("SPEC-001-R41 land.sh lands a staged batch through a candidate branch",
     expect(r.out).toContain("Precondition met: specs/SPEC-001-delivery-pipeline.md contains \"SPEC-001-R41\".");
     expect(r.out).toContain("Sign and land? [y/N]");
     expect(r.out).toContain("==> TOUCH YOUR SECURITY KEY NOW. It blinks to sign: spec: land the test batch");
-    expect(r.out).toContain("The deploy to the sandbox now waits for your approval in GitHub");
+    expect(r.out).toContain("If a deployable path changed since the last deploy that succeeded, main's deploy to the sandbox waits for your");
     expect(r.out).toContain("Deleted candidate/land-batch.");
   }, TIMEOUT);
 

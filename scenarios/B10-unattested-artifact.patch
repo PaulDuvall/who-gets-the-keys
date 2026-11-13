@@ -1,8 +1,8 @@
 diff --git a/.github/workflows/pipeline.yml b/.github/workflows/pipeline.yml
-index 7cde691..fbe1d07 100644
+index e551bb2..73ca615 100644
 --- a/.github/workflows/pipeline.yml
 +++ b/.github/workflows/pipeline.yml
-@@ -75,35 +75,9 @@ jobs:
+@@ -87,35 +87,9 @@ jobs:
              dist/receipt-predicate.json
            if-no-files-found: error
  
@@ -39,12 +39,12 @@ index 7cde691..fbe1d07 100644
      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/candidate/')
      runs-on: ubuntu-24.04
      timeout-minutes: 10
-@@ -132,7 +106,7 @@ jobs:
+@@ -189,7 +163,7 @@ jobs:
  
    deploy:
      name: deploy to sandbox
--    needs: [build, attest, receipt]
-+    needs: [build]
-     if: github.ref == 'refs/heads/main'
+-    needs: [build, attest, receipt, changes]
++    needs: [build, changes]
+     if: github.ref == 'refs/heads/main' && needs.changes.outputs.deploy == 'true'
      runs-on: ubuntu-24.04
      timeout-minutes: 20

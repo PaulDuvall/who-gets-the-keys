@@ -84,13 +84,65 @@ const secretScanningWrites = ["api -X PATCH repos/o/r --input -", "api -X PUT re
 const mergeWrite = "api -X PATCH repos/o/r -F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=false";
 const settingWrites = [...tokenAndEnvironmentWrites, mergeWrite];
 const mergeRefused = "GitHub refused squash and rebase merges off while linear history is required.";
+const deployIf = "github.ref == 'refs/heads/main' && needs.changes.outputs.deploy == 'true'";
+
+// The changes job's decide step (SPEC-001-R232), run as written in pipeline.yml against a temporary repository, with a gh
+// that answers the newest deployment as the first line of STUB_DEPLOYS, "<id> <sha>", and true for each ID in
+// STUB_SUCCESS when asked whether that deployment ever had a success status. STUB_FAIL_LIST and STUB_FAIL_STATUSES fail
+// those calls, as an API error would.
+const stubDeployGh = [
+  "#!/usr/bin/env bash",
+  'case "$2" in',
+  '  *"/deployments?environment=sandbox&per_page=1") [ -z "${STUB_FAIL_LIST:-}" ] || exit 1; printf "%s" "${STUB_DEPLOYS:-}" | head -n 1 ;;',
+  '  *"/statuses?per_page=100") [ -z "${STUB_FAIL_STATUSES:-}" ] || exit 1; id="${2%/statuses*}"; id="${id##*/}"; case " ${STUB_SUCCESS:-} " in *" $id "*) echo true ;; *) echo false ;; esac ;;',
+  "  *) exit 1 ;;",
+  "esac",
+  "",
+].join("\n");
+
+function decide(changes: Record<string, string>, deploys: (shas: { base: string; head: string; side: string }) => { list: string; success: string }, fail: NodeJS.ProcessEnv = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "changes-job-"));
+  try {
+    const sh = (...args: string[]) => execFileSync("git", args, { cwd: dir, encoding: "utf8", env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com" } }).trim();
+    sh("init", "-q", "-b", "main");
+    writeFileSync(join(dir, "README.md"), "base\n");
+    sh("add", "-A");
+    sh("-c", "commit.gpgsign=false", "commit", "-q", "-m", "base");
+    const base = sh("rev-parse", "HEAD");
+    sh("checkout", "-q", "-b", "side");
+    writeFileSync(join(dir, "side.md"), "side\n");
+    sh("add", "-A");
+    sh("-c", "commit.gpgsign=false", "commit", "-q", "-m", "side");
+    const side = sh("rev-parse", "HEAD");
+    sh("checkout", "-q", "main");
+    for (const [path, body] of Object.entries(changes)) {
+      execFileSync("mkdir", ["-p", join(dir, path, "..")]);
+      writeFileSync(join(dir, path), body);
+    }
+    sh("add", "-A");
+    sh("-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "head");
+    const head = sh("rev-parse", "HEAD");
+    const bin = join(dir, ".bin");
+    execFileSync("mkdir", ["-p", bin]);
+    writeFileSync(join(bin, "gh"), stubDeployGh);
+    chmodSync(join(bin, "gh"), 0o755);
+    const step = (pipeline.jobs["changes"]?.steps ?? []).find((st) => st.run?.includes("deploy=true") === true);
+    const out = join(dir, ".output");
+    writeFileSync(out, "");
+    const { list, success } = deploys({ base, head, side });
+    const r = spawnSync("bash", ["-e", "-c", step?.run ?? "exit 9"], { cwd: dir, encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env["PATH"] ?? ""}`, GITHUB_OUTPUT: out, GITHUB_SHA: head, REPO: "o/r", STUB_DEPLOYS: list, STUB_SUCCESS: success, ...fail } });
+    return { status: r.status, out: r.stdout, deploy: read(out).trim() };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 describe("SPEC-001 checks before main", () => {
   it("SPEC-001-R40 runs checks, build, attest and receipt on candidate branches, and deploys only from main after the receipt", () => {
     expect(pipeline.on.push?.branches).toEqual(["main", "candidate/**"]);
     const mainOrCandidate = "github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/candidate/')";
-    expect(["attest", "receipt", "deploy"].map((id) => pipeline.jobs[id]?.if)).toEqual([mainOrCandidate, mainOrCandidate, "github.ref == 'refs/heads/main'"]);
-    expect([pipeline.jobs["deploy"]?.needs, pipeline.jobs["receipt"]?.permissions]).toEqual([["build", "attest", "receipt"], { contents: "read", attestations: "read" }]);
+    expect(["attest", "receipt", "deploy"].map((id) => pipeline.jobs[id]?.if)).toEqual([mainOrCandidate, mainOrCandidate, deployIf]);
+    expect([pipeline.jobs["deploy"]?.needs, pipeline.jobs["receipt"]?.permissions]).toEqual([["build", "attest", "receipt", "changes"], { contents: "read", attestations: "read" }]);
     const unconditional = Object.entries(pipeline.jobs).filter(([, job]) => job.if === undefined).map(([id]) => id);
     expect(unconditional).toEqual(["checks", "build"]);
     expect(pipeline.jobs["deploy"]?.environment).toBe("sandbox");
@@ -107,9 +159,36 @@ describe("SPEC-001 checks before main", () => {
     const needs = (id: string): string[] => { const n = pipeline.jobs[id]?.needs; return n === undefined ? [] : Array.isArray(n) ? n : [n]; };
     const reachesChecks = (id: string): boolean => needs(id).some((n) => n === "checks" || reachesChecks(n));
     expect(Object.keys(pipeline.jobs).filter((id) => id !== "checks" && !reachesChecks(id))).toEqual([]);
-    expect(pipeline.jobs["deploy"]?.if).toBe("github.ref == 'refs/heads/main'");
+    expect(pipeline.jobs["deploy"]?.if).toBe(deployIf);
     const statusFunctions = Object.entries(pipeline.jobs).filter(([, job]) => /\b(always|failure|cancelled)\(\)/.test(job.if ?? "")).map(([id]) => id);
     expect(statusFunctions).toEqual([]);
+  });
+
+  it("SPEC-001-R232 the changes job runs on main after checks, reads deployments only, and the deploy job runs only when it says so", () => {
+    const changes = pipeline.jobs["changes"];
+    expect([changes?.needs, changes?.if, changes?.permissions, changes?.environment]).toEqual(["checks", "github.ref == 'refs/heads/main'", { contents: "read", deployments: "read" }, undefined]);
+    expect(pipeline.jobs["deploy"]?.if).toBe(deployIf);
+    const run = (changes?.steps ?? []).find((st) => st.run?.includes("deploy=true") === true)?.run ?? "";
+    expect(run).toContain("-- src infra/sandbox tsconfig.json package.json package-lock.json .github/workflows/pipeline.yml");
+  });
+
+  type Shas = { base: string; head: string; side: string };
+  const at = (pick: (s: Shas) => string, success = "9") => (s: Shas) => ({ list: `9 ${pick(s)}\n`, success });
+  it.each([
+    ["deploys when there is no deployment", {}, () => ({ list: "", success: "" }), {}, "deploy=true"],
+    ["skips when only docs changed since the newest deployment, which succeeded", { "docs/a.md": "x\n" }, at((s) => s.base), {}, "deploy=false"],
+    ["deploys when src changed", { "src/a.ts": "x\n" }, at((s) => s.base), {}, "deploy=true"],
+    ["deploys when infra/sandbox changed", { "infra/sandbox/main.tf": "x\n" }, at((s) => s.base), {}, "deploy=true"],
+    ["deploys when pipeline.yml changed", { ".github/workflows/pipeline.yml": "x\n" }, at((s) => s.base), {}, "deploy=true"],
+    ["deploys when the newest deployment did not succeed, though an older one did and the diff from it is empty", { "docs/a.md": "x\n" }, (s: Shas) => ({ list: `10 ${s.side}\n9 ${s.base}\n`, success: "9" }), {}, "deploy=true"],
+    ["deploys when the newest deployment's commit is not an ancestor", { "docs/a.md": "x\n" }, at((s) => s.side), {}, "deploy=true"],
+    ["deploys when the newest deployment's commit is not in the checkout", { "docs/a.md": "x\n" }, at(() => "0".repeat(40)), {}, "deploy=true"],
+    ["deploys when listing deployments fails", { "docs/a.md": "x\n" }, at((s) => s.base), { STUB_FAIL_LIST: "1" }, "deploy=true"],
+    ["deploys when reading a deployment's statuses fails", { "docs/a.md": "x\n" }, at((s) => s.base), { STUB_FAIL_STATUSES: "1" }, "deploy=true"],
+  ])("SPEC-001-R232 the changes job %s", (_title, changes, deploys, fail, expected) => {
+    const r = decide(changes, deploys as (s: Shas) => { list: string; success: string }, fail);
+    expect(r.status).toBe(0);
+    expect(r.deploy).toBe(expected);
   });
 
   it("SPEC-001-R190 the deploy job checks main's tip right after checkout, before it reads the artifact, verifies the attestation or calls AWS", () => {

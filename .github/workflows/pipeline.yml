@@ -1,4 +1,6 @@
-# The only path to the sandbox (SPEC-001). checks → build → attest → receipt → deploy.
+# The only path to the sandbox (SPEC-001). checks → build → attest → receipt → deploy. On main, the changes job compares
+# the push with the last commit deployed to the sandbox, and the deploy runs only when a deployable path changed
+# (SPEC-001-R232), so the sandbox reviewer is asked only when the deploy can change something.
 # No caches in attest or deploy. The deploy role trusts only this file, in environment sandbox.
 # Pushes only (SPEC-001-R40). The checks job has no job-level condition, and every other job needs it: GitHub reports a
 # job that a condition skips as a success, which satisfies a required check.
@@ -140,10 +142,59 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh --version && node scripts/checks.ts receipt dist/function.zip
 
+  # Deployable paths: what the build job packs (src/, tsconfig.json, package.json, package-lock.json), what the deploy
+  # job applies (infra/sandbox/), and this file, which holds both jobs. It compares only with the newest deployment, and
+  # only when that one succeeded: a newer one that is waiting, running, failed or rejected may have changed the sandbox.
+  # Any doubt deploys: an API call that fails, a commit not in this checkout, or one that is not an ancestor (SPEC-001-R232).
+  changes:
+    name: decide whether to deploy
+    needs: checks
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: pipeline-changes-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      deployments: read
+    outputs:
+      deploy: ${{ steps.decide.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Compare with the last commit deployed to the sandbox (SPEC-001-R232)
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          deploy=true
+          last=""
+          newest="$(gh api "repos/${REPO}/deployments?environment=sandbox&per_page=1" --jq '.[0] // empty | "\(.id) \(.sha)"')" || newest=""
+          id="${newest%% *}"
+          sha="${newest#* }"
+          if [ -n "$newest" ]; then
+            succeeded="$(gh api "repos/${REPO}/deployments/${id}/statuses?per_page=100" --jq '[.[].state] | index("success") != null')" || succeeded=""
+            [ "$succeeded" != true ] || last="$sha"
+          fi
+          if [ -n "$last" ] && git cat-file -e "${last}^{commit}" 2>/dev/null && git merge-base --is-ancestor "$last" "$GITHUB_SHA" &&
+            git diff --quiet "$last" "$GITHUB_SHA" -- src infra/sandbox tsconfig.json package.json package-lock.json .github/workflows/pipeline.yml; then
+            deploy=false
+          fi
+          echo "deploy=${deploy}" >> "$GITHUB_OUTPUT"
+          if [ "$deploy" = true ]; then
+            echo "Deploy: a deployable path changed since ${last:-the newest deployment}, or the newest deployment did not succeed or could not be read."
+          else
+            echo "No deploy: nothing deployable changed since ${last}, the last commit deployed to the sandbox."
+          fi
+
   deploy:
     name: deploy to sandbox
-    needs: [build, attest, receipt]
-    if: github.ref == 'refs/heads/main'
+    needs: [build, attest, receipt, changes]
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.deploy == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: sandbox

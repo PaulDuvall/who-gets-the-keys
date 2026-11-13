@@ -156,7 +156,7 @@ delete_if_at() {
 # finish_main <sha> <candidate branch> [<other branch>]: moves main to that exact commit, deletes <other branch> if
 # given, watches main's run, then deletes the candidate branch.
 finish_main() {
-  local sha="$1" branch="$2" other="${3:-}" short run="" status=0 url="" deploy_wait="" apply=""
+  local sha="$1" branch="$2" other="${3:-}" short run="" status=0 url="" deploy_wait="" apply="" skipped=""
   short="$(git rev-parse --short "$sha")"
   # A batch whose LAND.txt names an owner apply carries it as a trailer, so --to-main knows it too (SPEC-001-R221).
   # Every commit main gains is read, not only the tip: a fix on top of the signed commit must not hide it. Read before
@@ -180,9 +180,10 @@ finish_main() {
       "DO NOT APPROVE the sandbox deployment yet. First run ${apply}, as your agent's step for this batch says:" \
       "the deploy role cannot apply this batch's change alone, and a deploy approved first fails."
   else
-    summary_next="approve the sandbox deploy"
+    summary_next="approve the sandbox deploy, if main's run deploys"
     say "" "main is at ${short}." \
-      "The deploy to the sandbox now waits for your approval in GitHub: approve the sandbox deployment in main's run."
+      "If a deployable path changed since the last deploy that succeeded, main's deploy to the sandbox waits for your" \
+      "approval in GitHub. If not, main's run skips the deploy and there is nothing to approve (SPEC-001-R232)."
   fi
   if run="$(find_run main "$sha")"; then
     url="$(run_url "$run")"
@@ -191,7 +192,7 @@ finish_main() {
       "Watching it until the deploy finishes. If you stop watching, delete the candidate branch afterwards:" \
       "git push origin --delete ${branch}"
     if [ -n "$url" ]; then
-      say "Waiting until its deploy job, ${deploy_job}, waits for your approval."
+      say "Waiting until its deploy job, ${deploy_job}, waits for your approval, or main's run skips it."
       deploy_wait="$(wait_for_deploy "$run")"
       if [ "$deploy_wait" = waiting ]; then
         if [ -n "$apply" ]; then
@@ -207,6 +208,10 @@ finish_main() {
     fi
     watch_run "$run" || status=$?
     [ -z "$url" ] || say "" "main's run ${run}: ${url}"
+    if [ "$status" = 0 ] && [ "$(deploy_conclusion "$run")" = skipped ]; then
+      say "Nothing deployable changed since the last deploy, so main's run skipped the deploy: nothing to approve (SPEC-001-R232)."
+      skipped=", deploy skipped"
+    fi
   else
     say "No pipeline run on main for ${short} after 5 minutes. To look for it:" \
       "gh run list --workflow pipeline.yml --branch main"
@@ -234,7 +239,7 @@ finish_main() {
       exit 3
       ;;
   esac
-  summary_main="main run ${run} for ${short}: success"
+  summary_main="main run ${run} for ${short}: success${skipped}"
   summary_result="landed ${short} on main"
   summary_next=""
   say "Landed ${short} on main."
@@ -482,6 +487,11 @@ run_url() { gh run view "$1" --json url --jq .url 2>/dev/null | head -n 1 || tru
 # deploy_state <run>: prints "<run status> <deploy job status>", or fails when gh cannot read the run.
 deploy_state() {
   gh run view "$1" --json status,jobs --jq ".status + \" \" + ([.jobs[] | select(.name == \"${deploy_job}\") | .status] | first // \"none\")" 2>/dev/null
+}
+
+# deploy_conclusion <run>: the deploy job's conclusion, for example skipped (SPEC-001-R232), or nothing when unreadable.
+deploy_conclusion() {
+  gh run view "$1" --json jobs --jq "[.jobs[] | select(.name == \"${deploy_job}\") | .conclusion] | first // \"\"" 2>/dev/null || true
 }
 
 # wait_for_deploy <run>: waits, up to 60 polls (10 minutes), until main's run's deploy job, or the run, waits for approval,
