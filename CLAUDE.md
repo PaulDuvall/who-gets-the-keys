@@ -1,6 +1,6 @@
 # who-gets-the-keys
 
-Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code, the pipeline holds the keys, and 21 deliberately bad changes are stopped before they ship.
+Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code, the pipeline holds the keys, and 22 deliberately bad changes are stopped before they ship.
 
 ## Commands
 
@@ -13,6 +13,7 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 | `npm run video` | Builds `build/video/`: page, video, captions, report |
 | `npm run video -- --page-only` | The page alone, no browser |
 | `npm run practices` | Regenerates `docs/practices.md` from `practices.yaml` |
+| `npm run progress` | Regenerates `docs/progress.json` and `docs/progress.svg`, what is built against the specs; a test fails when either is stale |
 
 ## File map
 
@@ -55,6 +56,8 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 - Say "customer", never "client".
 - Say "check" for automated verification and "gate" only for a human approval: an approver's signature or a required reviewer.
 - Commands written for a human to paste carry no `#` comments.
+- Make git worktrees outside the checkout, under the session's scratchpad directory, never under `.claude/worktrees/`, and never with EnterWorktree or an agent's worktree isolation, which put them there. Inside the checkout, gitleaks finds the B5 scenario's synthetic secret and the `gitleaks-staged` hook blocks every commit; the `no-inner-worktree` hook refuses `git worktree add` there (SPEC-001-R230).
+- A commit that changes `specs/`, `docs/decisions/`, a staged `SPEC-*.md`, `factory-video/claims.json`, `factory-video/verify.mjs`, `scripts/progress.ts`, `practices.yaml`, `scenarios/scenarios.yaml` or `.tasks/backlog.jsonl` runs `npm run progress` and commits `docs/progress.json` and `docs/progress.svg` with it, or the test check fails (SPEC-001-R227).
 - A delivered video is named `walkthrough-<short SHA>-<UTC build time>.mp4`, for example `walkthrough-7f5c682-20261023T1554Z.mp4`. The SHA is the commit in `build/video/report.json`; the time is the video file's own write time, not the time it is sent.
 
 ## Batches
@@ -63,6 +66,8 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 - When several batches change the same protected file, build each later batch's staged copy on top of the earlier batch's staged copy, so it carries both changes, and give the later `LAND.txt` a `requires:` line naming text that only the earlier batch adds. `land.sh` then refuses the later batch until the earlier one has landed, and warns "Changed since by" when it does. Answer yes when it reports that the staged copy keeps every line those commits added, or that they added no lines and the diff shows nothing removed; otherwise answer no.
 - A `requires:` line must not quote text the batch removes.
 - Staged copies keep their file mode. Write protected copies with python or the Write tool, never `cp`; both create mode 644, so give an executable copy `chmod 755` before `git add`, and check modes with `git ls-files -s`. Stage `CLAUDE.md` as `CLAUDE.proposed.md`, so no session loads it as a nested memory file.
+- A batch that changes any input of `npm run progress` stages `docs/progress.json` and `docs/progress.svg` computed for the tree after it lands, and, when another batch lands first, built on that batch's tree.
+- Test stand-ins use only commands that behave the same on macOS's BSD tools and Linux's GNU tools, because the owner's preflight runs them on macOS: never `seq` with 0, `sed -i` without a suffix, `date -d`, `stat -c` or `readlink -f`.
 - Preflight every batch in a scratch worktree with its moves, and every earlier batch's, applied as `land.sh` does: `tsc`, ESLint on the changed files, vitest, the trace, slides and secrets checks, and `git apply --check` on every scenario patch that touches a changed file. Then get an independent review from a subagent, given the files and the spec rows, not the author's conclusions. Fix its findings in new commits, and record in the batch notes what was not fixed, and why.
 
 ## Owner steps
@@ -70,6 +75,14 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 - Every owner step names the terminal, the exact command, the one line that means success, and what to do on anything else.
 - One step at a time. Give the next step only after reading the previous step's result yourself.
 - Never push to `main` while any `main` deploy waits for approval. Check with the Actions API before each push.
+- Before the first landing step of a batch, simulate the owner's Mac in the preflight's scratch worktree: a Homebrew-style `node@<major>` under `/opt/homebrew/opt/`, and a `seq` first on PATH that prints `1` and `0` for `seq 0`, as macOS's BSD `seq` does. CI and the cloud container run Linux, so two failures on 2026-11-12 showed only on the owner's Mac.
+- Write commands for the owner's zsh: a glob that matches nothing fails the whole command, so wrap bash-only syntax in `bash -c`.
+- No command to copy runs past 120 characters on one line: put a long path in a `cd` line of its own, or split a long command at `\` line ends.
+- A step that signs gives the touch its own line before the command, and names the line `land.sh` prints when it is time to touch.
+- A batch whose change the deploy role cannot apply declares `owner-apply: scripts/bootstrap/<script>.sh` in its `LAND.txt`, and its notes say "do not approve yet" before anything else; `land.sh` then says so too (SPEC-001-R221).
+- Before stating an expected Terraform plan, list each data source that depends on a changed resource: Terraform reads it again during the apply, so each resource that uses it shows an update `(known after apply)` (lesson L21).
+- Before saying a check passed on `main`, account for the checks that read data at run time, sca and sast: an advisory published between the candidate run and `main`'s can fail `main`'s run, and `land.sh --lockfile <package>` is then the fix (lesson L32).
+- Ask the owner to paste `land.sh`'s summary block, the lines between `--- land.sh summary` and `---`, not GitHub's output.
 - Before a probe or check that relies on platform behaviour, quote the documentation it relies on, with the URL and the date read, and replay any recorded transcript through the check.
 
 ## Unattended runs
