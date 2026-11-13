@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="760" height="324" viewBox="0 0 760 324" role="img" aria-labelledby="title">
-<title id="title">Built against the specs. Requirements: 108 approved in specs/, 164 drafted, not approved. Factory video claims: 12 built, 5 partly built, 6 planned, 1 open. Deck practices: 20 shown good and bad, 6 good only, 6 partial, 14 not shown. Bad changes stopped: 19 on every push, 1 on GitHub Actions only, 2 in the sandbox only. Backlog: 6 closed, 24 open.</title>
+<title id="title">Built against the specs. Requirements: 108 approved in specs/, 164 drafted, not approved. Factory video claims: 12 built, 5 partly built, 6 planned, 1 open. Deck practices: 20 shown good and bad, 6 good only, 6 partial, 14 not shown. Bad changes stopped: 19 on every push, 1 on GitHub Actions only, 2 in the sandbox only. Backlog: 6 closed, 26 open.</title>
 <style>text{fill:#57606a;font-family:sans-serif}.h{font-size:15px;font-weight:600}.t{font-size:13px;font-weight:600}.l{font-size:12px}@media (prefers-color-scheme:dark){text{fill:#9198a1}}</style>
 <text x="16" y="20" class="h">Built against the specs, from npm run progress</text>
 <text x="16" y="47" class="t">Requirements</text>
@@ -46,10 +46,10 @@
 <rect x="513" y="233" width="10" height="10" fill="#bf8700"/>
 <text x="527" y="242" class="l">2 in the sandbox only</text>
 <text x="16" y="279" class="t">Backlog</text>
-<rect x="200" y="266" width="104" height="18" fill="#1a7f37"/>
-<rect x="304" y="266" width="416" height="18" fill="#6e7781"/>
+<rect x="200" y="266" width="98" height="18" fill="#1a7f37"/>
+<rect x="298" y="266" width="423" height="18" fill="#6e7781"/>
 <rect x="200" y="291" width="10" height="10" fill="#1a7f37"/>
 <text x="214" y="300" class="l">6 closed</text>
 <rect x="280" y="291" width="10" height="10" fill="#6e7781"/>
-<text x="294" y="300" class="l">24 open</text>
+<text x="294" y="300" class="l">26 open</text>
 </svg>
