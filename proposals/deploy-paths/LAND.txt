@@ -11,6 +11,7 @@ move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
 move: traceability.md traceability.md
 move: README.md README.md
 move: github-workflows/pipeline.yml .github/workflows/pipeline.yml
+move: scenarios/B10-unattested-artifact.patch scenarios/B10-unattested-artifact.patch
 move: scripts/bootstrap/land.sh scripts/bootstrap/land.sh
 move: test/checks-before-main.test.ts test/checks-before-main.test.ts
 move: test/land.test.ts test/land.test.ts
