@@ -1,0 +1,23 @@
+# Backlog who-gets-the-keys-g4e: deploy to sandbox on evidence alone, and keep human approval for irreversible changes.
+# New SPEC-001-R231: github.sh removes the sandbox reviewer and reads it back; probe keeps one. Amends the "gate" term,
+# R213 (land.sh no longer waits for an approval) and R221 (an owner apply runs before main moves). Slides 1, 8 and 13;
+# decision 0004 Phase C's sandbox row. After landing, the owner runs scripts/bootstrap/github.sh once. Nothing here
+# changes infra/: no change to plan.
+message: spec: deploy to sandbox on evidence alone, and keep human approval for irreversible changes (backlog g4e)
+spec: SPEC-001-R231
+spec: SPEC-001-R213
+spec: SPEC-001-R221
+move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
+move: traceability.md traceability.md
+move: CLAUDE.proposed.md CLAUDE.md
+move: README.md README.md
+move: scripts/bootstrap/github.sh scripts/bootstrap/github.sh
+move: scripts/bootstrap/land.sh scripts/bootstrap/land.sh
+move: scripts/bootstrap/aws-setup.sh scripts/bootstrap/aws-setup.sh
+move: test/checks-before-main.test.ts test/checks-before-main.test.ts
+move: test/land-owner.test.ts test/land-owner.test.ts
+move: test/land.test.ts test/land.test.ts
+move: test/aws-setup.test.ts test/aws-setup.test.ts
+move: backlog.jsonl .tasks/backlog.jsonl
+move: docs/progress.json docs/progress.json
+move: docs/progress.svg docs/progress.svg
