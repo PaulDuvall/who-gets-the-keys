@@ -138,7 +138,7 @@ const stubTerraform = [
   "",
 ].join("\n");
 
-// gh: answers the reads github.sh makes for a public repository o/r whose environments each have a required reviewer.
+// gh: answers the reads github.sh makes for a public repository o/r where probe has a required reviewer and sandbox none (SPEC-001-R231).
 const stubGh = [
   "#!/usr/bin/env bash",
   log,
@@ -154,7 +154,8 @@ const stubGh = [
   '  *"/rulesets?includes_parents=false") echo 7 ;;',
   '  *"/check-runs?check_name=checks") echo 15368 ;;',
   '  *"/deployment-branch-policies") echo main ;;',
-  '  */environments/sandbox|*/environments/probe) echo 1 ;;',
+  '  */environments/sandbox) echo 0 ;;',
+  '  */environments/probe) echo 1 ;;',
   "  *) echo stub ;;",
   "esac",
   "",
