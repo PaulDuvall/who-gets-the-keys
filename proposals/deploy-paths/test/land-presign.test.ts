@@ -237,7 +237,7 @@ describe("SPEC-001-R213 land.sh tests the moved tree before it asks to sign, and
   it("SPEC-001-R232 says there is nothing to approve when main's run skipped the deploy", { timeout: TIMEOUT }, () => {
     const r = toMain({}, "skipped\n", ["completed completed"]);
     expect(r.status).toBe(0);
-    expect(r.out).toContain("If it did not, main's run skips the deploy and there is nothing to approve (SPEC-001-R232).");
+    expect(r.out).toContain("approval in GitHub. If not, main's run skips the deploy and there is nothing to approve (SPEC-001-R232).");
     expect(r.out).toContain("Nothing deployable changed since the last deploy, so main's run skipped the deploy: nothing to approve (SPEC-001-R232).");
     expect(r.out).toContain("main run 202 for ");
     expect(r.out).toContain(": success, deploy skipped");

@@ -87,19 +87,20 @@ const mergeRefused = "GitHub refused squash and rebase merges off while linear h
 const deployIf = "github.ref == 'refs/heads/main' && needs.changes.outputs.deploy == 'true'";
 
 // The changes job's decide step (SPEC-001-R232), run as written in pipeline.yml against a temporary repository, with a gh
-// that lists the deployments in STUB_DEPLOYS, "<id> <sha>" per line, newest first, and answers true for each ID in
-// STUB_SUCCESS when asked whether that deployment ever had a success status.
+// that answers the newest deployment as the first line of STUB_DEPLOYS, "<id> <sha>", and true for each ID in
+// STUB_SUCCESS when asked whether that deployment ever had a success status. STUB_FAIL_LIST and STUB_FAIL_STATUSES fail
+// those calls, as an API error would.
 const stubDeployGh = [
   "#!/usr/bin/env bash",
   'case "$2" in',
-  '  *"/deployments?environment=sandbox&per_page=30") printf "%s" "${STUB_DEPLOYS:-}" ;;',
-  '  *"/statuses?per_page=100") id="${2%/statuses*}"; id="${id##*/}"; case " ${STUB_SUCCESS:-} " in *" $id "*) echo true ;; *) echo false ;; esac ;;',
+  '  *"/deployments?environment=sandbox&per_page=1") [ -z "${STUB_FAIL_LIST:-}" ] || exit 1; printf "%s" "${STUB_DEPLOYS:-}" | head -n 1 ;;',
+  '  *"/statuses?per_page=100") [ -z "${STUB_FAIL_STATUSES:-}" ] || exit 1; id="${2%/statuses*}"; id="${id##*/}"; case " ${STUB_SUCCESS:-} " in *" $id "*) echo true ;; *) echo false ;; esac ;;',
   "  *) exit 1 ;;",
   "esac",
   "",
 ].join("\n");
 
-function decide(changes: Record<string, string>, deploys: (shas: { base: string; head: string; side: string }) => { list: string; success: string }) {
+function decide(changes: Record<string, string>, deploys: (shas: { base: string; head: string; side: string }) => { list: string; success: string }, fail: NodeJS.ProcessEnv = {}) {
   const dir = mkdtempSync(join(tmpdir(), "changes-job-"));
   try {
     const sh = (...args: string[]) => execFileSync("git", args, { cwd: dir, encoding: "utf8", env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com" } }).trim();
@@ -129,7 +130,7 @@ function decide(changes: Record<string, string>, deploys: (shas: { base: string;
     const out = join(dir, ".output");
     writeFileSync(out, "");
     const { list, success } = deploys({ base, head, side });
-    const r = spawnSync("bash", ["-e", "-c", step?.run ?? "exit 9"], { cwd: dir, encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env["PATH"] ?? ""}`, GITHUB_OUTPUT: out, GITHUB_SHA: head, REPO: "o/r", STUB_DEPLOYS: list, STUB_SUCCESS: success } });
+    const r = spawnSync("bash", ["-e", "-c", step?.run ?? "exit 9"], { cwd: dir, encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env["PATH"] ?? ""}`, GITHUB_OUTPUT: out, GITHUB_SHA: head, REPO: "o/r", STUB_DEPLOYS: list, STUB_SUCCESS: success, ...fail } });
     return { status: r.status, out: r.stdout, deploy: read(out).trim() };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -171,17 +172,21 @@ describe("SPEC-001 checks before main", () => {
     expect(run).toContain("-- src infra/sandbox tsconfig.json package.json package-lock.json .github/workflows/pipeline.yml");
   });
 
+  type Shas = { base: string; head: string; side: string };
+  const at = (pick: (s: Shas) => string, success = "9") => (s: Shas) => ({ list: `9 ${pick(s)}\n`, success });
   it.each([
-    ["deploys when no deployment ever succeeded", {}, () => ({ list: "", success: "" }), "deploy=true"],
-    ["skips when only docs changed since the last successful deploy", { "docs/a.md": "x\n" }, (s: { base: string }) => ({ list: `9 ${s.base}\n`, success: "9" }), "deploy=false"],
-    ["deploys when src changed", { "src/a.ts": "x\n" }, (s: { base: string }) => ({ list: `9 ${s.base}\n`, success: "9" }), "deploy=true"],
-    ["deploys when infra/sandbox changed", { "infra/sandbox/main.tf": "x\n" }, (s: { base: string }) => ({ list: `9 ${s.base}\n`, success: "9" }), "deploy=true"],
-    ["deploys when pipeline.yml changed", { ".github/workflows/pipeline.yml": "x\n" }, (s: { base: string }) => ({ list: `9 ${s.base}\n`, success: "9" }), "deploy=true"],
-    ["compares with the newest deployment that succeeded, past a newer one that did not", { "docs/a.md": "x\n" }, (s: { base: string; head: string }) => ({ list: `10 ${s.head}\n9 ${s.base}\n`, success: "9" }), "deploy=false"],
-    ["deploys when the last deployed commit is not an ancestor", { "docs/a.md": "x\n" }, (s: { side: string }) => ({ list: `9 ${s.side}\n`, success: "9" }), "deploy=true"],
-    ["deploys when the last deployed commit is not in the checkout", { "docs/a.md": "x\n" }, () => ({ list: `9 ${"0".repeat(40)}\n`, success: "9" }), "deploy=true"],
-  ])("SPEC-001-R232 the changes job %s", (_title, changes, deploys, expected) => {
-    const r = decide(changes, deploys as (s: { base: string; head: string; side: string }) => { list: string; success: string });
+    ["deploys when there is no deployment", {}, () => ({ list: "", success: "" }), {}, "deploy=true"],
+    ["skips when only docs changed since the newest deployment, which succeeded", { "docs/a.md": "x\n" }, at((s) => s.base), {}, "deploy=false"],
+    ["deploys when src changed", { "src/a.ts": "x\n" }, at((s) => s.base), {}, "deploy=true"],
+    ["deploys when infra/sandbox changed", { "infra/sandbox/main.tf": "x\n" }, at((s) => s.base), {}, "deploy=true"],
+    ["deploys when pipeline.yml changed", { ".github/workflows/pipeline.yml": "x\n" }, at((s) => s.base), {}, "deploy=true"],
+    ["deploys when the newest deployment did not succeed, though an older one did and the diff from it is empty", { "docs/a.md": "x\n" }, (s: Shas) => ({ list: `10 ${s.side}\n9 ${s.base}\n`, success: "9" }), {}, "deploy=true"],
+    ["deploys when the newest deployment's commit is not an ancestor", { "docs/a.md": "x\n" }, at((s) => s.side), {}, "deploy=true"],
+    ["deploys when the newest deployment's commit is not in the checkout", { "docs/a.md": "x\n" }, at(() => "0".repeat(40)), {}, "deploy=true"],
+    ["deploys when listing deployments fails", { "docs/a.md": "x\n" }, at((s) => s.base), { STUB_FAIL_LIST: "1" }, "deploy=true"],
+    ["deploys when reading a deployment's statuses fails", { "docs/a.md": "x\n" }, at((s) => s.base), { STUB_FAIL_STATUSES: "1" }, "deploy=true"],
+  ])("SPEC-001-R232 the changes job %s", (_title, changes, deploys, fail, expected) => {
+    const r = decide(changes, deploys as (s: Shas) => { list: string; success: string }, fail);
     expect(r.status).toBe(0);
     expect(r.deploy).toBe(expected);
   });

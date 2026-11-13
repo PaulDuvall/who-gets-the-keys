@@ -182,8 +182,8 @@ finish_main() {
   else
     summary_next="approve the sandbox deploy, if main's run deploys"
     say "" "main is at ${short}." \
-      "If this push changed a deployable path, main's deploy to the sandbox waits for your approval in GitHub." \
-      "If it did not, main's run skips the deploy and there is nothing to approve (SPEC-001-R232)."
+      "If a deployable path changed since the last deploy that succeeded, main's deploy to the sandbox waits for your" \
+      "approval in GitHub. If not, main's run skips the deploy and there is nothing to approve (SPEC-001-R232)."
   fi
   if run="$(find_run main "$sha")"; then
     url="$(run_url "$run")"
@@ -192,7 +192,7 @@ finish_main() {
       "Watching it until the deploy finishes. If you stop watching, delete the candidate branch afterwards:" \
       "git push origin --delete ${branch}"
     if [ -n "$url" ]; then
-      say "Waiting until its deploy job, ${deploy_job}, waits for your approval."
+      say "Waiting until its deploy job, ${deploy_job}, waits for your approval, or main's run skips it."
       deploy_wait="$(wait_for_deploy "$run")"
       if [ "$deploy_wait" = waiting ]; then
         if [ -n "$apply" ]; then
