@@ -42,6 +42,7 @@ a { color: inherit; text-decoration: none; }
 .cover .thesis { margin: 40px 0 0; font: 600 46px/1.15 var(--font-display); }
 .cover .thesis .key { color: var(--brass-hi); white-space: nowrap; }
 .cover .sub { margin: 28px 0 0; font-size: 30px; line-height: 1.4; color: var(--band-muted); max-width: 30ch; text-wrap: pretty; }
+.cover .refs { margin: 20px 0 0; font: 500 22px/1.3 var(--font-mono); color: var(--band-muted); }
 .timeline { margin-top: auto; }
 .timeline .bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .timeline .bar i { height: 22px; border-radius: 4px; }
@@ -181,6 +182,7 @@ a { color: inherit; text-decoration: none; }
       el('h1', null, doc.meta.title),
       el('p', 'thesis', el('span', 'key', doc.meta.thesis_key), ` ${doc.meta.thesis_rest}`),
       el('p', 'sub', ...String(doc.meta.subtitle).split('{count}').flatMap((part, i) => (i ? [el('span', 'count', String(count)), part] : [part]))),
+      el('p', 'refs', doc.legend.owasp),
       el('div', 'timeline',
         el('div', 'bar', WINDOWS.map(([, , v]) => { const i = el('i'); i.style.background = `var(${v})`; return i; })),
         el('div', 'lab', WINDOWS.map(([key]) => el('span', null, doc.windows[key])))),

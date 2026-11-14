@@ -212,7 +212,8 @@ a { color: inherit; text-decoration: none; }
       el('span', null, track(['always']), doc.windows.always),
       el('span', null, doc.legend.untagged),
       el('span', null, el('span', 'diy', doc.labels.diy), doc.legend.diy),
-      el('span', null, doc.legend.tools));
+      el('span', null, doc.legend.tools),
+      el('span', null, doc.legend.owasp));
 
     const factory = el('div', 'factory',
       el('div', 'chev spec', el('div', 'n', spec.name), el('div', 't', doc.windows.before)),
@@ -271,7 +272,7 @@ a { color: inherit; text-decoration: none; }
         el('div', 'by', m.byline),
         el('div', null, el('h1', null, `${m.title} `, el('span', 'view', doc.poster.back)), el('p', 'thesis', el('span', 'key', m.thesis_key), ` ${m.thesis_rest}`)),
         el('div', 'cnt', withCount(doc.poster.back_count))),
-      el('div', 'legend', el('span', null, keys, doc.legend.windows), el('span', null, track(['always']), doc.windows.always)),
+      el('div', 'legend', el('span', null, keys, doc.legend.windows), el('span', null, track(['always']), doc.windows.always), el('span', null, doc.legend.owasp)),
       el('div', 'body', checklist),
       el('footer', 'pf',
         el('div', 'line', `${m.close_line_plain} `, el('span', 'key', m.close_line_key)),
