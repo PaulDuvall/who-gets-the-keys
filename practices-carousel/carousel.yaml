@@ -453,7 +453,7 @@ humans:
 # template here holds no digit of its own. The stub cites `quotes`: text in git at a pinned commit.
 receipt:
   title: RECEIPT
-  source: "{ref} · run {run} · {date} · look up both signatures at search.sigstore.dev"
+  source: "{ref} · run {run} · {date} · assembled afterwards from the run's evidence"
   gaps_heading: Missing so far
   total: DEPLOYED
   result: "sandbox · {deployed} UTC"
