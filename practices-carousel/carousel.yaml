@@ -152,7 +152,7 @@ sections:
 
   - name: Pipeline checks
     tag: The checks of record
-    blurb: The pipeline runs the same checks on every change, the agent's or a human's, and nothing reaches main without them.
+    blurb: Every change, the agent's or a human's, passes the same checks before main and again at release.
     rows:
       - text: SAST on every change
         when: [minutes]
@@ -208,6 +208,15 @@ sections:
           - { name: Cypress, url: "https://docs.cypress.io/" }
           - { name: Locust, url: "https://docs.locust.io/" }
           - { name: AWS FIS, url: "https://docs.aws.amazon.com/fis/latest/userguide/what-is.html" }
+      - text: Release progressively, and roll back when alarms or synthetic tests fail
+        when: [hours]
+        where: pipeline
+        source: dpra
+        practices: []
+        tools:
+          - { name: CodeDeploy, url: "https://docs.aws.amazon.com/codedeploy/latest/userguide/welcome.html" }
+          - { name: AppConfig, url: "https://docs.aws.amazon.com/appconfig/latest/userguide/what-is-appconfig.html" }
+          - { name: CloudWatch Synthetics, url: "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries.html" }
 
   - name: Evidence
     tag: Made along the way, checked at every gate
@@ -351,15 +360,6 @@ sections:
         tools:
           - { name: CloudWatch masking, url: "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/mask-sensitive-log-data.html" }
           - { name: OTel redaction, url: "https://opentelemetry.io/docs/security/handling-sensitive-data/" }
-      - text: Release progressively, and roll back when alarms or synthetic tests fail
-        when: [hours]
-        where: pipeline
-        source: dpra
-        practices: []
-        tools:
-          - { name: CodeDeploy, url: "https://docs.aws.amazon.com/codedeploy/latest/userguide/welcome.html" }
-          - { name: AppConfig, url: "https://docs.aws.amazon.com/appconfig/latest/userguide/what-is-appconfig.html" }
-          - { name: CloudWatch Synthetics, url: "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries.html" }
       - lead: Prod drift
         text: Redeploy the last attested build and notify
         when: [hours]
