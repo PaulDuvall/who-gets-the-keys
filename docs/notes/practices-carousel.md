@@ -81,6 +81,34 @@ Fitting 43 rows took three steps, each checked by Fit: the staging-tests row mov
 
 On 2026-11-14 the owner said the whole picture is the factory: the inspector watches the pipeline from outside the pipeline, not from outside the factory. The inspector's tag now reads "Watch the pipeline from a separate account", its map box "Runs in a security account the pipeline can't reach", and page 2's lede "Everything that turns a signed spec into a deployed change, and watches it". The dashed "factory's edge" around the sandbox, pipeline and policy is gone; a dashed frame labelled "Security account" surrounds the inspector alone, on page 2 and on the poster. Map and Poster check that only the inspector is framed and that the frame carries its label.
 
+## Page 11: a real receipt
+
+On 2026-11-14 the owner asked for a sample receipt that shows "No evidence, no deploy" and many of the 42 practices, then made it page 11. The first version invented its values: `TASK-0042`, commit `7f5c682`, a PASS beside each line, marked "illustrative". The owner said it showed no real evidence, such as provenance, hash pins or attestations, and read as marketing, and pointed at this repository's own receipt. That was right: SPEC-001-R45 to R56 define a receipt, and `main` run 114 printed one for a real delivery.
+
+Page 11 now shows that receipt: the seven lines `main` run 114 printed for the runner producer's delivery `9f959a3` (TASK-T4-DUP-COLUMNS, SPEC-014-R7), as `docs/notes/tracer-2-t4.md` records them. Under them, "What backs it" gives the evidence behind each line, from the logs of the producer run that wrote the patch and the pipeline run that shipped it. Then come four things the receipt does not show yet, under "Missing so far", and scenario B10's failure line. Nothing on the page is invented. The Receipt check in `verify.mjs` compares the printed lines with that record and with the commit's own trailers. It checks that the spec commit is an ancestor with a security-key signature that adds the task file, and that every digest and run ID on the page appears in the record or in the table below.
+
+### The evidence, read on 2026-11-14 through the GitHub API
+
+| Line on page 11 | What the log says | Where |
+|---|---|---|
+| SPEC | `c7c6b4d` carries an SSH signature whose public key type is `sk-ecdsa-sha2-nistp256@openssh.com`, a security key. It changes `specs/SPEC-014-export-latency.md` and adds `tasks/TASK-T4-DUP-COLUMNS.task.md` | `git cat-file commit c7c6b4d`; the SSHSIG blob's public key |
+| AGENT | `RUN ENDED: success, 10 turns, estimated USD 0.2377491`. The command line holds `--max-turns 40 --max-budget-usd 5`. `CLAUDE_CODE_SHA256: 1eda4ee54631c2e313df7bd9c2b7d3ca22815e09c6145774309214f06a8acd15`, checked with `sha256sum -c` before unpacking, as is the `node_modules` archive, `b3c9c2d1a5ee6f22048679ca27669fbfaeb38940a3ab33cd0bc76aaac7b3ef92`. The settings hold `"allowedDomains": []`. `--strict-mcp-config` with a config that names no server (SPEC-001-R88). `Permission mode: default.` | producer run 42499336951, job 128788563404, "produce a patch with Claude Code" |
+| DIFF | The agent's tool calls: two reads, three edits of `src/handler.ts` and `test/export.acceptance.test.ts`, then `npm run check:lint`, `check:typecheck`, `check:trace` and `check:test`. The publish job, which runs no agent, checked `PATCH_SHA256: 0c1051d044e7b3f02d7000cfd4fb806a99232266b70865cd49326ddf5d5c3e97` before applying it, and could commit only after its scope command printed `scope ok`. It printed `Pushed 9f959a350e541d1aa52654e4ace7d7fdd4fa52a6 to candidate/TASK-T4-DUP-COLUMNS` | the same run, jobs 128788563404 and 128788887004 |
+| CHECKS | Fifteen lines, `check secrets passed` to `check mutation passed`, in SPEC-001-R1's order. On `main` the task and scope checks cover an empty range (SPEC-001-R68) | `main` run 114 (42501305077), job 128794438881 |
+| BUILD, VERIFY | Two lines, `receipt: verified https://slsa.dev/provenance/v1` and `receipt: verified https://github.com/PaulDuvall/who-gets-the-keys/provenance/v2`. Each certificate has `certificateIssuer` `CN=sigstore-intermediate,O=sigstore.dev`, `issuer` `https://token.actions.githubusercontent.com`, `subjectAlternativeName` `https://github.com/PaulDuvall/who-gets-the-keys/.github/workflows/pipeline.yml@refs/heads/main`, `runnerEnvironment` `github-hosted`, and `buildSignerDigest` and `sourceRepositoryDigest` both `9f959a350e541d1aa52654e4ace7d7fdd4fa52a6`. Then the seven lines | run 114, job 128794922989, "receipt" |
+| DEPLOY | The deploy-tip, attestation and receipt checks ran, in that order, before `configure-aws-credentials`. The saved plan changed `aws_lambda_function.export`'s `source_code_hash` to `cirGcVoNEagYllHWjviAKNAav4EOSi564+nsdKTnZsw=`, which is base64 for `722ac6715a0d11a8189651d68ef88028d01abf810e4a2e7ae3e9ec74a4e766cc`, the attested zip's digest. `Apply complete! Resources: 0 added, 1 changed, 0 destroyed.` at 16:46:39 UTC | run 114, job 128795003787, "deploy to sandbox" |
+| B10 stub | `CHECK attestation FAILED: dist/function.zip`: SPEC-001-R29's scenario, an unattested artifact at deploy. `docs/verification.md` records it from the E2E-R1 run on 2026-11-07 | `scenarios/scenarios.yaml`, B10 |
+
+### Which rows it covers
+
+| Covers | Rows |
+|---|---|
+| In full, 15 | Allow list of commands and paths; cap turns and spend; tests and code quality in the sandbox and the pipeline; SAST; SCA; mutation score; property tests; approver-signed specs; trace; build once and verify attestations at deploy; pin by SHA and hash; no shared cache; one OIDC identity; allowlist MCP servers (none); approvers sign factory changes |
+| In part, 6 | Secrets (the pipeline scanned, the agent did not); IaC scan and SBOM (lint and validate, no SBOM); dependency allowlist and mirror (the allowlist check, no mirror); provenance with the model (MODEL reads `not recorded`); a hash of every agent input (Claude Code and `node_modules` only); human approval of irreversible actions (the check ran and found none to approve) |
+| Not on this receipt | The other 21: DAST, staging tests, the customer's acceptance, the validator, IAM proofs, every watch and every routing practice |
+
+The page's four gaps are the decision 0002 lines not built yet: the model (deviation D05), the INTENT and TASK lines (T3b), the factory fingerprint over every agent input, and a signer outside the agent's reach (Phase 3). "No agent runs in the jobs that verify and deploy" is true of run 114: the agent ran only in producer run 42499336951's agent job, which had model access only. The SIGNED line says what that sentence leaves out: the agent can edit `pipeline.yml`.
+
 ## Not fixed
 
 Findings 6, 11 and 12 of the first review, for the reasons given. The ten Vitest failures in the preflight are the container's, and the candidate run's test check covers them.
