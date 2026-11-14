@@ -18,7 +18,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
-import { RECEIPT, RECEIPT_ROWS } from './receipt-proof.mjs';
+import { RECEIPT, RECEIPT_ROWS, segmentText } from './receipt-proof.mjs';
 import { DIR, FONT_DIR, HEIGHT, OUT, PDF, POSTER, POSTER_PDF, ROOT, WIDTH, loadCarousel, loadFonts, offlineProblems, openCarousel, pageCount, printedReceipt, rowsOf, sha256 } from './lib.mjs';
 
 const results = [];
@@ -661,7 +661,7 @@ function textCheck() {
   const r = doc.receipt;
   const pr = printedReceipt();
   const fill = (t) => String(t).replace(/\{(ref|run|date|deployed)\}/g, (_, k) => pr.vars[k]);
-  expect[PAGES] = [r.title, fill(r.source), ...pr.lines.filter(Boolean).flatMap((l) => [l.key, l.value, l.sig, l.note].filter(Boolean)), `${r.gaps_heading}: ${pr.gaps.join(' · ')}`, r.total, fill(r.result), r.stub.text, r.stub.line, r.stub.result, r.motto, r.under];
+  expect[PAGES] = [r.title, fill(r.source), ...pr.lines.filter(Boolean).flatMap((l) => [l.key, segmentText(l.value), segmentText(l.note)]), `${r.gaps_heading}: ${pr.gaps.join(' · ')}`, r.total, fill(r.result), r.stub.text, r.stub.line, r.stub.result, r.motto, r.under];
   // The poster holds every row, the title, thesis and windows of page 1, the headings and lines of pages 9 and 10, and
   // the spec, pipeline and production boxes of page 2. It leaves out the cover's subtitle, each section's blurb, page
   // 9's notes, the other boxes' text on page 2 and the seconds and minutes window labels.
@@ -689,6 +689,14 @@ function textCheck() {
     look(POSTER_PDF, 1, poster, 'poster front');
     look(POSTER_PDF, 2, back, 'poster back');
   } else missing.push('no out/poster.pdf');
+  // Every link the receipt printer made is a link annotation on page 11, as pdfinfo -url lists them.
+  const hrefs = [...new Set(pr.lines.filter(Boolean).flatMap((l) => [...l.value, ...l.note]).flatMap((x) => (typeof x === 'string' ? [] : [x.href])))];
+  const listed = spawnSync('pdfinfo', ['-url', '-f', String(PAGES), '-l', String(PAGES), PDF], { encoding: 'utf8' }).stdout ?? '';
+  const urls = new Set(listed.split('\n').map((l) => l.trim().split(/\s+/)[2]).filter(Boolean));
+  for (const h of hrefs) {
+    n++;
+    if (!h.startsWith('https://') || !urls.has(h)) missing.push(`page ${PAGES}: link ${short(h, 60)}`);
+  }
   record('Text', !missing.length, missing.length ? `${missing.length} string(s) not in the PDF: ${missing.slice(0, 4).join('; ')}` : `all ${n} strings carousel.yaml puts on the 11 pages and both sides of the poster are in the PDF text`);
 }
 
