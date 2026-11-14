@@ -1,8 +1,10 @@
 # Source of record for the "Who gets the keys?" LinkedIn carousel: a factory view.
 # Every row cites the practices.yaml IDs it shows, or cites none and names its source:
 # `source: qa` for the deck's Q&A slides, which specs/source-of-record/slides.txt does not hold,
-# or `source: dpra` for a stage of the AWS Deployment Pipeline Reference Architecture's application
-# pipeline that the deck takes as given (https://aws-samples.github.io/aws-deployment-pipeline-reference-architecture/).
+# `source: dpra` for a stage of the AWS Deployment Pipeline Reference Architecture's application
+# pipeline that the deck takes as given (https://aws-samples.github.io/aws-deployment-pipeline-reference-architecture/),
+# or `source: pipeline-view` for a practice from the owner's "Pipeline view" poster of 43 practices,
+# which the deck snapshot does not hold.
 meta:
   title: Who gets the keys?
   thesis_key: The pipeline
@@ -40,7 +42,7 @@ legend:
   windows: "Runs: before code, in the sandbox (seconds), in the pipeline (minutes), in production (hours)"
   untagged: "Untagged: runs in the pipeline"
   diy: rules you write
-  tools: "Tools: examples of the kind of tool to use"
+  tools: Tools are examples
 
 # Short labels the pages put beside the content: the DIY tag, the prefix of an OWASP LLM Top 10 ID, and the words
 # before the page numbers on the factory map.
@@ -120,6 +122,15 @@ sections:
           - { name: npm ci, url: "https://docs.npmjs.com/cli/commands/npm-ci" }
           - { name: pip --require-hashes, url: "https://pip.pypa.io/en/stable/topics/secure-installs/" }
           - { name: CodeArtifact, url: "https://docs.aws.amazon.com/codeartifact/latest/ug/welcome.html" }
+      - text: Cap turns and spend on every agent run
+        ref: LLM06
+        when: [seconds]
+        where: sandbox
+        source: pipeline-view
+        practices: []
+        tools:
+          - { name: --max-turns, url: "https://code.claude.com/docs/en/cli-reference" }
+          - { name: --max-budget-usd, url: "https://code.claude.com/docs/en/cli-reference" }
       - text: Flag agent tests that assert nothing before the change leaves the sandbox
         when: [seconds]
         where: sandbox
@@ -132,6 +143,7 @@ sections:
         practices: [P06]
         tools:
           - { name: gitleaks, url: "https://github.com/gitleaks/gitleaks" }
+          - { name: TruffleHog, url: "https://trufflesecurity.com/trufflehog" }
           - { name: push protection, url: "https://docs.github.com/en/code-security/concepts/secret-security/push-protection" }
 
   - name: Pipeline checks
@@ -151,6 +163,7 @@ sections:
         practices: [P08]
         tools:
           - { name: OSV-Scanner, url: "https://google.github.io/osv-scanner/" }
+          - { name: Trivy, url: "https://trivy.dev/" }
           - { name: Dependabot, url: "https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain" }
       - text: DAST where there is an HTTP surface, in parallel
         when: [minutes, hours]
@@ -158,6 +171,7 @@ sections:
         practices: [P09]
         tools:
           - { name: ZAP API scan, url: "https://www.zaproxy.org/docs/docker/api-scan/" }
+          - { name: Nuclei, url: "https://docs.projectdiscovery.io/tools/nuclei/overview" }
       - text: Fail a change whose mutation score drops, on changed code only
         when: [minutes]
         where: pipeline
@@ -190,6 +204,15 @@ sections:
           - { name: Checkov, url: "https://www.checkov.io/" }
           - { name: cfn-guard, url: "https://docs.aws.amazon.com/cfn-guard/latest/ug/what-is-guard.html" }
           - { name: CycloneDX, url: "https://cyclonedx.org/" }
+      - text: Integration, acceptance, load and resilience tests in a staging environment
+        when: [minutes]
+        where: pipeline
+        source: dpra
+        practices: []
+        tools:
+          - { name: Cypress, url: "https://docs.cypress.io/" }
+          - { name: Locust, url: "https://docs.locust.io/" }
+          - { name: AWS FIS, url: "https://docs.aws.amazon.com/fis/latest/userguide/what-is.html" }
 
   - name: Pipeline evidence
     tag: Evidence authorizes the deploy
@@ -201,6 +224,8 @@ sections:
         practices: [P47]
         tools:
           - { name: EARS, url: "https://alistairmavin.com/ears/" }
+          - { name: Gherkin, url: "https://cucumber.io/docs/gherkin/reference/" }
+          - { name: Markdown, url: "https://commonmark.org/" }
       - text: Specs change only through an approver-signed commit
         when: [before, minutes]
         where: human-intent
@@ -236,15 +261,15 @@ sections:
         tools:
           - { name: SLSA, url: "https://slsa.dev/" }
           - { name: in-toto, url: "https://in-toto.io/" }
-      - text: Integration, acceptance, load and resilience tests in a staging environment
+      - text: "Record a hash of every agent input: instructions, skills, MCP config and model"
+        ref: LLM08
         when: [minutes]
         where: pipeline
-        source: dpra
+        diy: true
+        source: pipeline-view
         practices: []
         tools:
-          - { name: Cypress, url: "https://docs.cypress.io/" }
-          - { name: Locust, url: "https://docs.locust.io/" }
-          - { name: AWS FIS, url: "https://docs.aws.amazon.com/fis/latest/userguide/what-is.html" }
+          - { name: CycloneDX, url: "https://cyclonedx.org/" }
 
   - name: Factory policy
     tag: Guard the keys
@@ -269,6 +294,15 @@ sections:
         tools:
           - { name: GitHub OIDC, url: "https://docs.github.com/en/actions/concepts/security/openid-connect" }
           - { name: npm trusted publishing, url: "https://docs.npmjs.com/trusted-publishers" }
+      - text: Allowlist MCP servers by exact command or URL
+        ref: LLM04
+        when: [seconds]
+        where: policy
+        source: pipeline-view
+        practices: []
+        tools:
+          - { name: allowedMcpServers, url: "https://code.claude.com/docs/en/mcp" }
+          - { name: managed-mcp.json, url: "https://code.claude.com/docs/en/mcp" }
       - text: No other principal, human or agent, can change prod
         when: [always]
         where: policy
