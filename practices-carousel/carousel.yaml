@@ -454,6 +454,7 @@ humans:
 receipt:
   title: RECEIPT
   source: "{ref} · run {run} · {date} · assembled afterwards from the run's evidence"
+  legend: "gate: a human approval · check: fails the pipeline, so nothing deploys · record: kept, stops nothing"
   gaps_heading: Missing so far
   total: DEPLOYED
   result: "sandbox · {deployed} UTC"

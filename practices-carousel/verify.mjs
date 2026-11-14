@@ -131,9 +131,9 @@ function schemaCheck() {
   // Page 11: the wording around the printed receipt. Its templates name only values the printer proves, and hold no
   // digit of their own, so no number on the receipt comes from carousel.yaml.
   const r = doc.receipt;
-  need(r, ['title', 'source', 'gaps_heading', 'total', 'result', 'count', 'motto', 'under'], 'receipt');
+  need(r, ['title', 'source', 'legend', 'gaps_heading', 'total', 'result', 'count', 'motto', 'under'], 'receipt');
   need(r?.stub, ['scenario', 'text', 'line', 'result'], 'receipt.stub');
-  for (const k of ['title', 'source', 'gaps_heading', 'total', 'result']) {
+  for (const k of ['title', 'source', 'legend', 'gaps_heading', 'total', 'result']) {
     const t = String(r?.[k] ?? '');
     for (const name of t.match(/\{(\w+)\}/g) ?? []) if (!['{ref}', '{run}', '{date}', '{deployed}'].includes(name)) bad.push(`receipt.${k} names ${name}, which the printer does not prove`);
     if (/\d/.test(t.replace(/\{\w+\}/g, ''))) bad.push(`receipt.${k} holds a digit of its own`);
@@ -661,7 +661,7 @@ function textCheck() {
   const r = doc.receipt;
   const pr = printedReceipt();
   const fill = (t) => String(t).replace(/\{(ref|run|date|deployed)\}/g, (_, k) => pr.vars[k]);
-  expect[PAGES] = [r.title, fill(r.source), ...pr.lines.filter(Boolean).flatMap((l) => [l.key, segmentText(l.value), segmentText(l.note)]), `${r.gaps_heading}: ${pr.gaps.join(' · ')}`, r.total, fill(r.result), r.stub.text, r.stub.line, r.stub.result, r.motto, r.under];
+  expect[PAGES] = [r.title, fill(r.source), r.legend, ...pr.lines.filter(Boolean).flatMap((l) => [l.key, l.kind, l.req, segmentText(l.value), segmentText(l.note)].filter(Boolean)), `${r.gaps_heading}: ${pr.gaps.join(' · ')}`, r.total, fill(r.result), r.stub.text, r.stub.line, r.stub.result, r.motto, r.under];
   // The poster holds every row, the title, thesis and windows of page 1, the headings and lines of pages 9 and 10, and
   // the spec, pipeline and production boxes of page 2. It leaves out the cover's subtitle, each section's blurb, page
   // 9's notes, the other boxes' text on page 2 and the seconds and minutes window labels.
