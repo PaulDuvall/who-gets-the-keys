@@ -4,7 +4,7 @@ For the next agent session. Read this and `CLAUDE.md` first. It replaces `docs/n
 
 ## Where things stand
 
-Updated on 2026-11-14, after steps H-3, H-4 and N-3 below. `main` is at `4e7c522`. SPEC-001-R232 is confirmed on `main`: see "H-3 result". s7e is done: every sca exception now expires on 2027-01-13, with its evidence in `specs/sca-exceptions.md`. This update is on `candidate/handoff-2026-11-14b` until the owner moves `main` to it (step H-6).
+Updated on 2026-11-14, after steps H-3 to H-6, W-1 and W-2 below. `main` is at `fc97f75`. SPEC-001-R232 is confirmed on `main`: see "H-3 result". s7e is done: every sca exception expires on 2027-01-13, with its evidence in `specs/sca-exceptions.md`. w8x is done: from 2026-12-30 the sca check warns that they expire (SPEC-001-R233), and it fails an exception without its evidence (SPEC-001-R234). This update and the README's `progress updated` badge are on `candidate/progress-badge-2026-11-14` until the owner moves `main` to them (step W-3).
 
 Landed on 2026-11-12 and 2026-11-13, each verified through the GitHub connector:
 
@@ -22,6 +22,9 @@ Landed on 2026-11-12 and 2026-11-13, each verified through the GitHub connector:
 | `12693a8` | This note, second version, and `docs/notes/sca-mf5v.md` (H-3). main's run skipped the deploy | none |
 | `039d0e4` | H-3's record, the staged sca renewal, the backlog's s7e correction and w8x, and the batch notes (H-4) | s7e, w8x |
 | `4e7c522` | sca exceptions renewed to 2027-01-13 with `specs/sca-exceptions.md`, the evidence log, signed by the owner (N-3) | s7e, closed |
+| `0e2acac` | s7e closed; this note's queue after the renewal (H-6) | s7e |
+| `659aba5` | Backlog f6c (rebuild the factory video when its counts change); w8x staged in `proposals/sca-expiry-warning/` with its notes (W-1) | f6c, w8x |
+| `fc97f75` | SPEC-001-R233 and R234: the sca expiry warning and the exceptions' shape check, signed by the owner (W-2) | w8x, closed |
 
 Every deploy since 2026-11-11 reported Terraform `No changes.`; the deploys for `a6de08a` and `894c313` applied 0 added, 0 changed, 0 destroyed.
 
@@ -37,8 +40,12 @@ Give one step at a time, in the "Owner steps" format, and read each result yours
 | H-3 | Done: `land.sh --to-main 12693a8… candidate/handoff-2026-11-13b`, `main` moved to `12693a8` | none: the deploy was skipped (SPEC-001-R232) |
 | H-4 | Done: `land.sh --to-main 039d0e4… candidate/s7e-2026-11-14`; main's run 43550653581 | none: skipped |
 | N-3 | Done: `land.sh proposals/sca-renewal-2027-01`, signed, `4e7c522`; candidate run 43551717934, main's run 43551920052 | none: skipped |
-| H-5 | `git push origin --delete candidate/handoff-2026-11-14`: H-4 landed its commit `3e618a8` | none |
-| H-6 | `scripts/bootstrap/land.sh --to-main <tip of candidate/handoff-2026-11-14b> candidate/handoff-2026-11-14b` | none expected |
+| H-5 | Done: `candidate/handoff-2026-11-14` deleted by the owner | none |
+| H-6 | Done: `land.sh --to-main 0e2acac… candidate/handoff-2026-11-14b`; main's run 43602038493 | none: skipped |
+| W-1 | Done: `land.sh --to-main 659aba5… candidate/w8x-2026-11-14`; main's run 43608373314 | none: skipped |
+| W-2 | Done: `land.sh proposals/sca-expiry-warning`, signed, `fc97f75`; candidate run 43609229158, main's run 43609511156 | none: skipped |
+| W-3 | `scripts/bootstrap/land.sh --to-main <tip of candidate/progress-badge-2026-11-14> candidate/progress-badge-2026-11-14` | none expected |
+| Any time | `git push origin --delete claude/wizardly-johnson-hfuk4e claude/relaxed-hypatia-hp356k`: both are superseded on `main` (`git cherry` and the sca-mf5v note). Keep `candidate/sandbox-gate` for g4e | none |
 
 ### H-3 result
 
@@ -67,7 +74,8 @@ A skipped deploy writes no deployment, so `894c313` stays the comparison point. 
 | o1p, land a signed batch with one push to `main` | open | Mechanical; no trust change. Changes `land.sh`, so build on nh9's landed copy (`894c313`) |
 | v5p, publish the factory video to GitHub Pages | open | Not staged yet. Pins verified with `git ls-remote` on 2026-11-13: `actions/deploy-pages` v5.0.1 `368f82528645a54fb793d4d04e342629a3f51346`, `actions/upload-pages-artifact` v5.0.0 `fc324d3547104276b827a68afc52ff2a11cc49c9`. Deploy job: `pages: write`, `id-token: write`, environment `github-pages`. The newest factory-video artifact, all eight files zipped, is 68.5 MB, so the guided video fits Pages' 100 MB file limit. The owner turns on Pages, source "GitHub Actions", in the repository settings; check GitHub's docs for where before saying so |
 | s7e, sca exceptions | closed, `4e7c522` | All 8 expire on 2027-01-13. Renew before then: re-run every check in `specs/sca-exceptions.md`, "How each claim was checked". Notes: `docs/notes/sca-renewal-2027-01.md` |
-| w8x, warn before an sca exception expires, and check each has its evidence | open, filed 2026-11-14 | The owner chose a separate batch. Needs a new SPEC-001 requirement and a change to `scripts/checks.ts`. Due well before 2027-01-13 |
+| w8x, warn before an sca exception expires, and check each has its evidence | closed, `fc97f75` | Open questions kept in the item: the reach probes as a committed script, before the next renewal; the warning in `land.sh`'s summary, with o1p. Notes: `docs/notes/sca-expiry-warning.md` |
+| f6c, rebuild the factory video whenever its end card's counts change | open, filed 2026-11-14 | The newest video, built at `8dce7fe`, counts 103 approved requirements; `main` has 111. Changes `factory-video.yml`, so a signed batch. Do it with v5p, which publishes the video: today neither video has a public link |
 | r3m, alarm on refused break-glass attempts | open | Priority 1; amends R217; needs an owner apply |
 | Not filed yet | from 2026-11-13 | A `land.sh --sca-exception` mode with the touch cue; clear `summary_next` when main's run fails; `openssh-client` in `cloud-session-setup.sh`. Details: `docs/notes/sca-mf5v.md`, "For the backlog" |
 
