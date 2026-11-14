@@ -1,0 +1,96 @@
+{
+  "about": "Every font the carousel uses, pinned by SHA-256. build.sh downloads each file into fonts/ (ignored) and refuses one whose digest differs; verify.mjs checks again. Each URL names a commit, so it cannot move. Chromium parses these files, so a change here needs the same review as a dependency.",
+  "sources": [
+    {
+      "name": "Archivo",
+      "repository": "https://github.com/Omnibus-Type/Archivo",
+      "commit": "211127690e8ff106c36c935f7e5e697114cff103",
+      "commit_date": "2026-09-02",
+      "licence": "SIL Open Font License 1.1",
+      "licence_url": "https://raw.githubusercontent.com/Omnibus-Type/Archivo/211127690e8ff106c36c935f7e5e697114cff103/OFL.txt"
+    },
+    {
+      "name": "IBM Plex",
+      "repository": "https://github.com/IBM/plex",
+      "commit": "1da12f02587b630c07e92692d21492d722f53614",
+      "commit_date": "2024-11-11",
+      "release": "@ibm/plex-sans@1.1.0 and @ibm/plex-mono@1.1.0",
+      "licence": "SIL Open Font License 1.1",
+      "licence_url": "https://raw.githubusercontent.com/IBM/plex/1da12f02587b630c07e92692d21492d722f53614/packages/plex-sans/LICENSE.txt"
+    }
+  ],
+  "fonts": [
+    {
+      "file": "Archivo-SemiBold.ttf",
+      "family": "Archivo",
+      "weight": "600",
+      "stretch": "100%",
+      "url": "https://raw.githubusercontent.com/Omnibus-Type/Archivo/211127690e8ff106c36c935f7e5e697114cff103/fonts/ttf/Archivo-SemiBold.ttf",
+      "sha256": "6598b6ed816158767a7633bdfb01d78daf54cab4cd4d9d3cc0cfd995f4723083"
+    },
+    {
+      "file": "Archivo-Bold.ttf",
+      "family": "Archivo",
+      "weight": "700",
+      "stretch": "100%",
+      "url": "https://raw.githubusercontent.com/Omnibus-Type/Archivo/211127690e8ff106c36c935f7e5e697114cff103/fonts/ttf/Archivo-Bold.ttf",
+      "sha256": "951a0ebab63b1bb0d90a26c27625bda803d570dace3851fa2f1eea65852d8983"
+    },
+    {
+      "file": "ArchivoSemiExpanded-ExtraBold.ttf",
+      "family": "Archivo",
+      "weight": "800",
+      "stretch": "112.5%",
+      "url": "https://raw.githubusercontent.com/Omnibus-Type/Archivo/211127690e8ff106c36c935f7e5e697114cff103/fonts/ttf/ArchivoSemiExpanded-ExtraBold.ttf",
+      "sha256": "e9745e9e90c16c00ba9065dee940ca2a390f9ca65168de359df41a55a88ee627"
+    },
+    {
+      "file": "IBMPlexSans-Regular.ttf",
+      "family": "IBM Plex Sans",
+      "weight": "400",
+      "stretch": "100%",
+      "url": "https://raw.githubusercontent.com/IBM/plex/1da12f02587b630c07e92692d21492d722f53614/packages/plex-sans/fonts/complete/ttf/IBMPlexSans-Regular.ttf",
+      "sha256": "975dcda37d80f038dcd143c22e33ca2d97a0cc5a929aace1c749153b0fe1afa5"
+    },
+    {
+      "file": "IBMPlexSans-SemiBold.ttf",
+      "family": "IBM Plex Sans",
+      "weight": "600",
+      "stretch": "100%",
+      "url": "https://raw.githubusercontent.com/IBM/plex/1da12f02587b630c07e92692d21492d722f53614/packages/plex-sans/fonts/complete/ttf/IBMPlexSans-SemiBold.ttf",
+      "sha256": "a20caf8286023a6a7a85e40b1d2a4ae9fc3e3b1f9eda8f4c542dd4986af67bb1"
+    },
+    {
+      "file": "IBMPlexMono-Regular.ttf",
+      "family": "IBM Plex Mono",
+      "weight": "400",
+      "stretch": "100%",
+      "url": "https://raw.githubusercontent.com/IBM/plex/1da12f02587b630c07e92692d21492d722f53614/packages/plex-mono/fonts/complete/ttf/IBMPlexMono-Regular.ttf",
+      "sha256": "fe11304a5fe956d5744e9b6a246cc83d90425245e75a62230044966ca96a7f50"
+    },
+    {
+      "file": "IBMPlexMono-Medium.ttf",
+      "family": "IBM Plex Mono",
+      "weight": "500",
+      "stretch": "100%",
+      "url": "https://raw.githubusercontent.com/IBM/plex/1da12f02587b630c07e92692d21492d722f53614/packages/plex-mono/fonts/complete/ttf/IBMPlexMono-Medium.ttf",
+      "sha256": "0bede3debdea8488bbb927f8f0650d915073209734a67fe8cd5a3320b572511c"
+    },
+    {
+      "file": "IBMPlexMono-SemiBold.ttf",
+      "family": "IBM Plex Mono",
+      "weight": "600",
+      "stretch": "100%",
+      "url": "https://raw.githubusercontent.com/IBM/plex/1da12f02587b630c07e92692d21492d722f53614/packages/plex-mono/fonts/complete/ttf/IBMPlexMono-SemiBold.ttf",
+      "sha256": "c9417148ce13f8fa7d2d5c9180bbc141f72aa0d814ffeb280f6904dc2b1bbd7a"
+    },
+    {
+      "file": "IBMPlexMono-Bold.ttf",
+      "family": "IBM Plex Mono",
+      "weight": "700",
+      "stretch": "100%",
+      "url": "https://raw.githubusercontent.com/IBM/plex/1da12f02587b630c07e92692d21492d722f53614/packages/plex-mono/fonts/complete/ttf/IBMPlexMono-Bold.ttf",
+      "sha256": "ca403c56931baef307d20ba64b69acb71abcad61f75e66414661d57484b690ec"
+    }
+  ]
+}
