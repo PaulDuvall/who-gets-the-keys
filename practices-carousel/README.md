@@ -2,6 +2,8 @@
 
 The 10-page LinkedIn carousel from the talk "Who Gets the Keys?": 36 practices for code an AI agent writes, with when each one runs, where in the factory it runs and an example of the kind of tool that does it. Each page is 1080 × 1350 px, LinkedIn's 4:5 portrait size. A two-sided poster reads the same file. Its front, the factory view, shows every row with the title, the windows, the closing pages and the flow's ends; it leaves out each section's blurb, the cover's subtitle, page 9's notes and most of the map's text. Its back is a checklist: every practice with a box to tick, section by section. This folder is the source of record for both ([decision 0009](../docs/decisions/0009-practices-carousel.md)).
 
+`prompt.md` keeps the owner's prompt that started the kit, with its appendices, and each instruction the owner gave while it was built.
+
 ## Edit
 
 Edit `carousel.yaml` and nothing else. It holds every word on every page and on the poster. `carousel.html` and `poster.html` are the templates and hold no content.
