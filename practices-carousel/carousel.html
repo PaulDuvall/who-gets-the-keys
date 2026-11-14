@@ -107,35 +107,35 @@ a { color: inherit; text-decoration: none; }
 .sign .who-am-i { margin-top: 18px; font-size: 26px; color: var(--band-muted); }
 .sign .who-am-i b { color: var(--band-ink); font-weight: 600; }
 
-/* Page 11: one real receipt on a paper slip with torn edges: the lines the receipt job printed, the evidence behind
-   them, what it does not cover yet, then a change that got no receipt. Sizes scale with --k, fitted as a section page's. */
+/* Page 11: one real receipt on a paper slip with torn edges. Each line shows a full hash or signature, which wraps
+   anywhere; then what the receipt does not cover yet, and a change that got no receipt. Sizes scale with --k. */
 .receipt { --k: 1; }
 .receipt .slip, .receipt .stub { width: 100%; background: var(--slip); color: var(--ink); font-family: var(--font-mono);
   -webkit-mask: radial-gradient(circle 9px at 50% 0, transparent 98%, #000) top/24px 51% repeat-x,
     radial-gradient(circle 9px at 50% 100%, transparent 98%, #000) bottom/24px 51% repeat-x;
   mask: radial-gradient(circle 9px at 50% 0, transparent 98%, #000) top/24px 51% repeat-x,
     radial-gradient(circle 9px at 50% 100%, transparent 98%, #000) bottom/24px 51% repeat-x; }
-.receipt .slip { margin-top: calc(16px * var(--k)); padding: calc(22px * var(--k)) 30px calc(18px * var(--k)); }
-.receipt .slip h2 { margin: 0; text-align: center; font: 800 calc(38px * var(--k)) var(--font-display); font-stretch: 115%; letter-spacing: .08em; }
-.receipt .slip .src { text-align: center; font: 500 calc(17px * var(--k)) var(--font-mono); color: var(--muted); margin-top: 2px; }
-.receipt .slip hr { border: 0; border-top: 2px dashed var(--perf); margin: calc(9px * var(--k)) 0; }
-.receipt .slip h3 { margin: 0 0 calc(5px * var(--k)); font: 700 calc(15px * var(--k)) var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-.receipt .printed { margin: 0; font: 600 calc(19px * var(--k))/1.38 var(--font-mono); white-space: pre; }
-.receipt .ln { display: grid; grid-template-columns: calc(112px * var(--k)) minmax(0, 1fr); gap: 12px; align-items: baseline; padding: calc(3px * var(--k)) 0; }
-.receipt .ln .k { font: 700 calc(17px * var(--k)) var(--font-mono); letter-spacing: .05em; color: var(--brass); }
-.receipt .ln .v { font: 500 calc(19px * var(--k))/1.25 var(--font-mono); }
-.receipt .ln .v small { display: block; font: 400 calc(16px * var(--k))/1.3 var(--font-mono); color: var(--muted); margin-top: 1px; }
-.receipt .gaps { font: 500 calc(16px * var(--k))/1.35 var(--font-mono); color: var(--muted); }
+.receipt .slip { margin-top: calc(14px * var(--k)); padding: calc(20px * var(--k)) 28px calc(16px * var(--k)); }
+.receipt .slip h2 { margin: 0; text-align: center; font: 800 calc(36px * var(--k)) var(--font-display); font-stretch: 115%; letter-spacing: .08em; }
+.receipt .slip .src { text-align: center; font: 500 calc(15px * var(--k)) var(--font-mono); color: var(--muted); margin-top: 2px; }
+.receipt .slip hr { border: 0; border-top: 2px dashed var(--perf); margin: calc(8px * var(--k)) 0; }
+.receipt .ln { display: grid; grid-template-columns: calc(94px * var(--k)) minmax(0, 1fr); gap: 10px; align-items: baseline; padding: calc(3px * var(--k)) 0; }
+.receipt .ln .k { font: 700 calc(15px * var(--k)) var(--font-mono); letter-spacing: .04em; color: var(--brass); }
+.receipt .ln .v { font: 600 calc(15px * var(--k))/1.25 var(--font-mono); overflow-wrap: anywhere; }
+.receipt .ln .v small { display: block; font: 400 calc(13px * var(--k))/1.3 var(--font-mono); color: var(--muted); margin-top: 1px; overflow-wrap: anywhere; }
+.receipt .ln .v .val { white-space: nowrap; }
+.receipt .ln .v .sig { display: block; font: 500 calc(11px * var(--k))/1.3 var(--font-mono); color: var(--ink); white-space: nowrap; margin-top: 1px; }
+.receipt .gaps { font: 500 calc(14px * var(--k))/1.35 var(--font-mono); color: var(--muted); }
 .receipt .gaps b { color: var(--ink); font-weight: 700; }
-.receipt .tot { display: flex; justify-content: space-between; align-items: baseline; font: 700 calc(24px * var(--k)) var(--font-mono); }
+.receipt .tot { display: flex; justify-content: space-between; align-items: baseline; font: 700 calc(22px * var(--k)) var(--font-mono); }
 .receipt .tot b { color: var(--w-s); }
-.receipt .foot { text-align: center; font: 500 calc(16px * var(--k)) var(--font-mono); color: var(--muted); margin-top: calc(5px * var(--k)); }
-.receipt .stub { margin-top: calc(14px * var(--k)); padding: calc(12px * var(--k)) 30px; font: 500 calc(18px * var(--k))/1.3 var(--font-mono);
+.receipt .foot { text-align: center; font: 500 calc(14px * var(--k)) var(--font-mono); color: var(--muted); margin-top: calc(4px * var(--k)); }
+.receipt .stub { margin-top: calc(12px * var(--k)); padding: calc(10px * var(--k)) 28px; font: 500 calc(16px * var(--k))/1.3 var(--font-mono);
   display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 16px; align-items: baseline; }
-.receipt .stub code { grid-column: 1; font: 600 calc(17px * var(--k)) var(--font-mono); color: var(--fail); }
-.receipt .stub b { grid-column: 2; grid-row: 1 / span 2; align-self: center; font: 700 calc(21px * var(--k)) var(--font-mono); color: var(--fail); }
-.receipt .motto { margin: auto 0 0; padding-top: calc(12px * var(--k)); text-align: center; font: 800 calc(56px * var(--k))/1 var(--font-display); font-stretch: 115%; color: var(--brass-hi); }
-.receipt .under { text-align: center; margin: calc(8px * var(--k)) 0 0; font-size: calc(21px * var(--k)); color: var(--band-muted); }
+.receipt .stub code { grid-column: 1; font: 600 calc(15px * var(--k)) var(--font-mono); color: var(--fail); }
+.receipt .stub b { grid-column: 2; grid-row: 1 / span 2; align-self: center; font: 700 calc(19px * var(--k)) var(--font-mono); color: var(--fail); }
+.receipt .motto { margin: auto 0 0; padding-top: calc(10px * var(--k)); text-align: center; font: 800 calc(54px * var(--k))/1 var(--font-display); font-stretch: 115%; color: var(--brass-hi); }
+.receipt .under { text-align: center; margin: calc(8px * var(--k)) 0 0; font-size: calc(20px * var(--k)); color: var(--band-muted); }
 
 /* Factory map (page 2): the same tokens. Text is 26 px or larger so it reads on a phone without zooming. */
 .factory .lede { margin: 18px 0 0; font-size: 27px; line-height: 1.4; color: var(--muted); text-wrap: pretty; }
@@ -358,29 +358,24 @@ a { color: inherit; text-decoration: none; }
     return s;
   }
 
-  // Page 11: one real receipt. {shown} counts the distinct rows its evidence covers in full, {partly} the others it covers
-  // in part, and {count} is every row.
+  // Page 11: one real receipt. {shown} counts the distinct rows its lines cover in full, {partly} the others they
+  // cover in part, and {count} is every row.
   function receiptTally(r) {
-    const shown = new Set(list(r.backs).flatMap((l) => list(l.shows)));
-    const partly = new Set(list(r.backs).flatMap((l) => list(l.partly)).filter((t) => !shown.has(t)));
+    const shown = new Set(list(r.lines).flatMap((l) => list(l.shows)));
+    const partly = new Set(list(r.lines).flatMap((l) => list(l.partly)).filter((t) => !shown.has(t)));
     return { shown: shown.size, partly: partly.size };
   }
   function receiptPage(n) {
     const r = doc.receipt;
     const tally = receiptTally(r);
     const s = slide('dark receipt', n, 'receipt');
-    const wide = Math.max(...list(r.printed).map((l) => l.key.length));
     s.append(
       top(doc.meta.title, n),
       el('div', 'slip',
         el('h2', null, r.title),
         el('div', 'src', r.source),
         el('hr'),
-        el('h3', null, r.printed_heading),
-        el('pre', 'printed', list(r.printed).map((l) => `${l.key.padEnd(wide)} ${l.value}`).join('\n')),
-        el('hr'),
-        el('h3', null, r.backs_heading),
-        list(r.backs).map((l) => el('div', 'ln', el('span', 'k', l.key), el('span', 'v', l.value, el('small', null, l.note)))),
+        list(r.lines).map((l) => el('div', 'ln', el('span', 'k', l.key), el('span', 'v', el('span', 'val', l.value), l.sig ? el('code', 'sig', l.sig) : '', el('small', null, l.note)))),
         el('hr'),
         el('div', 'gaps', el('b', null, `${r.gaps_heading}: `), list(r.gaps).join(' · ')),
         el('hr'),
@@ -417,7 +412,7 @@ a { color: inherit; text-decoration: none; }
 
   // The receipt page fits when nothing overflows down or across, and no line of the slip is wider than its box.
   function receiptFits(page) {
-    const lines = [...page.querySelectorAll('.printed, .ln .v, .stub span, .stub code')];
+    const lines = [...page.querySelectorAll('.ln .v, .stub span, .stub code')];
     return page.scrollHeight <= page.clientHeight && page.scrollWidth <= page.clientWidth && lines.every((e) => e.scrollWidth <= e.clientWidth + 1);
   }
   function fitReceipt(page) {

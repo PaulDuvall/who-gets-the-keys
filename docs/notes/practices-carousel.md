@@ -83,19 +83,41 @@ On 2026-11-14 the owner said the whole picture is the factory: the inspector wat
 
 ## Page 11: a real receipt
 
-On 2026-11-14 the owner asked for a sample receipt that shows "No evidence, no deploy" and many of the 42 practices, then made it page 11. The first version invented its values: `TASK-0042`, commit `7f5c682`, and a PASS on every line, marked "illustrative". The owner said it showed no real evidence, such as provenance, hash pins or attestations, and read as marketing. The owner also pointed at this repository's own receipt. That was right. SPEC-001-R45, R48, R50, R55 and R56 define a receipt, and `main` run 114 printed one for a real delivery.
+On 2026-11-14 the owner asked for a sample receipt that shows "No evidence, no deploy" and many of the 42 practices, then made it page 11. Three versions followed, each after the owner's or a reviewer's objection.
 
-Page 11 now shows that receipt: the seven lines `main` run 114 printed for the runner producer's delivery `9f959a3` (TASK-T4-DUP-COLUMNS, SPEC-014-R7). They match the copy that `docs/notes/tracer-2-t4.md` has held on `main` since `1c56a5a`, on 2026-11-08. Under them, "Behind it" is evidence a reviewer collected by hand from git and two runs' logs. One run wrote the change; the other shipped it. The pipeline itself verified only the seven lines. Then come five things the receipt does not show yet, under "Missing so far", and scenario B10's failure line.
+| Version | What it showed | The objection |
+|---|---|---|
+| `TASK-0042`, illustrative | Invented values and a PASS on every line | The owner: no real evidence, such as provenance, hash pins or attestations; it reads as marketing |
+| `8504e11`, `12cff5e` | `main` run 114's seven printed lines, and log quotes behind each | The reviewer: some evidence overstated, and the check passed false values. The owner: it needs actual hashes and digital signatures |
+| This one | Full hashes and signatures, each one verified offline | |
 
-### What the Receipt check holds the page to
+Page 11 now shows, for the delivery `main` run 114 deployed (the runner producer's commit `9f959a3`, for SPEC-014-R7), every hash and signature in full. `receipt-proof.mjs` derives each one from git and `practices-carousel/evidence/`, and verifies every signature with `node:crypto`, with no network and no `ssh-keygen`. Rekor log indexes 3757924837 and 3757925836 can be looked up by anyone at search.sigstore.dev.
 
-| Part of page 11 | Must match |
+### What is proved, line by line
+
+| Line | Value | How the Receipt check proves it |
+|---|---|---|
+| SPEC | SPEC-014-R7, TASK-T4-DUP-COLUMNS, commit `c7c6b4d…` | `git show` of `c7c6b4d` adds the requirement row under `specs/` and the task file under `tasks/`. It is an ancestor of `9f959a3` |
+| APPROVED | Key `SHA256:xOytozuSnsPFefpE13WurNValJwO/f0QYyU1aqLHwGE`, signature `AAAAIQCU…` | The commit's one `gpgsig` header is an SSHSIG blob with namespace `git` and hash `sha512`. Its key is `sk-ecdsa-sha2-nistp256@openssh.com`, application `ssh:who-gets-the-keys`, listed in `approvers.txt` at the parent. The flags byte asserts a touch, and the counter is 1923. The ECDSA P-256 signature verifies over SHA-256(application), the flags, the counter and SHA-256 of the signed data, as OpenSSH's `ssh-ecdsa-sk.c` checks it |
+| AGENT | `sha256:1eda4ee5…` | `CLAUDE_CODE_VERSION` and `CLAUDE_CODE_SHA256` in `.github/workflows/producer.yml` at `c7c6b4d`. The signed commit names its tree by hash, so the pin is inside what the approver signed. Turns and cost come from the run's log, quoted below |
+| DIFF | `sha256:0c1051d0…` | `git diff --binary --no-renames --abbrev=7 c7c6b4d 9f959a3`, hashed: the bytes the producer's agent job wrote and its publish job checked (`PATCH_SHA256`, quoted below) |
+| COMMIT | `9f959a35…` | The commit and its last-paragraph trailers |
+| FILES | `sha256:722ac671…` | The subject of both verified statements |
+| SLSA, RECORD | Payload digests `ed093ed1…` and `fc4de60a…`, DSSE signatures `MEYCIQD3…` and `MEUCIAbq…` | Each statement in `evidence/` hashes to the payload hash its Rekor entry logged. Its DSSE signature verifies with the Fulcio certificate in that entry. The certificate chains to the Fulcio root in Sigstore's trusted root and was valid when Rekor logged the entry. Rekor's signed entry timestamp verifies with the Rekor key in the trusted root. The inclusion proof reaches the root hash its checkpoint names, and the checkpoint is signed by that key. RECORD's statement holds SPEC-014-R7, agent Claude Code and model `not recorded` |
+| SIGNER | `pipeline.yml@refs/heads/main`, `github-hosted`, certificate serials | Both certificates' SAN and Fulcio extensions: build signer and source digests are `9f959a3`, runner `github-hosted`, run `42501305077` attempt 1 |
+| DEPLOY | `cirGcVoNEagYllHWjviAKNAav4EOSi564+nsdKTnZsw=` | The base64 of the FILES digest, and the `source_code_hash` Terraform planned in the deploy job, quoted below |
+
+Every long token on page 11, meaning a digest, signature, fingerprint, serial or base64 value, must be a fact its line's proof group derived. Every number must be in that group or in the line's quotes. Eight deliberate breaks each fail the check: one byte of a statement, a DSSE signature, an inclusion-proof hash, the Rekor key in the trusted root, the DIFF hash on the page, the approver's signature on the page, an unsigned spec commit, and the turn count.
+
+### What is not proved
+
+| Gap | Why |
 |---|---|
-| The seven printed lines | The block in `docs/notes/tracer-2-t4.md` at `1c56a5a`, and the commit's own hash and last-paragraph trailers for COMMIT, AGENT and SPEC |
-| The spec commit, `c7c6b4d` | An ancestor of `9f959a3` that adds SPEC-014-R7 under `specs/` and adds `tasks/TASK-T4-DUP-COLUMNS.task.md`. It has one `gpgsig` header with an SSH signature. That signature's key is a security key listed in `approvers.txt` at its parent, with namespace `git` and the touch flag. The check reads the key. The pipeline's signatures check verifies the signature itself (SPEC-001-R12), and run 114's did |
-| Each line under "Behind it", the header and the stub | Its own quotes. A `git` quote must be in a file, or a commit message, at a pinned full SHA. A `log` quote must be in the block below, under the line that names its job. Every number and digest the page line shows must be in that line's quotes, whole, as a digest prefix, or as a quoted decimal rounded. A base64 SHA-256 in a quote also counts as its hex |
-
-The log quotes are this session's copy of GitHub's logs, made on 2026-11-14. The check cannot fetch the logs, which expire under GitHub's retention period. While they exist, anyone can compare each line below with the job it names.
+| The trusted root itself | `evidence/sigstore-trusted-root.json` is the file Sigstore's TUF CDN served on 2026-11-14 under the SHA-256 that `targets.json` version 14 names (`6494e21e…`). The check does not walk TUF's signed metadata back to a root of trust. The batch adds the file to `specs/protected-paths.txt`, so changing it needs an approver's signature |
+| The statements' bytes | Rekor stores a DSSE entry's payload hash, not its payload. The two statements in `evidence/` were rebuilt from the run's facts and `scripts/receipt.ts` at `9f959a3`, and each hashes exactly to what Rekor logged, so they are the signed bytes |
+| The certificates' SCTs | Each Fulcio certificate embeds a certificate-transparency timestamp. The check does not verify it |
+| Turns, cost, the checks' pass lines, the deploy's counts and time | Only the run logs hold them. They are quoted below, from GitHub's logs, which expire. Anyone can compare them with the job each names while the logs last |
+| The producer run, the model, the task, every agent input, the signer's reach | "Missing so far" on the page. The receipt names none of them yet (decision 0002, tracer 2) |
 
 ### Log lines, quoted
 
@@ -149,40 +171,26 @@ Saved the plan to: plan.out
 2026-11-08T16:46:39.0695771Z Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
 ```
 
-### What each line shows, and what it does not
-
-| Line on page 11 | Source | What it does not show |
-|---|---|---|
-| SPEC | `c7c6b4d`, signed by the approver's security key | It does not trace this delivery to the task: the receipt has no TASK line yet |
-| AGENT | Producer run 42499336951, named by the commit's `Producer-Run` trailer. Claude Code's version, SHA-256, turn and budget limits come from `producer.yml` at `c7c6b4d`, the commit that run checked out. The turns and estimated cost come from the run's last line | "Model access only" describes the job's credentials. The job also fetched packages before the agent started. The agent's own commands had an empty egress allowlist (SPEC-001-R87). The cost is Claude Code's estimate |
-| DIFF | The agent's tool calls, and the publish job, which runs no agent | The allow rules were not enforced as written. Claude Code forced `default` mode (`Permission mode: default.`), and read-only commands run without approval in every mode (SPEC-001-R88). The task's paths were enforced, by the scope command |
-| CHECKS | Fifteen pass lines, secrets to mutation | Mutation runs over all of `src/` with no incremental file, as CI keeps no cache, and fails below a fixed `break` of 95. The changed code and a drop in the score are not what it checks. On `main` the task and scope checks cover an empty range (SPEC-001-R68) |
-| BUILD, VERIFY | The receipt job's two verified attestations and their Sigstore certificates | MODEL reads `not recorded` (deviation D05) |
-| DEPLOY | The deploy job's step order in `pipeline.yml` at `9f959a3`, and its plan and apply lines | The hash is the one Terraform planned from the downloaded zip. Nothing read the deployed function's hash back, because the agent runs no `aws` command |
-| B10 stub | `docs/verification.md` at `96eb92c`, the E2E-R1 run of 2026-11-07 | It ran in the scenario harness, which runs the deploy job's attestation check on a zip with no attestation. No deploy job ran |
-
 ### Which rows it covers
 
 | Covers | Rows |
 |---|---|
 | In full, 10 | Approver-signed specs; approvers sign factory changes; cap turns and spend; tests and code quality in the sandbox and the pipeline; SAST; SCA; property tests; no shared cache; build once and verify attestations at deploy; one OIDC identity |
-| In part, 12 | Trace (the trace check needs a `Spec:` trailer only on changes to `src/` and `test/`). A hash of every agent input (Claude Code and `node_modules` only). Pinning (actions and Claude Code are pinned; the runner image and the sandbox's apt packages are not). MCP allowlist (an empty list, with no server allowed by command or URL). Integrity of what it retrieves (digests checked before unpacking, for two downloads). The allow list of commands and paths (paths only). Mutation (all of `src/`, against a fixed bar). Secrets (the pipeline scanned and the agent did not). IaC scan and SBOM (lint and validate, with no SBOM). Dependency allowlist and mirror (the allowlist, with no mirror). Provenance with the model (`not recorded`). Human approval of irreversible actions (the check ran and found nothing to approve) |
+| In part, 12 | Trace (the trace check needs a `Spec:` trailer only on changes to `src/` and `test/`). A hash of every agent input (Claude Code only, inside the signed tree). Pinning (actions and Claude Code are pinned; the runner image and the sandbox's apt packages are not). MCP allowlist (an empty list, with no server allowed by command or URL). Integrity of what it retrieves (digests checked before unpacking, for two downloads). The allow list of commands and paths (paths only). Mutation (all of `src/`, against a fixed bar). Secrets (the pipeline scanned and the agent did not). IaC scan and SBOM (lint and validate, with no SBOM). Dependency allowlist and mirror (the allowlist, with no mirror). Provenance with the model (`not recorded`). Human approval of irreversible actions (the check ran and found nothing to approve) |
 | Not on this receipt, 20 | DAST, staging tests, the customer's acceptance, the validator, IAM proofs, every watch practice and every routing practice, among others |
 
-The review of the first real version moved five rows from "in full" to "in part": trace, pinning, the MCP allowlist, the allow list of commands and mutation. It also added "integrity of what it retrieves". The page said 15 and 6; it now says 10 and 12.
+"No agent runs in the jobs that verify and deploy" is true of run 114: the agent ran only in the producer run's agent job. The SIGNER line says what that sentence leaves out: the agent can edit `pipeline.yml`.
 
-The five gaps come from decision 0002 and tracer 2, and none is built yet. They are the model (deviation D05) and the INTENT and TASK lines (T3b). Then a link from the receipt to the producer run, the factory fingerprint over every agent input, and a signer outside the agent's reach (Phase 3). "No agent runs in the jobs that verify and deploy" is true of run 114: the agent ran only in the producer run's agent job. The SIGNED line says what that sentence leaves out: the agent can edit `pipeline.yml`.
-
-### Second independent review
+### Review of the second version
 
 A subagent reviewed `8504e11` against the raw logs, git and the specs. Every value on the page matched. Its findings, and what happened to each:
 
 | # | Finding | Outcome |
 |---|---|---|
-| 1 | The Receipt check read only hex digests and long run IDs, anywhere in the notes. Eleven false values passed at once | Fixed. Each line cites its own quotes, at pinned commits or under a job's ID, and every number and digest on it must be in them |
-| 2 | The signature check read the whole commit object, message included, and matched no key | Fixed. It reads the one signature header git verifies, and requires an `approvers.txt` key, namespace `git` and the touch flag |
+| 1 | The Receipt check read only hex digests and long run IDs, anywhere in the notes. Eleven false values passed at once | Fixed in `12cff5e` with per-line quotes. This version goes further: every hash and signature is derived and verified |
+| 2 | The signature check read the whole commit object, message included, and matched no key | Fixed. It reads the one signature header and verifies the signature itself, by an `approvers.txt` key |
 | 3 | Five rows were counted in full that the logs cover in part | Fixed, as the table above says |
-| 4 | "No network", "a line that fails stops the deploy", "copied from the pipeline's log", the DEPLOY note, "$0.24" and the B10 stub overstated the evidence | Fixed. The page says "model access only", "if an attestation fails to verify, nothing deploys", "printed by its receipt job", "collected by hand", "est." and "planned". The stub names the scenario and its date |
+| 4 | "No network", "a line that fails stops the deploy", "copied from the pipeline's log", the DEPLOY note, "$0.24" and the B10 stub overstated the evidence | Fixed. The stub names the scenario and its date |
 | 5 | "Integrity of what it retrieves" was left out | Added, in part |
 | 6 | Trailers were read from the whole message, and the Spec match was a substring | Fixed: the last paragraph only, and exact IDs |
 | 7 | The workflow: sound, but it runs only on `main` | Unchanged. Decision 0009 runs the build on `main` and on demand |
