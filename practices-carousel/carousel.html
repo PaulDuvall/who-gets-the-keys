@@ -358,28 +358,33 @@ a { color: inherit; text-decoration: none; }
     return s;
   }
 
-  // Page 11: one real receipt. {shown} counts the distinct rows its lines cover in full, {partly} the others they
-  // cover in part, and {count} is every row.
-  function receiptTally(r) {
-    const shown = new Set(list(r.lines).flatMap((l) => list(l.shows)));
-    const partly = new Set(list(r.lines).flatMap((l) => list(l.partly)).filter((t) => !shown.has(t)));
+  // Page 11: one real receipt. receipt-proof.mjs prints its lines and gaps from verified evidence, and render.mjs
+  // injects them as window.__CAROUSEL__.receipt; carousel.yaml gives only the wording around them. {ref}, {run},
+  // {date} and {deployed} in that wording are values the printer proved. {shown} counts the distinct rows the lines
+  // cover in full, {partly} the others they cover in part, and {count} is every row.
+  const printed = window.__CAROUSEL__.receipt;
+  const fill = (t) => String(t).replace(/\{(ref|run|date|deployed)\}/g, (_, k) => printed.vars[k]);
+  function receiptTally(lines) {
+    const shown = new Set(lines.flatMap((l) => list(l.shows)));
+    const partly = new Set(lines.flatMap((l) => list(l.partly)).filter((t) => !shown.has(t)));
     return { shown: shown.size, partly: partly.size };
   }
   function receiptPage(n) {
     const r = doc.receipt;
-    const tally = receiptTally(r);
+    const lines = list(printed.lines);
+    const tally = receiptTally(lines);
     const s = slide('dark receipt', n, 'receipt');
     s.append(
       top(doc.meta.title, n),
       el('div', 'slip',
         el('h2', null, r.title),
-        el('div', 'src', r.source),
+        el('div', 'src', fill(r.source)),
         el('hr'),
-        list(r.lines).map((l) => el('div', 'ln', el('span', 'k', l.key), el('span', 'v', el('span', 'val', l.value), l.sig ? el('code', 'sig', l.sig) : '', el('small', null, l.note)))),
+        lines.map((l) => el('div', 'ln', el('span', 'k', l.key), el('span', 'v', el('span', 'val', l.value), l.sig ? el('code', 'sig', l.sig) : '', el('small', null, l.note)))),
         el('hr'),
-        el('div', 'gaps', el('b', null, `${r.gaps_heading}: `), list(r.gaps).join(' · ')),
+        el('div', 'gaps', el('b', null, `${r.gaps_heading}: `), list(printed.gaps).join(' · ')),
         el('hr'),
-        el('div', 'tot', el('span', null, r.total), el('b', null, r.result)),
+        el('div', 'tot', el('span', null, r.total), el('b', null, fill(r.result))),
         el('div', 'foot', ...String(r.count).split(/(\{shown\}|\{partly\}|\{count\})/).map((part) =>
           part === '{shown}' ? el('span', 'shown', String(tally.shown)) : part === '{partly}' ? el('span', 'partly', String(tally.partly))
             : part === '{count}' ? el('span', 'count', String(count)) : part))),

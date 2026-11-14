@@ -1,11 +1,11 @@
 # Decision 0009: the practices carousel's workflow, and its font pins as a protected path.
 # The kit, practices-carousel/, and this batch reach main together, by land.sh --to-main on the candidate tip. Then
 # land.sh lands this batch in one signed commit. The kit holds no protected path until this batch adds
-# practices-carousel/fonts.json and practices-carousel/evidence/sigstore-trusted-root.json to specs/protected-paths.txt.
+# practices-carousel/fonts.json and practices-carousel/receipt-proof.mjs to specs/protected-paths.txt.
 # Staged on main at fa38bed. No unlanded branch on 2026-11-14 changes specs/protected-paths.txt or adds a workflow; if
 # one lands first, restage protected-paths.txt on top of its copy.
 # Landing this commit starts the workflow's first build, because it adds the workflow.
-message: practices-carousel: add the build workflow and protect the font pins and Sigstore root (decision 0009)
+message: practices-carousel: add the build workflow and protect the font pins and receipt printer (decision 0009)
 spec: SPEC-001-R12
 spec: SPEC-001-R4
 move: github-workflows/practices-carousel.yml .github/workflows/practices-carousel.yml
