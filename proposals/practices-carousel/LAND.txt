@@ -2,8 +2,8 @@
 # The kit, practices-carousel/, and this batch reach main together, by land.sh --to-main on the candidate tip. Then
 # land.sh lands this batch in one signed commit. The kit holds no protected path until this batch adds
 # practices-carousel/fonts.json and practices-carousel/receipt-proof.mjs to specs/protected-paths.txt.
-# Staged on main at 11927f2. The factory-pages batch staged there changes factory-video.yml, not this file or a new
-# workflow. No unlanded branch on 2026-11-14 changes specs/protected-paths.txt or adds a workflow; if
+# Staged on main at f3cf854, where the factory-pages batch has landed; it changed factory-video.yml and SPEC-001,
+# not specs/protected-paths.txt. No unlanded branch on 2026-11-14 changes specs/protected-paths.txt or adds a workflow; if
 # one lands first, restage protected-paths.txt on top of its copy.
 # Landing this commit starts the workflow's first build, because it adds the workflow.
 message: practices-carousel: add the build workflow and protect the font pins and receipt printer (decision 0009)
