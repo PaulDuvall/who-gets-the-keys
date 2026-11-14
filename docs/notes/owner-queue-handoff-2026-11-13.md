@@ -4,7 +4,7 @@ For the next agent session. Read this and `CLAUDE.md` first. It replaces `docs/n
 
 ## Where things stand
 
-Updated on the evening of 2026-11-13, after steps H-1, H-2 and N-2 below. `main` is at `894c313`. This update and `docs/notes/sca-mf5v.md` are on `candidate/handoff-2026-11-13b` until the owner moves `main` to it (step H-3).
+Updated on 2026-11-14, after step H-3 below. `main` is at `12693a8`, and the owner queue is empty. SPEC-001-R232 is confirmed on `main`: see "H-3 result".
 
 Landed on 2026-11-12 and 2026-11-13, each verified through the GitHub connector:
 
@@ -19,6 +19,7 @@ Landed on 2026-11-12 and 2026-11-13, each verified through the GitHub connector:
 | `79f0f06` | This note, first version (H-1). `main`'s run failed sca on GHSA-mf5v-w3w3-f6cg, published after the candidate run | none |
 | `a6de08a` | sca exception for GHSA-mf5v-w3w3-f6cg, signed by the owner by hand (H-2). `docs/notes/sca-mf5v.md` | none |
 | `894c313` | Skip main's deploy when nothing deployable changed, SPEC-001-R232 (N-2) | nh9, closed |
+| `12693a8` | This note, second version, and `docs/notes/sca-mf5v.md` (H-3). main's run skipped the deploy | none |
 
 Every deploy since 2026-11-11 reported Terraform `No changes.`; the deploys for `a6de08a` and `894c313` applied 0 added, 0 changed, 0 destroyed.
 
@@ -31,15 +32,30 @@ Give one step at a time, in the "Owner steps" format, and read each result yours
 | H-1 | Done: `main` moved to `79f0f06`; its run failed sca | none: the deploy was skipped |
 | H-2 | Done: the owner's hand-signed exception `a6de08a`, then `land.sh --to-main` | approved, `No changes.` |
 | N-2 | Done: `land.sh proposals/deploy-paths`, signed, `894c313` | approved, `No changes.` |
-| H-3 | `scripts/bootstrap/land.sh --to-main <tip of candidate/handoff-2026-11-13b> candidate/handoff-2026-11-13b` | none expected |
+| H-3 | Done: `land.sh --to-main 12693a8… candidate/handoff-2026-11-13b`, `main` moved to `12693a8` | none: the deploy was skipped (SPEC-001-R232) |
 
-H-3 is docs only, so it is the first push to confirm SPEC-001-R232: the `decide whether to deploy` job prints that nothing deployable changed, the deploy job is `skipped`, and `land.sh` prints "Nothing deployable changed since the last deploy". If the deploy waits for approval instead, read that job's log before the owner approves anything. Before H-3, check that the `scenarios` run 91 on `894c313` passed: it was still running when this note was written, and it exercises the B10 patch that N-2 rebuilt.
+### H-3 result
+
+Before H-3: the candidate run 43496219925 on `12693a8` passed, no run waited for approval, and the `scenarios` run 91 on `894c313` had passed.
+
+H-3 was docs only, so it was the first push to test SPEC-001-R232's skip. Each row was read through the GitHub connector on 2026-11-13 after the owner pasted `land.sh`'s summary (`result: landed 12693a8 on main`, `main run 43511113696 for 12693a8: success, deploy skipped`).
+
+| R232 clause | Observed in `main`'s run 43511113696 |
+|---|---|
+| `deploy` is `false` only when the newest `sandbox` deployment succeeded and no deployable path changed since it | `decide whether to deploy` printed `No deploy: nothing deployable changed since 894c31326283ff11b6dbfc08cb75a21699827c7b, the last commit deployed to the sandbox.` |
+| The deploy job runs only when `deploy` is `true` | `deploy to sandbox` concluded `skipped` |
+| checks, build, attest and receipt still run on every push | all four `success`, so `12693a8` keeps its receipt |
+| `land.sh` says there is nothing to approve | summary `success, deploy skipped`; no run waited for approval afterwards |
+
+R232's other outcome had already happened on `main`: run 43494825218 for `894c313` printed `Deploy: a deployable path changed since a6de08a…`, because that commit changed `pipeline.yml`, and the deploy ran. sca passed again in main's checks job for `12693a8` (lesson L32 did not recur).
+
+A skipped deploy writes no deployment, so `894c313` stays the comparison point. The next push that changes a deployable path deploys and waits for approval.
 
 ## Backlog, by what the owner asked for
 
 | Item | State | Next |
 |---|---|---|
-| nh9, skip the deploy when nothing deployable changed | landed, `894c313`, closed | Confirm on H-3. Notes: `docs/notes/deploy-paths.md` |
+| nh9, skip the deploy when nothing deployable changed | landed, `894c313`, closed; confirmed on H-3 | Nothing. Notes: `docs/notes/deploy-paths.md` |
 | s3p, checks of record from code the candidate cannot change, and a promote App | open | Design note first. Its open question: can a repository owned by a personal account use a ruleset that requires a workflow from another repository? Read GitHub's "Available rules for rulesets" page; this session could not |
 | g4e, deploy to `sandbox` with no reviewer | held behind s3p | Staged on `candidate/sandbox-gate`, not landed. Rebuild it after s3p, on nh9's landed `land.sh` (`894c313`). Drop its R221 change. Notes: `docs/notes/sandbox-gate.md` |
 | o1p, land a signed batch with one push to `main` | open | Mechanical; no trust change. Changes `land.sh`, so build on nh9's landed copy (`894c313`) |
