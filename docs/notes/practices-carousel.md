@@ -108,7 +108,7 @@ The batch protects `receipt-proof.mjs`. An unsigned change to any pin then fails
 | Line | Value | Proof |
 |---|---|---|
 | SPEC | SPEC-014-R7, TASK-T4-DUP-COLUMNS | `c7c6b4d`, an ancestor of `9f959a3`, adds exactly one requirement row under `specs/` and one task file |
-| APPROVED | Key `SHA256:xOytozuS…`, signature `AAAAIQCU…`, flags, counter 1923 | The commit's one signature header, the one git verifies, is an SSHSIG blob with namespace `git`. Its key is a security key that `approvers.txt` admits at the parent, with its options honoured. Its flags hold every bit `REQUIRED_SIGNATURE_FLAGS` names in `scripts/checks.ts` at the parent. Its signature verifies over the commit without that header, as OpenSSH's `ssh-ecdsa-sk.c` checks it. `sk-ssh-ed25519` keys verify too |
+| APPROVED | Key `SHA256:…qLHwGE`, signature `…QlVos=`, flags, counter 1923 | The commit's one signature header, the one git verifies, is an SSHSIG blob with namespace `git`. Its key is a security key that `approvers.txt` admits at the parent, with its options honoured. Its flags hold every bit `REQUIRED_SIGNATURE_FLAGS` names in `scripts/checks.ts` at the parent. Its signature verifies over the commit without that header, as OpenSSH's `ssh-ecdsa-sk.c` checks it. `sk-ssh-ed25519` keys verify too |
 | AGENT | `sha256:1eda4ee5…`, Claude Code 2.1.304, MCP servers allowed: 0 | `producer.yml` in the tree of the signed spec commit. Turns and cost come from the run log |
 | DIFF | `sha256:0c1051d0…` | `git diff c7c6b4d 9f959a3`, with no user or system git settings and explicit prefixes, equals the `PATCH_SHA256` the publish job checked |
 | COMMIT | `9f959a35…`, its Spec and Agent trailers | The commit's last paragraph. The checks' pass lines come from the run log, in SPEC-001-R1's order |
@@ -119,6 +119,10 @@ The batch protects `receipt-proof.mjs`. An unsigned change to any pin then fails
 | Gaps | The model, intent and task lines, the producer run, a hash of every agent input, a signer the agent can't edit | From what the proofs lack: the record's model is `not recorded`; it has no task, intent or producer run; the statement has no factory fingerprint; and the signer's workflow is in the repository it signs |
 
 A line whose proof fails prints NOT VERIFIED, and the Receipt check fails.
+
+On 2026-11-14 the owner asked to show the last six characters of each hash and signature, linked. Each long value now prints as `…` and its last six characters, and links to a page that shows it whole: a commit, `approvers.txt` at the spec commit's parent, line 34 of `producer.yml` in the signed tree, the run, the deploy job, or the Rekor entry at search.sigstore.dev. The printer builds every link from a pinned or proved value. The Text check finds each one as a link annotation on page 11, with `pdfinfo -url`. With the links taken out of the template, it fails.
+
+The links work in the PDF. In a LinkedIn document post they may not: third-party guides say links inside the PDF are not clickable there, and one says they sometimes work on desktop but not in the mobile app ([tryordinal](https://www.tryordinal.com/blog/how-to-post-a-pdf-on-linkedin), [socialk.it](https://socialk.it/en/how-to/how-to-add-link-to-linkedin-post), [linkedinpreview](https://linkedinpreview.com/blog/how-to-post-a-pdf-on-linkedin), read 2026-11-14). The search found no statement from LinkedIn either way. The guides' advice is to put the link in the post's caption. Verified from this session: Rekor's API returns entries 3757924837 and 3757925836, and search.sigstore.dev answers 200. The github.com links were not fetched, because github.com refuses scripted fetches from cloud sessions; each names a commit, run, job or file that git or the Actions API confirms.
 
 ### What was tried, and failed
 
