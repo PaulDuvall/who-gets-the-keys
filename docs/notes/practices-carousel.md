@@ -27,6 +27,10 @@ The first candidate run, 43610590868 on `71d354e`, passed its `checks` job and f
 
 The cause is backlog `who-gets-the-keys-r1k`, which another session diagnosed and staged in `proposals/receipt-limit/` on `candidate/progress-badge-2026-11-14` (its notes, `docs/notes/receipt-limit.md`). The Lambda zip has been the same bytes since 2026-11-12, so every run attests one digest; from its 101st attestation, at run 218, `gh` 2.103.3's paging overwrites the newest entries, and the run cannot find its own. Until that batch lands, every pipeline run fails its receipt job and `land.sh --to-main` refuses every candidate, this one included. When it has landed, this chain is replayed onto the new `main` and pushed to a new candidate branch, whose run should then pass.
 
+## Fourth base, `11927f2`, 2026-11-14
+
+`main` moved to `11927f2` when the factory-pages batch (backlog v5p) was staged, so the five page-11 commits were replayed onto it with no conflict, to `candidate/practices-carousel-receipt-2`. Its eight new commits touch `proposals/factory-pages/`, `docs/progress.json` and `docs/progress.svg`, and none of this batch's files. That batch stages `.github/workflows/factory-video.yml` and `SPEC-001`, not `specs/protected-paths.txt`, so neither batch restages the other.
+
 ## Third base, `fa38bed`, 2026-11-14
 
 `main` moved to `fa38bed` when the receipt-limit batch (backlog r1k) landed, so the chain was replayed onto it with no conflict, to `candidate/practices-carousel-3`. Its 15 new commits touch no workflow, `specs/protected-paths.txt` or `practices.yaml`, so the staged batch is unchanged.
