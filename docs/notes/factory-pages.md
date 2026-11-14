@@ -68,19 +68,19 @@ None of these ends at a `sandbox` deploy approval.
 
 ## Preflight, 2026-11-14
 
-First at `7341713`, then again after the review's fixes; the table gives the second run. In a scratch worktree outside the checkout, with every move and the `LAND.txt` removal applied as `land.sh` does them, a hard-linked `node_modules`, and `GIT_LITERAL_PATHSPECS` unset:
+First at `7341713`, then again at `c6e3970` after the review's fixes; the table gives the second run. In a scratch worktree outside the checkout, with every move and the `LAND.txt` removal applied as `land.sh` does them, a hard-linked `node_modules`, and `GIT_LITERAL_PATHSPECS` unset:
 
 | Step | Result |
 |---|---|
-| `tsc --noEmit` | running |
-| ESLint on the two changed test files | running |
-| `node scripts/checks.ts`, the ordered fifteen, zizmor among them | running |
-| `node scripts/checks.ts task`, then `scope` | running |
-| Vitest, every test | running |
-| `node scripts/progress.ts` on the landed tree | running |
-| `git apply --check` on all 19 scenario patches | running |
+| `tsc --noEmit` | pass |
+| ESLint on the two changed test files | pass |
+| `node scripts/checks.ts`, the ordered fifteen, zizmor among them | all pass |
+| `node scripts/checks.ts task`, then `scope` | pass |
+| Vitest, every test | 24 files, 389 tests, pass. 28 are new: 20 in `test/factory-pages.test.ts`, 8 in `test/checks-before-main.test.ts` |
+| `node scripts/progress.ts` on the landed tree | equals the staged copies: 112 approved, 164 drafted, backlog 24 open and 12 closed |
+| `git apply --check` on all 19 scenario patches | all apply; none touches a changed file |
 | 16 hand mutations of the new workflow and `github.sh` code, each against the two test files | all 16 caught, among them the four the review found surviving and the 404 read |
-| The owner's Mac, simulated: a BSD-style `seq` first on PATH and Homebrew's keg-only `node@24` with its `npm` | running |
+| The owner's Mac, simulated: a BSD-style `seq` first on PATH and Homebrew's keg-only `node@24` with its `npm` | 24 files, 389 tests, pass |
 | land.sh simulation | every `requires:` met, checked with `grep -F` on `git show`; no unlisted file; no "Changed since by" warning; `candidate/land-factory-pages` absent |
 
 The first run passed every step. Its first Mac simulation failed one test, SPEC-001-R215's `.npmrc` probe, because the simulated `node@24` keg held only `node`, not `npm`; a real Homebrew keg holds both. With `npm` added, every test passed. macOS's `/bin/bash` 3.2 could not be simulated here, so the layout step takes the short SHA as `${GITHUB_SHA:0:7}`, a form bash 3.2 reads.
