@@ -10,7 +10,7 @@ import strykerVitest from "../vitest.stryker.config.ts";
 import {
   COMMANDS, CheckFailure, ORDER, allowedNames, approversFor, attestationArgs, changedFiles, dependencyNames, destructiveChanges, exportsOf, failedTestFiles,
   guardedBy, jobBlock, lockfilePaths, lowered, protectedPaths, pipelineCacheFinding, pipelineNpmFinding, mutationId, names, requirementIds, sha256, signatureId, slideNumbers, snapshotBody, topAdvisory, verifySigned,
-  RECEIPT_TYPES, pinArgs, receiptLines, receiptPin, receiptRecord, verifiedStatement,
+  RECEIPT_LIMIT, RECEIPT_TYPES, pinArgs, receiptLines, receiptPin, receiptRecord, verifiedStatement,
   deployTipId,
 } from "../scripts/checks.ts";
 
@@ -258,11 +258,11 @@ describe("SPEC-001 checks", () => {
     expect(new CheckFailure("attestation", "dist/function.zip").message).toContain("CHECK attestation FAILED");
   });
 
-  it("SPEC-001-R17 pins the attestation exactly to pipeline.yml on main, GitHub-hosted runners, the commit and a 1000-result window", () => {
+  it("SPEC-001-R17 pins the attestation exactly to pipeline.yml on main, GitHub-hosted runners, the commit and one page of 100 results", () => {
     expect(attestationArgs("dist/function.zip", "o/r", "abc123")).toEqual([
       "gh", "attestation", "verify", "dist/function.zip", "--repo", "o/r",
       "--cert-identity", "https://github.com/o/r/.github/workflows/pipeline.yml@refs/heads/main", "--source-ref", "refs/heads/main",
-      "--deny-self-hosted-runners", "--predicate-type", "https://slsa.dev/provenance/v1", "--limit", "1000",
+      "--deny-self-hosted-runners", "--predicate-type", "https://slsa.dev/provenance/v1", "--limit", "100",
       "--source-digest", "abc123", "--signer-digest", "abc123",
     ]);
     expect(attestationArgs("dist/function.zip", "o/r", undefined)).not.toContain("--source-digest");
@@ -285,6 +285,14 @@ describe("SPEC-001 checks", () => {
     afterAll(() => rmSync(dir, { recursive: true, force: true }));
     writeFileSync(zip, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0xff, 0xfe, 0x00, 0x80]));
 
+    it("SPEC-001-R50 asks gh for one page of attestations, which gh v2.103.3 cannot overwrite with a second", () => {
+      for (const args of [pinArgs("z", "o/r", REF, SHA), pinArgs("z", "o/r", MAIN, SHA, V2), attestationArgs("z", "o/r", SHA)]) {
+        const limit = Number(args[args.indexOf("--limit") + 1]);
+        expect(limit).toBe(RECEIPT_LIMIT);
+        expect(limit).toBeLessThanOrEqual(100);
+      }
+    });
+
     it("SPEC-001-R50 pins a run to its own ref and commit, SPEC-001-R56 pins deploy to main, and any other ref or no commit fails before gh", () => {
       expect([REF, MAIN, "refs/heads/candidate/fix+1"].map((ref) => receiptPin("run", ref, SHA))).toEqual([REF, MAIN, "refs/heads/candidate/fix+1"].map((ref) => ({ ref, sha: SHA })));
       for (const ref of ["refs/heads/wip/x", "refs/pull/1/merge", "refs/heads/candidatex", "refs/heads/candidate/", "refs/heads/candidate/a\nb", "refs/tags/candidate/x", undefined]) {
@@ -293,7 +301,7 @@ describe("SPEC-001 checks", () => {
       for (const [mode, sha] of [["run", undefined], ["run", "HEAD"], ["deploy", undefined]] as const) expect(() => receiptPin(mode, REF, sha)).toThrow(new CheckFailure("receipt", "unpinned commit"));
       expect(pinArgs("z", "o/r", REF, SHA, V2).slice(6)).toEqual([
         "--cert-identity", `https://github.com/o/r/.github/workflows/pipeline.yml@${REF}`, "--source-ref", REF,
-        "--deny-self-hosted-runners", "--predicate-type", V2, "--limit", "1000", "--source-digest", SHA, "--signer-digest", SHA,
+        "--deny-self-hosted-runners", "--predicate-type", V2, "--limit", "100", "--source-digest", SHA, "--signer-digest", SHA,
       ]);
       for (const ref of [REF, "refs/heads/wip/x", undefined]) expect(receiptPin("deploy", ref, SHA)).toEqual({ ref: MAIN, sha: SHA });
     });

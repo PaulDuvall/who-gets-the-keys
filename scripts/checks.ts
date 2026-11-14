@@ -436,15 +436,21 @@ const ONE_LINE = /^[^\p{Cc}\p{Cf}\p{Zl}\p{Zp}]{1,200}$/u, SPEC_ID = /^SPEC-\d{3}
 /** Predicate types every receipt needs; gh verifies one per call. A later slice reads them from the policy. @requirement SPEC-001-R50 */
 export const RECEIPT_TYPES = ["https://slsa.dev/provenance/v1", "https://github.com/PaulDuvall/who-gets-the-keys/provenance/v2"] as const;
 
+/** The most attestations `gh` may fetch: one page of 100, newest first as observed. @requirement SPEC-001-R50 */
+export const RECEIPT_LIMIT = 100;
+
 /**
  * gh attestation verify for one type, pinned exactly: pipeline.yml at `ref` as signer and source ref, a hosted runner, and
- * `sha` as source and signer digest. The store lists newest first; 1000 is gh's largest window. @requirement SPEC-001-R17 @requirement SPEC-001-R50
+ * `sha` as source and signer digest. The store lists newest first, as observed; gh reads one page of RECEIPT_LIMIT.
+ * @requirement SPEC-001-R17 @requirement SPEC-001-R50
  */
 export function pinArgs(artifact: string, repo: string, ref: string, sha: string | undefined, type: string = RECEIPT_TYPES[0]): string[] {
   return [
     "gh", "attestation", "verify", artifact, "--repo", repo,
     "--cert-identity", `https://github.com/${repo}/.github/workflows/pipeline.yml@${ref}`, "--source-ref", ref,
-    "--deny-self-hosted-runners", "--predicate-type", type, "--limit", "1000",
+    // One page only: gh v2.103.3 decodes every page into one response, so a second page overwrites the first page's
+    // newest attestations, the run's own among them, once a zip has more than 100 of one type (SPEC-001-R50).
+    "--deny-self-hosted-runners", "--predicate-type", type, "--limit", String(RECEIPT_LIMIT),
     ...(sha ? ["--source-digest", sha, "--signer-digest", sha] : []),
   ];
 }
