@@ -55,8 +55,9 @@ labels:
 
 factory:
   heading: The factory
-  lede: Everything that turns a signed spec into a deployed change. The pipeline is its main workflow, and it holds the only deploy key.
-  edge: The factory's edge
+  lede: Everything that turns a signed spec into a deployed change, and watches it. The pipeline is its main workflow and holds the only deploy key.
+  # The line the pipeline cannot cross: the inspector's account, drawn around its box.
+  account: Security account
   flow:
     - name: Signed spec
       text: An engineer captures the customer's intent and signs it with a security key.
@@ -76,7 +77,7 @@ factory:
       text: Guards the keys with pinned inputs, one deploy identity, no other writer to production and signed changes to the factory itself.
       page: 6
     - name: Inspector
-      text: Sits outside the factory in a security account and watches the pipeline and production for drift.
+      text: Runs in a security account the pipeline can't reach, and watches the pipeline and production for drift.
       page: 7
     - name: Humans
       text: Approve intent, approve irreversible actions and handle security events.
@@ -326,7 +327,7 @@ sections:
           - { name: IAM Access Analyzer, url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/access-analyzer-custom-policy-checks.html" }
 
   - name: Inspector
-    tag: Watch the pipeline from outside the factory
+    tag: Watch the pipeline from a separate account
     blurb: The inspector runs in a security account the pipeline can't reach. Production drift redeploys the last attested build, and pipeline or spec drift freezes deploys.
     rows:
       - text: Detect from a security account the pipeline can't reach
