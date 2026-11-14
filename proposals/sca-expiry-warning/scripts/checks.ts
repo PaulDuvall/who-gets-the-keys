@@ -193,18 +193,22 @@ function utcDateTime(value: string): boolean {
   return !Number.isNaN(time) && new Date(time).toISOString() === value.replace("Z", ".000Z");
 }
 
+// A control character other than tab, which TOML allows in no comment or string.
+const CONTROL = /[\x00-\x08\x0a-\x1f\x7f]/;
+
 /**
  * Reads `specs/sca-exceptions.toml` in the one form it may take, a subset of TOML that OSV-Scanner reads the same way,
  * and checks each entry and its section in `specs/sca-exceptions.md`. Returns the entries, or the sca check's
- * identifier for the first problem: a line, then the entries in file order.
+ * identifier for the first problem: the first line outside the form, else the first entry, in file order, that breaks
+ * a rule, checked in the order of SPEC-001-R234.
  * @requirement SPEC-001-R234
  */
 export function scaExceptions(toml: string, evidence: string): ScaException[] | string {
-  const lines = toml.split("\n");
+  const lines = toml.split("\n").map((l) => (l.endsWith("\r") ? l.slice(0, -1) : l));
   const entries: { at: number; values: Partial<Record<ExceptionKey, string>>; twice: ExceptionKey[] }[] = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? "";
-    if (/^\s*(#.*)?$/.test(line)) continue;
+    if (/^[ \t]*(#.*)?$/.test(line) && !CONTROL.test(line.replaceAll("\t", ""))) continue;
     if (line === "[[IgnoredVulns]]") {
       entries.push({ at: i + 1, values: {}, twice: [] });
       continue;
@@ -215,15 +219,16 @@ export function scaExceptions(toml: string, evidence: string): ScaException[] | 
     const key = m[1] as ExceptionKey;
     const raw = m[2] ?? "";
     let value: string | undefined;
-    if (key === "ignoreUntil") value = utcDateTime(raw) ? raw : undefined;
-    else if (raw === '"""' && key === "reason") {
+    if (key === "id") value = /^"([A-Za-z0-9][A-Za-z0-9._:-]*)"$/.exec(raw)?.[1];
+    else if (key === "ignoreUntil") value = utcDateTime(raw) ? raw : undefined;
+    else if (raw === '"""') {
       const end = lines.indexOf('"""', i + 1);
       const body = end < 0 ? [] : lines.slice(i + 1, end);
-      if (end < 0 || body.some((l) => l.includes("\\") || l.includes('"""'))) return `exceptions file line ${i + 1}`;
+      if (end < 0 || body.some((l) => l.includes("\\") || l.includes('"""') || CONTROL.test(l))) return `exceptions file line ${i + 1}`;
       value = body.join("\n");
       i = end;
-    } else value = /^"([^"\\]*)"$/.exec(raw)?.[1];
-    if (value === undefined || (key === "id" && !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(value))) return `exceptions file line ${i + 1}`;
+    }
+    if (value === undefined) return `exceptions file line ${i + 1}`;
     if (entry.values[key] !== undefined) entry.twice.push(key);
     else entry.values[key] = value;
   }
@@ -241,7 +246,7 @@ export function scaExceptions(toml: string, evidence: string): ScaException[] | 
     for (const l of reason.split("\n")) if (next < EXCEPTION_LABELS.length && l.startsWith(`${EXCEPTION_LABELS[next] ?? ""}:`)) next++;
     if (next < EXCEPTION_LABELS.length) return `${id} reason lacks ${EXCEPTION_LABELS[next] ?? ""}`;
     const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const sections = evidence.match(new RegExp(`^## ${escaped}(?=$|[\\s:])`, "gm"))?.length ?? 0;
+    const sections = evidence.match(new RegExp(`^## ${escaped}(?=$|[ \\t:])`, "gm"))?.length ?? 0;
     if (sections === 0) return `${id} has no evidence section`;
     if (sections > 1) return `${id} has more than one evidence section`;
     result.push({ id, ignoreUntil, reason });
@@ -250,7 +255,8 @@ export function scaExceptions(toml: string, evidence: string): ScaException[] | 
 }
 
 /**
- * One warning line for each exception whose `ignoreUntil` is at most `days` days after `now`, or has passed.
+ * One warning line for each exception whose `ignoreUntil` is at most `days` days after `now`: `expired` when it is at or
+ * before `now`, as OSV-Scanner then no longer ignores the advisory, and `expires` otherwise.
  * @requirement SPEC-001-R233
  */
 export function expiryWarnings(entries: readonly ScaException[], now: Date, days = 14): string[] {
@@ -797,15 +803,25 @@ const checks: Record<string, (args: string[]) => void | Promise<void>> = {
     const lockfiles = lockfilePaths().flatMap((l) => ["-L", l]);
     const exceptions = existsSync("specs/sca-exceptions.toml") ? ["--config", "specs/sca-exceptions.toml"] : [];
     if (exceptions.length > 0) {
-      const evidence = existsSync("specs/sca-exceptions.md") ? readFileSync("specs/sca-exceptions.md", "utf8") : "";
-      const entries = scaExceptions(readFileSync("specs/sca-exceptions.toml", "utf8"), evidence);
+      const read = (path: string): string => {
+        try {
+          return existsSync(path) ? readFileSync(path, "utf8") : "";
+        } catch {
+          throw new CheckFailure("sca", `${path} unreadable`);
+        }
+      };
+      const entries = scaExceptions(read("specs/sca-exceptions.toml"), read("specs/sca-exceptions.md"));
       if (typeof entries === "string") throw new CheckFailure("sca", entries);
       // Warnings go to standard error, so standard output keeps only a failure line (SPEC-001-R1).
       const warnings = expiryWarnings(entries, new Date());
       if (warnings.length > 0) {
         process.stderr.write(`${warnings.join("\n")}\n`);
-        const summary = ["## sca exceptions that expire within 14 days", "", "```text", ...warnings, "```", ""];
-        if (process.env.GITHUB_STEP_SUMMARY) writeFileSync(process.env.GITHUB_STEP_SUMMARY, summary.join("\n"), { flag: "a" });
+        const summary = ["## sca exceptions that expire within 14 days, or have expired", "", "```text", ...warnings, "```", ""];
+        try {
+          if (process.env.GITHUB_STEP_SUMMARY) writeFileSync(process.env.GITHUB_STEP_SUMMARY, summary.join("\n"), { flag: "a" });
+        } catch {
+          process.stderr.write("sca: could not append the warnings to the run summary\n");
+        }
       }
     }
     const r = tool([...COMMANDS.sca, ...exceptions, ...lockfiles]);

@@ -8,7 +8,8 @@ message: spec: warn before an sca exception expires, and check that each keeps i
 spec: SPEC-001-R233
 spec: SPEC-001-R234
 spec: SPEC-001-R10
-# The evidence log from s7e (4e7c522) and the backlog with f6c (892c366) are on main.
+# The evidence log from s7e (4e7c522) is on main. The backlog with f6c (892c366) is on main once owner step 1 lands this
+# chain; until then land.sh refuses.
 requires: specs/sca-exceptions.md ## GHSA-mf5v-w3w3-f6cg
 requires: .tasks/backlog.jsonl who-gets-the-keys-f6c
 requires: scripts/checks.ts const exceptions = existsSync("specs/sca-exceptions.toml")
