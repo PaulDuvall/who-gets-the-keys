@@ -144,6 +144,7 @@ Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and
 | Scenario probe role | Read state (`ReadOnlyAccess`) | Write: its one Lambda write grant exists so B11 can show the SCP deny it |
 | Break-glass role | Write, alarmed | Be assumed by anyone but the break-glass user, and by that user only with a TOTP code from the owner's YubiKey |
 | Break-glass user | Assume the break-glass role with a TOTP code, through `us-east-1`; every call it makes is alarmed | Anything else: its own policy denies every other action and every other role |
+| `factory-video.yml` deploy job | Publish the guided video, built from `main` by a job that can only read the repository, to GitHub Pages from environment `github-pages` | Run repository code; deploy from any branch but `main`; read a secret or reach AWS |
 
 ## Tool choices compared with the deck
 
@@ -258,7 +259,7 @@ The script it calls is [`scripts/bootstrap/cloud-session-setup.sh`](scripts/boot
 
 **Watch it: [https://paulduvall.github.io/who-gets-the-keys/](https://paulduvall.github.io/who-gets-the-keys/)**, the narrated guided video built from `main`, with no sign-in. The page names the commit it was built from.
 
-`factory-video/` builds the "software factory" scene for the talk: a narrated, captioned guided video, an 18 s loop for the deck, and a poster. It shows the factory this repository is building toward, and `factory-video/claims.json` records, claim by claim, how much of it is built. The videos are not committed. The `factory-video` workflow builds them on a push to `main` that changes `factory-video/`, the workflow or `docs/progress.json`, or when started by hand. So the end card's counts follow `main`: `docs/progress.json` changes whenever they do (SPEC-001-R227, R235). On `main`, a deploy job publishes the guided video to the page above with GitHub Pages. The workflow also keeps the newest build's files, as one artifact named `factory-video-<short SHA>-<UTC time>`, which expires 30 days after upload.
+`factory-video/` builds the "software factory" scene for the talk: a narrated, captioned guided video, an 18 s loop for the deck, and a poster. It shows the factory this repository is building toward, and `factory-video/claims.json` records, claim by claim, how much of it is built. The videos are not committed. The `factory-video` workflow builds them when started by hand, and on a push to `main` when the kit, the workflow or the end card's counts in `docs/progress.json` changed since the last page published, so the end card follows `main` (SPEC-001-R227, R235). On `main`, a deploy job publishes the guided video to the page above with GitHub Pages. The workflow also keeps the newest build's files, as one artifact named `factory-video-<short SHA>-<UTC time>`, which expires 30 days after upload.
 
 | To get | Do |
 |---|---|

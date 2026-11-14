@@ -105,6 +105,7 @@ JSON
   fi
 done
 
+pages_failed=""
 if [ "$visibility" = "public" ]; then
   gh api -X PATCH "repos/${repo}" --input - >/dev/null <<'JSON'
 {"security_and_analysis": {"secret_scanning": {"status": "enabled"}, "secret_scanning_push_protection": {"status": "enabled"}}}
@@ -112,14 +113,26 @@ JSON
   gh api -X PUT "repos/${repo}/private-vulnerability-reporting" >/dev/null
   echo "secret scanning, push protection, private vulnerability reporting: enabled"
   # GitHub Pages, built by GitHub Actions, so the factory-video deploy job can publish from main (SPEC-001-R235).
-  # GET answers 404 while there is no Pages site; PUT and POST take build_type (docs.github.com/en/rest/pages/pages).
-  pages_type="$(gh api "repos/${repo}/pages" --jq '.build_type // ""' 2>/dev/null || echo absent)"
-  if [ "$pages_type" = absent ]; then
-    gh api -X POST "repos/${repo}/pages" -f build_type=workflow >/dev/null
-  elif [ "$pages_type" != workflow ]; then
-    gh api -X PUT "repos/${repo}/pages" -f build_type=workflow >/dev/null
+  # GET answers 404 while there is no Pages site; POST creates one and PUT changes it, each with build_type
+  # (docs.github.com/en/rest/pages/pages). On an HTTP error gh prints the response body on standard output and
+  # "(HTTP <code>)" on standard error, so only standard error tells a missing site from any other failure.
+  # A failure here must not stop the ruleset, as with the merge methods below.
+  pages_err="$(mktemp)"
+  if pages_type="$(gh api "repos/${repo}/pages" --jq '.build_type // ""' 2>"$pages_err")"; then
+    if [ "$pages_type" != workflow ]; then
+      gh api -X PUT "repos/${repo}/pages" -f build_type=workflow >/dev/null || pages_failed="GitHub refused to change its build type"
+    fi
+  elif grep -q '(HTTP 404)' "$pages_err"; then
+    gh api -X POST "repos/${repo}/pages" -f build_type=workflow >/dev/null || pages_failed="GitHub refused to create it"
+  else
+    pages_failed="it could not be read: $(tr '\n' ' ' <"$pages_err")"
   fi
-  echo "GitHub Pages: built and deployed by GitHub Actions"
+  rm -f "$pages_err"
+  if [ -n "$pages_failed" ]; then
+    echo "GitHub Pages: not built by GitHub Actions, because ${pages_failed}"
+  else
+    echo "GitHub Pages: built and deployed by GitHub Actions"
+  fi
 fi
 
 # GitHub's docs say linear history needs squash or rebase merging allowed, so a refusal here must not stop the ruleset.
@@ -244,6 +257,12 @@ if [ -n "$ruleset_skipped" ]; then
   echo "Every other setting is applied. The ruleset \"${ruleset}\" is not: main has no checks run from GitHub Actions yet."
   echo "Wait for main's pipeline run to start, or push to main if you have not yet, then run this script again to apply the ruleset."
 fi
-if [ -n "$merge_refused" ] || [ -n "$ruleset_skipped" ]; then
+if [ -n "$pages_failed" ]; then
+  echo
+  echo "Every other setting is applied. GitHub Pages is not built by GitHub Actions, because ${pages_failed}."
+  echo "The factory-video workflow cannot publish until it is. Run this script again, or set it in the repository's"
+  echo "settings: Pages, Build and deployment, Source, GitHub Actions."
+fi
+if [ -n "$merge_refused" ] || [ -n "$ruleset_skipped" ] || [ -n "$pages_failed" ]; then
   exit 1
 fi

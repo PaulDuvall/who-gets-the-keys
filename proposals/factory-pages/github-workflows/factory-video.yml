@@ -4,8 +4,9 @@
 # The claims job checks the ledger alone, with no browser and no voice, on every push to main that
 # can move a claim: a signed spec, a decision, a proposal, the backlog or the progress record. It
 # uploads the report as factory-claims-<short SHA>-<UTC time>. The build job runs when the kit,
-# this workflow or docs/progress.json changed, so the end card always counts main (SPEC-001-R235),
-# or on demand. On main it also lays out a page that plays the guided video, and the deploy job
+# this workflow or the end card's counts in docs/progress.json changed since the last page published
+# to GitHub Pages, or that page cannot be read, so the end card counts main (SPEC-001-R235), and on
+# demand. On main it also lays out a page that plays the guided video, and the deploy job
 # publishes it to GitHub Pages, https://paulduvall.github.io/who-gets-the-keys/. No job reads a
 # secret, uses AWS or a cache. The prune job keeps only the newest artifact of each kind. Nothing
 # is committed and no release is made, so no job needs contents: write.
@@ -37,6 +38,7 @@ jobs:
       cancel-in-progress: true
     permissions:
       contents: read
+      deployments: read # reads the newest github-pages deployment to decide whether to rebuild
     outputs:
       video: ${{ steps.paths.outputs.video }}
     steps:
@@ -51,19 +53,38 @@ jobs:
       # verify.mjs imports Playwright only for the browser checks, so this needs no npm install.
       - name: Check that every on-screen claim cites evidence that exists
         run: node factory-video/verify.mjs --only claims
-      - name: Decide whether the video itself needs a rebuild
+      # Compared with the last page published, not the previous push, so a build or deploy that failed, or a run that a
+      # newer push cancelled, is built by the next run. Any doubt builds (SPEC-001-R235, as SPEC-001-R232 does for sandbox).
+      - name: Decide whether the video needs a rebuild, against the last page published
         id: paths
         env:
           EVENT: ${{ github.event_name }}
-          BEFORE: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
           video=true
-          if [ "$EVENT" = push ] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            git diff --quiet "$BEFORE" "$GITHUB_SHA" -- factory-video .github/workflows/factory-video.yml docs/progress.json &&
-              video=false
+          last=""
+          if [ "$EVENT" = push ]; then
+            newest="$(gh api "repos/${REPO}/deployments?environment=github-pages&per_page=1" --jq '.[0] // empty | "\(.id) \(.sha)"')" || newest=""
+            id="${newest%% *}"
+            sha="${newest#* }"
+            if [ -n "$newest" ]; then
+              succeeded="$(gh api "repos/${REPO}/deployments/${id}/statuses?per_page=100" --jq '[.[].state] | index("success") != null')" || succeeded=""
+              [ "$succeeded" != true ] || last="$sha"
+            fi
+          fi
+          counts() { git show "$1:docs/progress.json" | jq -c '{requirements, claims}'; }
+          if [ -n "$last" ] && git cat-file -e "${last}^{commit}" 2>/dev/null && git merge-base --is-ancestor "$last" "$GITHUB_SHA" &&
+            git diff --quiet "$last" "$GITHUB_SHA" -- factory-video .github/workflows/factory-video.yml &&
+            [ "$(counts "$last")" = "$(counts "$GITHUB_SHA")" ]; then
+            video=false
           fi
           echo "video=${video}" >> "$GITHUB_OUTPUT"
-          echo "Rebuild the video: ${video}"
+          if [ "$video" = true ]; then
+            echo "Rebuild: the kit, this workflow or the end card's counts changed since ${last:-the last page published}, or that page could not be read."
+          else
+            echo "No rebuild: nothing the video shows changed since ${last}, the last commit published to GitHub Pages."
+          fi
       - name: Name the artifact factory-claims-<short SHA>-<UTC time>
         id: stamp
         run: echo "name=factory-claims-${GITHUB_SHA::7}-$(date -u +%Y%m%dT%H%MZ)" >> "$GITHUB_OUTPUT"
@@ -201,13 +222,13 @@ jobs:
     needs: build
     if: needs.build.result == 'success' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     concurrency:
       group: factory-video-pages
       cancel-in-progress: false
     permissions:
-      pages: write
-      id-token: write
+      pages: write # deploy-pages creates the Pages deployment
+      id-token: write # deploy-pages proves to GitHub Pages which workflow, ref and run it is
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
