@@ -447,18 +447,24 @@ humans:
     end: About an afternoon of setup.
 
 # Page 11: one real receipt. main run 114 deployed the runner producer's delivery 9f959a3 to the sandbox on 2026-11-08.
-# `printed` is the receipt job's seven lines as `record` keeps them, and verify.mjs compares them with it and with the commit.
-# Each `backs` line is evidence from the same runs' logs, recorded in `evidence`. `shows` names the rows a line covers in
-# full and `partly` the rows it covers in part; verify.mjs counts both for the line under the slip.
+# `printed` is the receipt job's seven lines, as the record file kept them at a commit that main has held since then.
+# Each `backs` line is evidence a reviewer collected from that run's and the producer run's logs and from git. Its
+# `evidence` lists exact quotes: `git` names a commit, or a commit and a path, whose text holds the quote; `log` names
+# a job whose lines `evidence` (the batch notes) quote. Every number and digest a line shows must be in its own quotes.
+# `shows` names the rows a line covers in full and `partly` the rows it covers in part; the page counts both.
 receipt:
   title: RECEIPT
-  source: main run 114 · 2026-11-08 · copied from the pipeline's log
-  record: docs/notes/tracer-2-t4.md
+  source: main run 114 · 2026-11-08 · printed by its receipt job
+  record: 1c56a5a733ba3dff868170b0cea4b87311528553:docs/notes/tracer-2-t4.md
   record_after: "`main` run 114's receipt:"
   evidence: docs/notes/practices-carousel.md
   commit: 9f959a350e541d1aa52654e4ace7d7fdd4fa52a6
   spec_commit: c7c6b4d98a4e2622979b333c299bd09b8c677ba5
-  printed_heading: Printed by the receipt job
+  quotes:
+    - { git: "1c56a5a733ba3dff868170b0cea4b87311528553:docs/notes/tracer-2-t4.md", quote: "`main` run 114's receipt:" }
+    - { git: "1c56a5a733ba3dff868170b0cea4b87311528553:docs/notes/tracer-2-t4.md", quote: "Status: landed 2026-11-08." }
+    - { log: "128795003787", quote: "2026-11-08T16:46:39.0695771Z Apply complete!" }
+  printed_heading: Printed by the pipeline's receipt job
   printed:
     - { key: COMMIT, value: 9f959a350e54 }
     - { key: FILES, value: "dist/function.zip sha256:722ac6715a0d" }
@@ -467,64 +473,115 @@ receipt:
     - { key: SPEC, value: SPEC-014-R7 }
     - { key: SIGNED, value: pipeline.yml@refs/heads/main (editable by the agent) }
     - { key: VERIFIED, value: 2/2 predicate types }
-  backs_heading: What backs it
+  backs_heading: Behind it, from the run logs and git, collected by hand
   backs:
     - key: SPEC
-      value: SPEC-014-R7 and TASK-T4-DUP-COLUMNS
-      note: signed with the approver's security key in c7c6b4d
+      value: "SPEC-014-R7 and TASK-T4-DUP-COLUMNS"
+      note: "signed with the approver's security key in c7c6b4d"
       shows:
-        - Specs change only through an approver-signed commit
-        - Trace every change to a spec ID and every requirement to a test
-        - Approvers sign every change to the factory that the agent proposes
+        - "Specs change only through an approver-signed commit"
+        - "Approvers sign every change to the factory that the agent proposes"
+      partly:
+        - "Trace every change to a spec ID and every requirement to a test"
+      evidence:
+        - { git: "c7c6b4d98a4e2622979b333c299bd09b8c677ba5", quote: "spec: SPEC-014-R7, a column named twice gets a 400, and its task file (Tracer 2, T4)" }
+        - { git: "c7c6b4d98a4e2622979b333c299bd09b8c677ba5:tasks/TASK-T4-DUP-COLUMNS.task.md", quote: "requirements: [SPEC-014-R7]" }
     - key: AGENT
-      value: producer run 42499336951, no network
-      note: "Claude Code 2.1.304 sha256:1eda4ee54631 · 10 of 40 turns · $0.24 of $5 · no MCP server"
+      value: "producer run 42499336951, model access only"
+      note: "Claude Code 2.1.304 sha256:1eda4ee54631 · 10 of 40 turns · est. $0.24 of $5 · no MCP server"
       shows:
-        - Cap turns and spend on every agent run
-        - Allowlist MCP servers by exact command or URL
-        - Pin actions by commit SHA, dependencies and images by hash
+        - "Cap turns and spend on every agent run"
       partly:
         - "Record a hash of every agent input: instructions, skills, MCP config and model"
+        - "Pin actions by commit SHA, dependencies and images by hash"
+        - "Allowlist MCP servers by exact command or URL"
+        - "Check provenance and integrity of what it retrieves"
+      evidence:
+        - { git: "9f959a350e541d1aa52654e4ace7d7fdd4fa52a6", quote: "Producer-Run: https://github.com/PaulDuvall/who-gets-the-keys/actions/runs/42499336951/attempts/1" }
+        - { git: "9f959a350e541d1aa52654e4ace7d7fdd4fa52a6", quote: "a job that held model access only" }
+        - { git: "c7c6b4d98a4e2622979b333c299bd09b8c677ba5:.github/workflows/producer.yml", quote: "CLAUDE_CODE_VERSION: \"2.1.304\"" }
+        - { git: "c7c6b4d98a4e2622979b333c299bd09b8c677ba5:.github/workflows/producer.yml", quote: "CLAUDE_CODE_SHA256: 1eda4ee54631c2e313df7bd9c2b7d3ca22815e09c6145774309214f06a8acd15" }
+        - { git: "c7c6b4d98a4e2622979b333c299bd09b8c677ba5:.github/workflows/producer.yml", quote: "echo \"${CLAUDE_CODE_SHA256}  $in/claude-code.tgz\" | sha256sum -c --quiet -" }
+        - { git: "c7c6b4d98a4e2622979b333c299bd09b8c677ba5:.github/workflows/producer.yml", quote: "--max-turns 40 --max-budget-usd 5" }
+        - { git: "c7c6b4d98a4e2622979b333c299bd09b8c677ba5:.github/workflows/producer.yml", quote: "--strict-mcp-config --mcp-config '{\"mcpServers\":{}}'" }
+        - { log: "128788563404", quote: "RUN ENDED: success, 10 turns, estimated USD 0.2377491" }
     - key: DIFF
       value: "sha256:0c1051d044e7 · inside the task's paths"
-      note: lint, typecheck, trace and test ran in the sandbox; a job with no agent committed it
+      note: "lint, typecheck, trace and test ran in the sandbox; a job with no agent committed it"
       shows:
-        - Limit what the agent can do to an allow list of commands and paths
-        - Run unit tests and code-quality checks in the sandbox and again in the pipeline
-    - key: CHECKS
-      value: 15 of 15 passed, secrets to mutation
-      note: SAST · SCA · property tests · mutation, break 95 · no cache · IaC lint
-      shows:
-        - SAST on every change
-        - SCA on every lockfile
-        - Fail a change whose mutation score drops, on changed code only
-        - Property tests hold invariants across generated inputs
-        - No cache shared between untrusted jobs and release
+        - "Run unit tests and code-quality checks in the sandbox and again in the pipeline"
       partly:
-        - Scan for secrets in the sandbox and again in the pipeline
-        - Scan infrastructure code and publish an SBOM
-        - Check new dependencies against an allowlist and a hash-pinned mirror
+        - "Limit what the agent can do to an allow list of commands and paths"
+      evidence:
+        - { log: "128788563404", quote: "TOOL Bash: npm run check:lint 2>&1" }
+        - { log: "128788563404", quote: "TOOL Bash: npm run check:typecheck 2>&1" }
+        - { log: "128788563404", quote: "TOOL Bash: npm run check:trace 2>&1" }
+        - { log: "128788563404", quote: "TOOL Bash: npm run check:test 2>&1" }
+        - { log: "128788887004", quote: "PATCH_SHA256: 0c1051d044e7b3f02d7000cfd4fb806a99232266b70865cd49326ddf5d5c3e97" }
+        - { git: "c7c6b4d98a4e2622979b333c299bd09b8c677ba5:.github/workflows/producer.yml", quote: "[ \"$scope\" = \"scope ok\" ] || { echo \"CHECK producer FAILED: scope not confirmed\"; exit 1; }" }
+        - { log: "128788887004", quote: "Pushed 9f959a350e541d1aa52654e4ace7d7fdd4fa52a6 to candidate/TASK-T4-DUP-COLUMNS." }
+    - key: CHECKS
+      value: "every check passed, secrets to mutation"
+      note: "SAST · SCA · property tests · mutation, break 95 · IaC lint"
+      shows:
+        - "SAST on every change"
+        - "SCA on every lockfile"
+        - "Property tests hold invariants across generated inputs"
+        - "No cache shared between untrusted jobs and release"
+      partly:
+        - "Fail a change whose mutation score drops, on changed code only"
+        - "Scan for secrets in the sandbox and again in the pipeline"
+        - "Scan infrastructure code and publish an SBOM"
+        - "Check new dependencies against an allowlist and a hash-pinned mirror"
+      evidence:
+        - { log: "128794438881", quote: "check secrets passed" }
+        - { log: "128794438881", quote: "check sast passed" }
+        - { log: "128794438881", quote: "check sca passed" }
+        - { log: "128794438881", quote: "check iac passed" }
+        - { log: "128794438881", quote: "check mutation passed" }
+        - { git: "9f959a350e541d1aa52654e4ace7d7fdd4fa52a6:stryker.config.json", quote: "\"break\": 95" }
     - key: BUILD
       value: "dist/function.zip sha256:722ac6715a0d"
-      note: built once; SLSA v1 and provenance/v2 statements signed through Sigstore
+      note: "built once; SLSA v1 and provenance/v2 statements signed through Sigstore"
       partly:
-        - Provenance records the commit, spec ID, agent and model version
+        - "Provenance records the commit, spec ID, agent and model version"
+      evidence:
+        - { log: "128794922989", quote: "FILES    dist/function.zip sha256:722ac6715a0d" }
+        - { log: "128794922989", quote: "receipt: verified https://slsa.dev/provenance/v1" }
+        - { log: "128794922989", quote: "receipt: verified https://github.com/PaulDuvall/who-gets-the-keys/provenance/v2" }
+        - { log: "128794922989", quote: "\"certificateIssuer\":\"CN=sigstore-intermediate,O=sigstore.dev\"" }
+        - { git: "9f959a350e541d1aa52654e4ace7d7fdd4fa52a6:.github/workflows/pipeline.yml", quote: "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8" }
     - key: VERIFY
-      value: signer pipeline.yml@refs/heads/main
-      note: GitHub-hosted runner · signer and source digest 9f959a350e54
+      value: "signer pipeline.yml@refs/heads/main"
+      note: "GitHub-hosted runner · signer and source digest 9f959a350e54"
       shows:
-        - Build the artifact once and sign its attestations, and deploy verifies them first
+        - "Build the artifact once and sign its attestations, and deploy verifies them first"
+      evidence:
+        - { log: "128794922989", quote: "\"subjectAlternativeName\":\"https://github.com/PaulDuvall/who-gets-the-keys/.github/workflows/pipeline.yml@refs/heads/main\"" }
+        - { log: "128794922989", quote: "\"runnerEnvironment\":\"github-hosted\"" }
+        - { log: "128794922989", quote: "\"buildSignerDigest\":\"9f959a350e541d1aa52654e4ace7d7fdd4fa52a6\"" }
+        - { log: "128794922989", quote: "\"sourceRepositoryDigest\":\"9f959a350e541d1aa52654e4ace7d7fdd4fa52a6\"" }
     - key: DEPLOY
-      value: OIDC role · plan.out · 0 added, 1 changed
-      note: "tip, attestation and receipt checked again first · Lambda hash sha256:722ac6715a0d"
+      value: "OIDC role · plan.out · 0 added, 1 changed"
+      note: "tip, attestation and receipt checked before AWS · plan's source_code_hash = sha256:722ac6715a0d"
       shows:
-        - Deploy with one short-lived identity, federated through OIDC
+        - "Deploy with one short-lived identity, federated through OIDC"
       partly:
-        - A human approves irreversible actions, and the pipeline checks the approval
+        - "A human approves irreversible actions, and the pipeline checks the approval"
+      evidence:
+        - { git: "9f959a350e541d1aa52654e4ace7d7fdd4fa52a6:.github/workflows/pipeline.yml", quote: "- name: Deploy only main's tip, before reading the artifact or any AWS call (SPEC-001-R190)" }
+        - { git: "9f959a350e541d1aa52654e4ace7d7fdd4fa52a6:.github/workflows/pipeline.yml", quote: "- name: Verify the artifact's attestation before any AWS call" }
+        - { git: "9f959a350e541d1aa52654e4ace7d7fdd4fa52a6:.github/workflows/pipeline.yml", quote: "- name: Verify the receipt again, pinned to main, before any AWS call (SPEC-001-R56)" }
+        - { git: "9f959a350e541d1aa52654e4ace7d7fdd4fa52a6:.github/workflows/pipeline.yml", quote: "aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd" }
+        - { git: "9f959a350e541d1aa52654e4ace7d7fdd4fa52a6:.github/workflows/pipeline.yml", quote: "sha=\"$(openssl dgst -sha256 -binary ../../dist/function.zip | base64)\"" }
+        - { log: "128795003787", quote: "~ source_code_hash               = \"jmV3T5ehFBKJBIb+A0wyaeDcMaW2AO2pRTQYhpqqj5Y=\" -> \"cirGcVoNEagYllHWjviAKNAav4EOSi564+nsdKTnZsw=\"" }
+        - { log: "128795003787", quote: "Saved the plan to: plan.out" }
+        - { log: "128795003787", quote: "Apply complete! Resources: 0 added, 1 changed, 0 destroyed." }
   gaps_heading: Missing so far
   gaps:
     - the model
     - intent and task lines
+    - the producer run
     - a hash of every agent input
     - a signer the agent can't edit
   total: DEPLOYED
@@ -532,11 +589,14 @@ receipt:
   count: "Evidence for {shown} of the {count} practices, and for part of {partly} more"
   stub:
     scenario: B10
-    text: "B10 · an unattested artifact reaches deploy"
+    text: "Scenario B10, 2026-11-07 · an unattested artifact at deploy"
     line: "CHECK attestation FAILED: dist/function.zip"
-    result: NOT DEPLOYED
+    result: DEPLOY JOB STOPS
+    quotes:
+      - { git: "96eb92cec073065a4846e36d3dd0cf88f7e2cfce:docs/verification.md", quote: "Step 6: `B10 pass attestation CHECK attestation FAILED: dist/function.zip`" }
+      - { git: "96eb92cec073065a4846e36d3dd0cf88f7e2cfce:docs/verification.md", quote: "2026-11-07. Candidate run 42378752588" }
   motto: No evidence, no deploy.
-  under: No agent runs in the jobs that verify and deploy. A line that fails stops the deploy.
+  under: No agent runs in the jobs that verify and deploy. If an attestation fails to verify, nothing deploys.
 
 close:
   heading: Three things to do tomorrow
