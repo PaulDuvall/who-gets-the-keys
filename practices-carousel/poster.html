@@ -4,12 +4,13 @@
 <meta charset="utf-8">
 <title>Who gets the keys? poster</title>
 <!--
-  The one-page poster of the practices carousel: the same carousel.yaml, the same tokens and fonts, on one 2400 x 2200
-  page. It holds no content. render.mjs injects carousel.yaml as window.__CAROUSEL__ before this page's script runs.
+  The poster of the practices carousel: the same carousel.yaml, the same tokens and fonts, on two 2400 x 2200 pages,
+  the front and the back. It holds no content. render.mjs injects carousel.yaml as window.__CAROUSEL__ before this page's script runs.
   The factory runs left to right: the signed spec, the first three sections as columns (the agent sandbox, then the
   pipeline's checks and evidence), production. A dashed line marks the factory's edge around the columns and the
   fourth section, factory policy. The fifth, the inspector, sits outside it, then the sixth, routing humans, then
-  pages 9 and 10 and the closing line. Nothing is fetched over the network.
+  pages 9 and 10 and the closing line. The back is a checklist: every practice, section by section, with a box to tick.
+  Nothing is fetched over the network.
 -->
 <style>
 @page { size: 2400px 2200px; margin: 0; background: #f7f8f9; }
@@ -27,7 +28,8 @@
 html, body { margin: 0; background: var(--paper); -webkit-font-smoothing: antialiased; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { font-family: var(--font-body); color: var(--ink); }
 a { color: inherit; text-decoration: none; }
-.poster { --pk: 1; width: 2400px; height: 2200px; overflow: hidden; position: relative; background: var(--paper); display: flex; flex-direction: column; }
+.poster { --pk: 1; width: 2400px; height: 2200px; overflow: hidden; position: relative; background: var(--paper); display: flex; flex-direction: column; page-break-after: always; break-after: page; }
+.poster:last-child { page-break-after: auto; break-after: auto; }
 
 /* Header and legend */
 .ph { background: var(--band); color: var(--band-ink); padding: 40px 64px 34px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 24px; }
@@ -116,6 +118,20 @@ a { color: inherit; text-decoration: none; }
 .pf .line .key { color: var(--brass); }
 .pf .who-am-i { font-size: 19px; color: var(--muted); }
 .pf .who-am-i b { color: var(--ink); font-weight: 600; }
+
+/* The back: every practice with a box to tick, section by section in three columns. --bk scales it to fill the page. */
+.poster.back { --bk: 1; }
+.back .body { padding-top: calc(30px * var(--bk)); }
+.checklist { column-count: 3; column-gap: 56px; column-fill: balance; }
+.ck-sec { break-inside: avoid; margin: 0 0 calc(30px * var(--bk)); }
+.ck-sec h2 { margin: 0; font: 800 calc(32px * var(--bk))/1 var(--font-display); font-stretch: 115%; text-transform: uppercase; }
+.ck-sec .tag { margin: calc(6px * var(--bk)) 0 0; font: 600 calc(20px * var(--bk))/1.2 var(--font-display); color: var(--brass); }
+.ck-sec ol { list-style: none; margin: calc(12px * var(--bk)) 0 0; padding: 0; border-top: 3px solid var(--ink); }
+.ck { display: grid; grid-template-columns: calc(26px * var(--bk)) minmax(0, 1fr) auto; gap: calc(14px * var(--bk)); align-items: start; padding: calc(11px * var(--bk)) 0; border-bottom: 1px solid var(--line); }
+.ck .box { width: calc(24px * var(--bk)); height: calc(24px * var(--bk)); margin-top: calc(2px * var(--bk)); border: 2.5px solid var(--ink); border-radius: 4px; background: #fff; }
+.ck .tx { font-size: calc(21px * var(--bk)); font-weight: 600; line-height: 1.28; text-wrap: pretty; overflow-wrap: anywhere; }
+.ck .lead { font: 700 calc(15px * var(--bk)) var(--font-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--brass); margin-right: 8px; }
+.ck .track { margin-top: calc(7px * var(--bk)); }
 </style>
 </head>
 <body>
@@ -236,6 +252,34 @@ a { color: inherit; text-decoration: none; }
     return poster;
   }
 
+  function buildBack() {
+    const m = doc.meta;
+    const secs = list(doc.sections);
+    const keys = el('span', 'lkey', WINDOWS.map(([key, , v]) => { const k = el('span', null, String(doc.windows[key]).charAt(0)); k.style.background = `var(${v})`; return k; }));
+    const checklist = el('div', 'checklist', secs.map((sec, i) => {
+      const block = el('section', 'ck-sec', el('h2', null, sec.name), el('p', 'tag', sec.tag),
+        el('ol', null, list(sec.rows).map((r) => {
+          const li = el('li', 'ck', el('span', 'box'), el('span', 'tx', r.lead ? el('span', 'lead', r.lead) : null, r.text), track(r.when));
+          li.dataset.row = r.text;
+          return li;
+        })));
+      block.dataset.sec = String(i);
+      return block;
+    }));
+    const back = el('section', 'poster back',
+      el('header', 'ph',
+        el('div', 'by', m.byline),
+        el('div', null, el('h1', null, `${m.title} `, el('span', 'view', doc.poster.back)), el('p', 'thesis', el('span', 'key', m.thesis_key), ` ${m.thesis_rest}`)),
+        el('div', 'cnt', withCount(doc.poster.back_count))),
+      el('div', 'legend', el('span', null, keys, doc.legend.windows), el('span', null, track(['always']), doc.windows.always)),
+      el('div', 'body', checklist),
+      el('footer', 'pf',
+        el('div', 'line', `${m.close_line_plain} `, el('span', 'key', m.close_line_key)),
+        el('div', 'who-am-i', m.byline, ' · ', list(m.sites).flatMap((x, i) => (i ? [' · ', el('b', null, x)] : [el('b', null, x)])))));
+    document.body.append(back);
+    return back;
+  }
+
   // The factory's edge: around the agent sandbox and pipeline columns, their chevrons and factory policy.
   function drawEdge(poster) {
     const fac = poster.querySelector('.factory');
@@ -249,7 +293,8 @@ a { color: inherit; text-decoration: none; }
     Object.assign(fac.querySelector('.edge').style, { left: `${l}px`, top: `${t}px`, width: `${rr - l}px`, height: `${b - t}px` });
   }
 
-  // Raise --pk from 0.8 in steps of 0.02 while the poster still fits its page, as the carousel's section pages do.
+  // Raise --pk (front) or --bk (back) from 0.8 in steps of 0.02 while the page still fits, as the carousel's section
+  // pages do with --k.
   function fits(poster) {
     const toolsOverlap = [...poster.querySelectorAll('.meta')].some((m) => { const t = m.querySelector('.tools'); return t.scrollWidth > t.clientWidth + 1; });
     const body = poster.querySelector('.body');
@@ -258,15 +303,15 @@ a { color: inherit; text-decoration: none; }
     return poster.scrollHeight <= poster.clientHeight && poster.scrollWidth <= poster.clientWidth && body.scrollHeight <= body.clientHeight
       && last.bottom <= bodyBox.bottom - parseFloat(getComputedStyle(body).paddingBottom) + 0.5 && !toolsOverlap;
   }
-  function fit(poster) {
+  function fit(poster, prop = '--pk', max = 130) {
     let k = 80;
-    poster.style.setProperty('--pk', (k / 100).toFixed(2));
-    while (k < 130) {
-      poster.style.setProperty('--pk', ((k + 2) / 100).toFixed(2));
-      if (!fits(poster)) { poster.style.setProperty('--pk', (k / 100).toFixed(2)); break; }
+    poster.style.setProperty(prop, (k / 100).toFixed(2));
+    while (k < max) {
+      poster.style.setProperty(prop, ((k + 2) / 100).toFixed(2));
+      if (!fits(poster)) { poster.style.setProperty(prop, (k / 100).toFixed(2)); break; }
       k += 2;
     }
-    return poster.style.getPropertyValue('--pk');
+    return poster.style.getPropertyValue(prop);
   }
 
   async function loadFonts() {
@@ -280,10 +325,12 @@ a { color: inherit; text-decoration: none; }
   (async () => {
     try {
       const poster = build();
+      const back = buildBack();
       const loaded = await loadFonts();
       const pk = fit(poster);
       drawEdge(poster);
-      done({ ok: true, pk, fonts: loaded });
+      const bk = fit(back, '--bk', 150);
+      done({ ok: true, pk, bk, fonts: loaded });
     } catch (e) {
       console.error(String(e && e.stack ? e.stack : e));
       done({ ok: false, error: String(e) });

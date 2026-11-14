@@ -1,6 +1,6 @@
 # Practices carousel
 
-The 10-page LinkedIn carousel from the talk "Who Gets the Keys?": 36 practices for code an AI agent writes, with when each one runs, where in the factory it runs and an example of the kind of tool that does it. Each page is 1080 × 1350 px, LinkedIn's 4:5 portrait size. A one-page poster, the factory view, shows every row from the same file, with the title, the windows, the closing pages and the flow's ends; it leaves out each section's blurb, the cover's subtitle, page 9's notes and most of the map's text. This folder is the source of record for both ([decision 0009](../docs/decisions/0009-practices-carousel.md)).
+The 10-page LinkedIn carousel from the talk "Who Gets the Keys?": 36 practices for code an AI agent writes, with when each one runs, where in the factory it runs and an example of the kind of tool that does it. Each page is 1080 × 1350 px, LinkedIn's 4:5 portrait size. A two-sided poster reads the same file. Its front, the factory view, shows every row with the title, the windows, the closing pages and the flow's ends; it leaves out each section's blurb, the cover's subtitle, page 9's notes and most of the map's text. Its back is a checklist: every practice with a box to tick, section by section. This folder is the source of record for both ([decision 0009](../docs/decisions/0009-practices-carousel.md)).
 
 ## Edit
 
@@ -9,7 +9,7 @@ Edit `carousel.yaml` and nothing else. It holds every word on every page and on 
 | Key | Page | What it holds |
 |---|---|---|
 | `meta` | 1, 10, poster | Title, thesis, subtitle (`{count}` becomes the number of rows), byline, closing line, sites |
-| `poster` | poster | The view's name beside the title, and the count line (`{count}` again) |
+| `poster` | poster | The front's and the back's names beside the title, and their count lines (`{count}` again) |
 | `windows` | 1, 3 to 8, poster | The four timing windows and `always` |
 | `where` | 3 to 8 | The tag a row shows for where it runs. `pipeline` is empty, so a pipeline row shows no tag |
 | `legend` | 3 to 8 | The legend at the foot of each section page, and the poster's |
@@ -36,7 +36,7 @@ Playwright comes from `video/record`'s pinned package, through `factory-video/pl
 | `who-gets-the-keys-carousel.pdf` | The carousel to upload: 10 pages |
 | `pages/p01.png` to `p10.png` | Each page as an image, 1080 × 1350 |
 | `contact.png` | All ten pages on one sheet |
-| `poster.png`, `poster.pdf` | The one-page poster, 2400 × 2200 px; the PNG at 2× for zooming in |
+| `poster.png`, `poster-back.png`, `poster.pdf` | The poster's front and back, each 2400 × 2200 px, the PNGs at 2× for zooming in, and both as a two-page PDF |
 | `report.md` | The checks, each section page's `--k`, the practices no row cites, and what the repository demonstrates for each row |
 | `render-log.json` | Every request the page made, and any error |
 
@@ -54,7 +54,7 @@ The `practices-carousel` workflow builds the same files in GitHub Actions on a p
 | Pages | The PDF does not have exactly 10 pages of 810 × 1013.04 pt, which is 1080 × 1350 px as Chromium rounds it |
 | Fit | A page or the poster overflows, or has an element or a line of text in its margins (the poster's are 64 px at each side); a line of text is wider than its own box, as a long word in a heading or an arrow would be; a section page's rows run into its legend, or the poster's last row into its footer; a tool line runs under its tags; a section page's `--k` is outside 0.8 to 1.5, or the poster's `--pk` outside 0.8 to 1.3 |
 | Map | On page 2, a box overlaps another, shows the wrong pages, or has text under 26 px; the flow does not run spec, sandbox, pipeline, production from top to bottom; policy is not beside the pipeline or humans beside the spec; the pipeline is not the largest box or lacks its mark; sandbox, pipeline and policy are not inside the factory's edge, or spec, production, humans and inspector are not outside it |
-| Poster | The poster PDF is not one 2400 × 2200 px page; a row is missing, repeated, outside its section's column or band, or its card lacks one of its words; a column is not under its own arrow, factory policy is not under the columns, or the bands do not run inspector, routing humans, pages 9 and 10, footer from top to bottom; the flow does not run left to right; the columns and policy band are not inside the factory's edge, or the spec, production, inspector and humans are not outside it |
+| Poster | The poster PDF is not two 2400 × 2200 px pages; the back does not list every row once, in order, under its section, each with a box to tick; a row is missing, repeated, outside its section's column or band, or its card lacks one of its words; a column is not under its own arrow, factory policy is not under the columns, or the bands do not run inspector, routing humans, pages 9 and 10, footer from top to bottom; the flow does not run left to right; the columns and policy band are not inside the factory's edge, or the spec, production, inspector and humans are not outside it |
 | Fonts | A font file's SHA-256 differs from `fonts.json`, a URL is not pinned to a commit, a font did not load, or, in either PDF, `pdffonts` lists a font as not embedded, Archivo, IBM Plex Sans or IBM Plex Mono is missing, or a font is not one of the pinned files, by its PostScript name |
 | Offline | The carousel or the poster requests anything that is not `file://`, or raises or logs an error |
 | Count | The rows pages 3 to 8 show, counted in the page, the poster's cards, the cover's number and the poster's number differ, or a PDF does not print the number where the subtitle or the poster's count line puts it |
@@ -64,7 +64,7 @@ A check that throws is reported as a FAIL with the error, so the table always pr
 
 ## How a section page fits
 
-Each section page scales its rows with the CSS variable `--k`. After the fonts load, the page raises `--k` from 0.8 in steps of 0.02 and keeps the last value at which nothing overflows down or across, the rows end at least 6 px above the legend, and no tool line is wider than its column. It stops at 1.5. A page with fewer or shorter rows gets larger type. A word too long for a row's line breaks rather than running across the margin; one too long for a heading or an arrow fails Fit, so the words get shorter. The poster does the same with `--pk`, from 0.8 to 1.3, keeping its body above the footer.
+Each section page scales its rows with the CSS variable `--k`. After the fonts load, the page raises `--k` from 0.8 in steps of 0.02 and keeps the last value at which nothing overflows down or across, the rows end at least 6 px above the legend, and no tool line is wider than its column. It stops at 1.5. A page with fewer or shorter rows gets larger type. A word too long for a row's line breaks rather than running across the margin; one too long for a heading or an arrow fails Fit, so the words get shorter. The poster does the same with `--pk` on its front, from 0.8 to 1.3, and `--bk` on its back, from 0.8 to 1.5, keeping each body above its footer.
 
 ## Fonts
 

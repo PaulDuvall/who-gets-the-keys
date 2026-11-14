@@ -14,6 +14,9 @@ meta:
 poster:
   view: Factory view
   count: "{count} practices, by where they run in the factory"
+  # The back of the poster: every practice with a box to tick, section by section.
+  back: Checklist
+  back_count: "{count} practices to work through, section by section"
 
 windows:
   before: Before code
