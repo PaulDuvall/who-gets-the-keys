@@ -50,12 +50,12 @@ Give one step at a time, in the "Owner steps" format, and read each result yours
 | R-1 | Done: `git push origin 7816615…:refs/heads/main` by hand, since `land.sh --to-main` needs a passing receipt; the ruleset counts only `checks`, which passed | none: the receipt failed, nothing deployed |
 | R-2 | Done: `land.sh proposals/receipt-limit`, signed, `1d623a3`; candidate run 43614472354, main's run 43614734023, both receipts passed | none: skipped |
 | H-7 | Done: `land.sh --to-main fa38bed… candidate/handoff-2026-11-14c` | none: skipped |
-| P-1 | Turn on Pages, built by GitHub Actions: `gh api -X POST repos/PaulDuvall/who-gets-the-keys/pages -f build_type=workflow`. Before P-3, so the first deploy finds a site | none |
-| P-2 | `land.sh --to-main <tip of candidate/factory-pages-2026-11-14> candidate/factory-pages-2026-11-14` | none expected: docs and proposals only |
+| P-1 | Turn on Pages, built by GitHub Actions: `gh api -X POST repos/PaulDuvall/who-gets-the-keys/pages -f build_type=workflow`. Before P-3, so the first deploy finds a site. Then the agent reads `github-pages`'s branch policies; if they do not name `main` alone, P-1b restricts it as `github.sh` does | none |
+| P-2 | `land.sh --to-main <tip of candidate/factory-pages-2026-11-14b> candidate/factory-pages-2026-11-14b` | none expected: docs and proposals only |
 | P-3 | `land.sh proposals/factory-pages`, signed. Its push rebuilds the factory video, about 15 minutes, and deploys it to Pages | none: no `sandbox` deploy; `github-pages` has no reviewer |
 | P-4 | `scripts/bootstrap/github.sh`: `github-pages` deployable from `main` only; Pages already built by Actions | none |
 | P-5 | Open https://paulduvall.github.io/who-gets-the-keys/ and play the video; check the end card against `docs/progress.json` at the commit it names | none |
-| Any time | `git push origin --delete claude/wizardly-johnson-hfuk4e claude/relaxed-hypatia-hp356k candidate/progress-badge-2026-11-14`: the first two are superseded on `main` (`git cherry` and the sca-mf5v note); the third's tip `7816615` is on `main`. Keep `candidate/sandbox-gate` for g4e | none |
+| Any time | `git push origin --delete claude/wizardly-johnson-hfuk4e claude/relaxed-hypatia-hp356k candidate/progress-badge-2026-11-14`: the first two are superseded on `main` (`git cherry` and the sca-mf5v note); the third's tip `7816615` is on `main`. Keep `candidate/sandbox-gate` for g4e. Also `candidate/factory-pages-2026-11-14`: its chain was staged on `fa38bed`, and another session moved `main` to `d9e3d07` meanwhile, so the same commits, rebased, are on `candidate/factory-pages-2026-11-14b` | none |
 
 ### H-3 result
 
