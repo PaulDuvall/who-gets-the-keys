@@ -11,9 +11,14 @@ export const ROOT = path.resolve(DIR, '..');
 export const OUT = path.join(DIR, 'out');
 export const FONT_DIR = path.join(DIR, 'fonts');
 export const PDF = path.join(OUT, 'who-gets-the-keys-carousel.pdf');
-export const PAGE_URL = pathToFileURL(path.join(DIR, 'carousel.html')).href;
+export const POSTER_PDF = path.join(OUT, 'poster.pdf');
+export const POSTER_PNG = path.join(OUT, 'poster.png');
 export const WIDTH = 1080;
 export const HEIGHT = 1350;
+/** The one-page poster: the same content on one page, laid out like the factory. */
+export const POSTER = { file: 'poster.html', width: 2400, height: 2200 };
+const CAROUSEL = { file: 'carousel.html', width: WIDTH, height: HEIGHT };
+export const pageUrl = (file) => pathToFileURL(path.join(DIR, file)).href;
 
 export const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 
@@ -38,11 +43,11 @@ export function rowsOf(doc) {
 export const pageCount = (doc) => 4 + (Array.isArray(doc?.sections) ? doc.sections.length : 0);
 
 /**
- * Opens carousel.html in a fresh context under print media, with the content and the font list injected before
- * any page script runs, and waits until the page has loaded its fonts, fitted each section page and drawn the map.
- * Every request, page error and console error is collected in `log`.
+ * Opens a template (carousel.html unless `template` names poster.html's) in a fresh context under print media, with
+ * the content and the font list injected before any page script runs, and waits until the page has loaded its fonts,
+ * fitted itself and drawn its lines. Every request, page error and console error is collected in `log`.
  */
-export async function openCarousel(browser, doc) {
+export async function openCarousel(browser, doc, template = CAROUSEL, deviceScaleFactor = 1) {
   const { fonts } = loadFonts();
   const data = {
     doc,
@@ -50,12 +55,13 @@ export async function openCarousel(browser, doc) {
     pages: pageCount(doc),
     fonts: fonts.map((f) => ({ family: f.family, weight: f.weight, stretch: f.stretch, file: f.file })),
   };
-  const ctx = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
+  const ctx = await browser.newContext({ viewport: { width: template.width, height: template.height }, deviceScaleFactor });
   await ctx.addInitScript((d) => {
     window.__CAROUSEL__ = d;
   }, data);
   const page = await ctx.newPage();
-  const log = { page: PAGE_URL, requests: [], errors: [], console: [] };
+  const url = pageUrl(template.file);
+  const log = { page: url, requests: [], errors: [], console: [] };
   page.on('request', (r) => log.requests.push(r.url()));
   page.on('requestfailed', (r) => log.errors.push(`request failed: ${r.url()} ${r.failure()?.errorText ?? ''}`));
   page.on('pageerror', (e) => log.errors.push(String(e)));
@@ -63,7 +69,7 @@ export async function openCarousel(browser, doc) {
     if (m.type() === 'error') log.console.push(m.text());
   });
   await page.emulateMedia({ media: 'print' });
-  await page.goto(PAGE_URL, { waitUntil: 'load' });
+  await page.goto(url, { waitUntil: 'load' });
   const ready = await page.waitForFunction(() => window.__CAROUSEL_READY__, null, { timeout: 30000 }).then((h) => h.jsonValue());
   if (!ready.ok) log.errors.push(`page: ${ready.error}`);
   return { ctx, page, log, ready };

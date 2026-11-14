@@ -5,11 +5,15 @@ meta:
   title: Who gets the keys?
   thesis_key: The pipeline
   thesis_rest: holds the keys to production.
-  subtitle: "{count} practices for code an AI agent writes, with when each one runs, where in the factory it runs and tools to start with."
+  subtitle: "{count} practices for code an AI agent writes, with when each one runs, where in the factory it runs and an example of the kind of tool that does it."
   byline: Paul Duvall · AI Native DevCon 2026
   close_line_plain: The agent writes the change, and
   close_line_key: the pipeline ships it.
   sites: [paulmduvall.com, redactedventures.com]
+
+poster:
+  view: Factory view
+  count: "{count} practices, by where they run in the factory"
 
 windows:
   before: Before code
@@ -31,6 +35,15 @@ legend:
   windows: "Runs: before code, in the sandbox (seconds), in the pipeline (minutes), in production (hours)"
   untagged: "Untagged: runs in the pipeline"
   diy: rules you write
+  tools: "Tools: examples of the kind of tool to use"
+
+# Short labels the pages put beside the content: the DIY tag, the prefix of an OWASP LLM Top 10 ID, and the words
+# before the page numbers on the factory map.
+labels:
+  diy: DIY
+  ref: OWASP
+  page: p.
+  pages: pp.
 
 factory:
   heading: The factory
@@ -41,7 +54,7 @@ factory:
       text: An engineer captures the customer's intent and signs it with a security key.
       page: [5, 9]
     - name: Agent sandbox
-      text: One cloud runner per task. Its commands get no secrets, no deploy keys and no network. It returns a patch.
+      text: One cloud runner per task. Its commands get no secrets, no deploy keys and no network. It hands back a proposed change and nothing else.
       page: 3
     - name: Pipeline
       text: Runs the checks of record, signs the evidence and holds the only deploy key.
@@ -64,7 +77,7 @@ factory:
 sections:
   - name: Agent sandbox
     tag: One cloud runner per task
-    blurb: The agent runs on a runner started for one task. Its commands get no network and no secrets, and its only output is a patch.
+    blurb: The agent runs on a runner started for one task. Its commands get no network and no secrets, and its only output is a proposed change.
     rows:
       - lead: Told
         text: Limit what the agent can do to an allow list of commands and paths
@@ -110,7 +123,7 @@ sections:
           - { name: npm ci, url: "https://docs.npmjs.com/cli/commands/npm-ci" }
           - { name: pip --require-hashes, url: "https://pip.pypa.io/en/stable/topics/secure-installs/" }
           - { name: CodeArtifact, url: "https://docs.aws.amazon.com/codeartifact/latest/ug/welcome.html" }
-      - text: Flag agent tests that assert nothing before the patch leaves the sandbox
+      - text: Flag agent tests that assert nothing before the change leaves the sandbox
         when: [seconds]
         where: sandbox
         practices: [P11]

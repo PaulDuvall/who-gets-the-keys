@@ -9,6 +9,7 @@
  *   out/who-gets-the-keys-carousel.pdf   ten 1080 x 1350 px pages
  *   out/pages/p01.png ... p10.png        each page at 1080 x 1350
  *   out/contact.png                      all ten pages on one sheet
+ *   out/poster.png, out/poster.pdf       the one-page poster (poster.html), 2400 x 2200, the PNG at 2x
  *   out/render-log.json                  every request and error, and each section page's --k
  * It exits nonzero if the page asked for anything that is not file://, raised an error or logged one.
  * Playwright comes from video/record's pinned package, through factory-video/playwright.mjs.
@@ -18,7 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from '../factory-video/playwright.mjs';
-import { HEIGHT, OUT, PDF, WIDTH, loadCarousel, offlineProblems, openCarousel, pageCount } from './lib.mjs';
+import { HEIGHT, OUT, PDF, POSTER, POSTER_PDF, POSTER_PNG, WIDTH, loadCarousel, offlineProblems, openCarousel, pageCount } from './lib.mjs';
 
 const PAGES = path.join(OUT, 'pages');
 const pad = (n) => String(n).padStart(2, '0');
@@ -83,6 +84,17 @@ async function main() {
     const size = await contactSheet(browser, files, log);
     console.log(`${n} pages -> ${path.relative(process.cwd(), PDF)}, out/pages/p01.png to p${pad(n)}.png, out/contact.png (${size})`);
     console.log(`--k by section page: ${Object.entries(ready.k || {}).map(([p, k]) => `p${p} ${k}`).join(', ')}`);
+
+    // The poster: a PNG at 2x for zooming in, and a one-page PDF.
+    const poster = await openCarousel(browser, doc, POSTER, 2);
+    log.requests.push(...poster.log.requests);
+    log.errors.push(...poster.log.errors);
+    log.console.push(...poster.log.console);
+    ready = { ...ready, pk: poster.ready.pk };
+    await poster.page.locator('.poster').screenshot({ path: POSTER_PNG });
+    await poster.page.pdf({ path: POSTER_PDF, width: `${POSTER.width}px`, height: `${POSTER.height}px`, printBackground: true, margin: { top: 0, right: 0, bottom: 0, left: 0 } });
+    await poster.ctx.close();
+    console.log(`poster -> out/poster.png (${POSTER.width * 2}x${POSTER.height * 2}), out/poster.pdf; --pk ${poster.ready.pk}`);
   } finally {
     await browser.close();
     fs.mkdirSync(OUT, { recursive: true });

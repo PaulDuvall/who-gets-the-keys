@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Who gets the keys? poster</title>
+<!--
+  The one-page poster of the practices carousel: the same carousel.yaml, the same tokens and fonts, on one 2400 x 2200
+  page. It holds no content. render.mjs injects carousel.yaml as window.__CAROUSEL__ before this page's script runs.
+  The factory runs left to right: the signed spec, the first three sections as columns (the agent sandbox, then the
+  pipeline's checks and evidence), production. A dashed line marks the factory's edge around the columns and the
+  fourth section, factory policy. The fifth, the inspector, sits outside it, then the sixth, routing humans, then
+  pages 9 and 10 and the closing line. Nothing is fetched over the network.
+-->
+<style>
+@page { size: 2400px 2200px; margin: 0; background: #f7f8f9; }
+/* The same tokens as carousel.html. */
+:root {
+  --paper: #f7f8f9; --ink: #121820; --muted: #59646f; --line: #dce1e6;
+  --band: #121820; --band-ink: #eef1f4; --band-muted: #9aa6b2; --band-line: #2a3440;
+  --brass: #94650e; --brass-hi: #e2b04f; --brass-soft: #f1e6cc;
+  --w-before: #94650e; --w-s: #0b7a72; --w-m: #2350b8; --w-h: #8b3a8f; --w-off: #dfe4e9;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); -webkit-font-smoothing: antialiased; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { font-family: var(--font-body); color: var(--ink); }
+a { color: inherit; text-decoration: none; }
+.poster { --pk: 1; width: 2400px; height: 2200px; overflow: hidden; position: relative; background: var(--paper); display: flex; flex-direction: column; }
+
+/* Header and legend */
+.ph { background: var(--band); color: var(--band-ink); padding: 40px 64px 34px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 24px; }
+.ph .by { grid-column: 1 / -1; font: 500 22px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--band-muted); }
+.ph h1 { margin: 0; font: 800 84px/1 var(--font-display); font-stretch: 115%; letter-spacing: -.02em; }
+.ph h1 .view { color: var(--brass-hi); }
+.ph .thesis { margin: 12px 0 0; font: 600 36px/1.15 var(--font-display); }
+.ph .thesis .key { color: var(--brass-hi); }
+.ph .cnt { font: 600 24px/1.3 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--band-muted); text-align: right; max-width: 22ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 32px; align-items: center; padding: 16px 64px; border-bottom: 1px solid var(--line); font-size: 20px; color: var(--muted); }
+.lkey { display: inline-flex; gap: 4px; margin-right: 8px; vertical-align: 2px; }
+.lkey span { font: 600 15px var(--font-mono); color: #fff; padding: 1px 6px; border-radius: 4px; }
+.legend .track { display: inline-grid; margin-right: 8px; vertical-align: 1px; }
+.legend .diy { margin-right: 6px; }
+
+.body { flex: 1; display: flex; flex-direction: column; gap: calc(18px * var(--pk)); padding: calc(26px * var(--pk)) 64px calc(22px * var(--pk)); min-height: 0; }
+
+/* The factory: the flow across the top, the columns under it, factory policy under them, the edge around it. */
+.factory { position: relative; margin-bottom: 16px; display: grid; grid-template-columns: 220px repeat(3, minmax(0, 1fr)) 220px; column-gap: 22px; row-gap: calc(12px * var(--pk)); }
+.chev { position: relative; z-index: 1; min-height: 78px; padding: 12px 34px 12px 22px; color: #fff; clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 0 100%, 16px 50%); }
+.chev:first-child { clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 0 100%); }
+.chev .n { font: 700 26px/1.1 var(--font-display); }
+.chev .t { margin-top: 4px; font: 600 15px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
+.chev.spec { background: var(--w-before); } .chev.c0 { background: var(--w-s); } .chev.c1, .chev.c2 { background: var(--w-m); } .chev.prod { background: var(--w-h); }
+.keyline { grid-column: 3 / 5; position: relative; z-index: 1; display: flex; align-items: center; gap: 14px; padding: 8px 16px; border-radius: 8px; background: var(--band); color: var(--band-ink); font: 600 20px var(--font-body); }
+.keyline .nm { font: 700 18px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--brass-hi); }
+.keyline svg { color: var(--brass-hi); flex: none; }
+.side { position: relative; z-index: 1; font-size: 20px; line-height: 1.35; color: var(--muted); padding: 2px 4px; }
+.side b { display: block; margin-bottom: 6px; font: 600 15px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
+.col { position: relative; z-index: 1; display: flex; flex-direction: column; gap: calc(10px * var(--pk)); }
+.policy { grid-column: 2 / 5; }
+.edge { position: absolute; z-index: 0; border: 3px dashed var(--band-muted); border-radius: 22px; }
+.edge .label { position: absolute; right: 30px; bottom: -16px; padding: 0 10px; background: var(--paper); font: 600 18px/28px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+/* Cards: one carousel row each. --pk scales them so the poster fills its page. */
+.card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: calc(11px * var(--pk)) calc(14px * var(--pk)) calc(10px * var(--pk)); }
+.card .p { font-size: calc(21px * var(--pk)); font-weight: 600; line-height: 1.24; text-wrap: pretty; overflow-wrap: anywhere; }
+.card .lead { font: 700 calc(15px * var(--pk)) var(--font-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--brass); margin-right: 8px; }
+.card .ref { font: 500 calc(14px * var(--pk)) var(--font-mono); color: var(--muted); margin-left: 6px; white-space: nowrap; }
+/* When a card is narrow, its tags wrap under its tools, right-aligned, so no tool name runs under a tag. */
+.card .meta { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px 10px; margin-top: calc(6px * var(--pk)); }
+.card .tools { flex: 1 1 auto; min-width: 0; font: calc(15px * var(--pk))/1.35 var(--font-mono); color: var(--muted); }
+.card .tools a { white-space: nowrap; }
+.card .sep { color: #b6bfc8; }
+.diy { display: inline-block; font: 600 12px var(--font-mono); letter-spacing: .04em; color: var(--brass); border: 1.5px solid var(--brass); border-radius: 4px; padding: 0 4px; }
+.who { flex: none; font: 600 12px var(--font-mono); letter-spacing: .05em; text-transform: uppercase; background: #e8ecef; border-radius: 4px; padding: 2px 7px; }
+.who.human { background: var(--brass-soft); color: var(--brass); }
+.track { flex: none; display: grid; grid-template-columns: repeat(4, 15px); gap: 3px; }
+.track i { height: 10px; border-radius: 2px; background: var(--w-off); }
+.track .b { background: var(--w-before); } .track .s { background: var(--w-s); } .track .m { background: var(--w-m); } .track .h { background: var(--w-h); }
+.track.all i { background: var(--ink); }
+
+/* Bands: a title cell, then the section's cards. */
+.band { position: relative; z-index: 1; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 18px; align-items: start; padding: calc(16px * var(--pk)) 18px; border-radius: 14px; background: #eceff2; }
+.band.dark { background: var(--band); color: var(--band-ink); }
+.band.dark .card { background: #fff; color: var(--ink); border-color: #fff; }
+.band .bt h2 { margin: 0; font: 800 28px/1 var(--font-display); font-stretch: 115%; text-transform: uppercase; }
+.band .bt p { margin: 8px 0 0; font: 600 18px/1.25 var(--font-display); color: var(--brass); }
+.band.dark .bt p { color: var(--brass-hi); }
+.band .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: calc(10px * var(--pk)); }
+.policy.band { background: #e8ecef; }
+
+/* Pages 9 and 10, then the closing line. */
+.after { display: grid; grid-template-columns: 1.15fr 0.85fr 1.2fr; gap: 22px; }
+.after > div { border-radius: 14px; padding: calc(16px * var(--pk)) 22px; }
+.after h3 { margin: 0 0 calc(8px * var(--pk)); font: 600 16px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+.after .hum { background: #fff; border: 1px solid var(--line); }
+.after .hum h3 { color: var(--muted); }
+.after .hum div { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 12px; align-items: baseline; padding: calc(4px * var(--pk)) 0; font-size: calc(19px * var(--pk)); font-weight: 600; line-height: 1.3; }
+.after .hum dt { font: 700 15px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--brass); }
+.after .hum dd { margin: 0; }
+.after .day { background: var(--brass-soft); }
+.after .day h3 { color: var(--brass); }
+.after .day li { font-size: calc(19px * var(--pk)); font-weight: 600; line-height: 1.3; padding: calc(2px * var(--pk)) 0 calc(2px * var(--pk)) 22px; position: relative; list-style: none; }
+.after .day li::before { content: ""; position: absolute; left: 0; top: .5em; width: 10px; height: 10px; border-radius: 2px; background: var(--brass); }
+.after .day ul { margin: 0; padding: 0; }
+.after .day .end { margin: calc(8px * var(--pk)) 0 0; font: 700 19px var(--font-display); color: var(--brass); }
+.after .three { background: var(--band); color: var(--band-ink); }
+.after .three h3 { color: var(--band-muted); }
+.after .three div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; align-items: baseline; padding: calc(4px * var(--pk)) 0; }
+.after .three .verb { font: 800 20px var(--font-display); font-stretch: 115%; letter-spacing: .04em; text-transform: uppercase; color: var(--brass-hi); }
+.after .three .what { font-size: calc(19px * var(--pk)); font-weight: 600; line-height: 1.3; }
+.after .three .how { color: var(--band-muted); font-weight: 400; }
+.pf { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; padding: 16px 64px 22px; border-top: 1px solid var(--line); }
+.pf .line { font: 700 26px var(--font-display); }
+.pf .line .key { color: var(--brass); }
+.pf .who-am-i { font-size: 19px; color: var(--muted); }
+.pf .who-am-i b { color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+<script>
+(() => {
+  'use strict';
+  const D = window.__CAROUSEL__;
+  const done = (v) => { window.__CAROUSEL_READY__ = v; };
+  if (!D) {
+    document.body.textContent = 'Build this page with render.mjs, which injects carousel.yaml.';
+    done({ ok: false, error: 'no data injected' });
+    return;
+  }
+  const { doc, count, fonts } = D;
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  function el(tag, cls, ...kids) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) e.append(k instanceof Node ? k : String(k));
+    return e;
+  }
+  const svg = (tag, attrs) => {
+    const e = document.createElementNS(SVGNS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, String(v));
+    return e;
+  };
+  const list = (v) => (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v]);
+  const withCount = (s) => String(s).split('{count}').flatMap((part, i) => (i ? [el('span', 'count', String(count)), part] : [part]));
+  const WINDOWS = [['before', 'b', '--w-before'], ['seconds', 's', '--w-s'], ['minutes', 'm', '--w-m'], ['hours', 'h', '--w-h']];
+
+  function track(when) {
+    const ws = list(when);
+    const t = el('span', ws.includes('always') ? 'track all' : 'track');
+    for (const [key, cls] of WINDOWS) t.append(el('i', ws.includes(key) ? cls : null));
+    return t;
+  }
+  function card(r) {
+    const tools = el('div', 'tools');
+    list(r.tools).forEach((tool, i) => {
+      if (i) tools.append(el('span', 'sep', ' · '));
+      const a = el('a', null, tool.name);
+      a.href = tool.url;
+      tools.append(a);
+    });
+    const label = doc.where[r.where];
+    const c = el('div', 'card',
+      el('div', 'p', r.lead ? el('span', 'lead', r.lead) : null, r.text, r.ref ? el('span', 'ref', `${doc.labels.ref} ${r.ref}`) : null),
+      el('div', 'meta', tools,
+        r.diy ? el('span', 'diy', doc.labels.diy) : null,
+        label ? el('span', String(r.where).startsWith('human') ? 'who human' : 'who', label) : null,
+        track(r.when)));
+    c.dataset.row = r.text;
+    return c;
+  }
+  function band(sec, i, cls) {
+    const cards = el('div', 'cards', list(sec.rows).map(card));
+    const n = list(sec.rows).length;
+    cards.style.gridTemplateColumns = `repeat(${n <= 6 ? n : Math.ceil(n / 2)}, minmax(0, 1fr))`;
+    const b = el('div', `band ${cls}`, el('div', 'bt', el('h2', null, sec.name), el('p', null, sec.tag)), cards);
+    b.dataset.section = String(i);
+    return b;
+  }
+  const KEY_ICON = () => {
+    const i = svg('svg', { width: 30, height: 18, viewBox: '0 0 34 20', 'aria-hidden': 'true' });
+    i.append(svg('circle', { cx: 9, cy: 10, r: 6.5, fill: 'none', stroke: 'currentColor', 'stroke-width': 3.4 }),
+      svg('path', { d: 'M15.5 10H32M26 10v6M31 10v5', fill: 'none', stroke: 'currentColor', 'stroke-width': 3.4, 'stroke-linecap': 'round' }));
+    return i;
+  };
+
+  function build() {
+    const m = doc.meta;
+    const f = doc.factory;
+    const secs = list(doc.sections);
+    const [spec, , pipeline, production] = f.flow;
+    const keys = el('span', 'lkey', WINDOWS.map(([key, , v]) => { const k = el('span', null, String(doc.windows[key]).charAt(0)); k.style.background = `var(${v})`; return k; }));
+    const legend = el('div', 'legend',
+      el('span', null, keys, doc.legend.windows),
+      el('span', null, track(['always']), doc.windows.always),
+      el('span', null, doc.legend.untagged),
+      el('span', null, el('span', 'diy', doc.labels.diy), doc.legend.diy),
+      el('span', null, doc.legend.tools));
+
+    const factory = el('div', 'factory',
+      el('div', 'chev spec', el('div', 'n', spec.name), el('div', 't', doc.windows.before)),
+      ...secs.slice(0, 3).map((s, i) => el('div', `chev c${i}`, el('div', 'n', s.name), el('div', 't', s.tag))),
+      el('div', 'chev prod', el('div', 'n', production.name), el('div', 't', doc.windows.hours)),
+      el('div', 'keyline', KEY_ICON(), el('span', 'nm', pipeline.name), pipeline.mark),
+      el('div', 'side spec-side', spec.text),
+      ...secs.slice(0, 3).map((s, i) => { const c = el('div', 'col', list(s.rows).map(card)); c.dataset.section = String(i); return c; }),
+      el('div', 'side prod-side', production.text),
+      band(secs[3], 3, 'policy'),
+      el('div', 'edge', el('span', 'label', f.edge)));
+    // Grid places: chevrons on row 1, the pipeline's key line on row 2, the columns on row 3, policy on row 4.
+    const place = (sel, col, row, span = 1) => { const e = factory.querySelector(sel); e.style.gridColumn = `${col} / span ${span}`; e.style.gridRow = String(row); };
+    place('.chev.spec', 1, 1); place('.chev.c0', 2, 1); place('.chev.c1', 3, 1); place('.chev.c2', 4, 1); place('.chev.prod', 5, 1);
+    place('.keyline', 3, 2, 2);
+    place('.spec-side', 1, '2 / span 2'); place('.col[data-section="0"]', 2, 3); place('.col[data-section="1"]', 3, 3); place('.col[data-section="2"]', 4, 3); place('.prod-side', 5, '2 / span 2');
+    place('.policy', 2, 4, 3);
+
+    const h = doc.humans;
+    const c = doc.close;
+    const after = el('div', 'after',
+      el('div', 'hum', el('h3', null, h.heading), list(h.rows).map((x) => el('div', null, el('dt', null, x.label), el('dd', null, x.text)))),
+      el('div', 'day', el('h3', null, h.day_one.heading), el('ul', null, list(h.day_one.items).map((i) => el('li', null, i))), el('p', 'end', h.day_one.end)),
+      el('div', 'three', el('h3', null, c.heading), list(c.items).map((i) => el('div', null, el('span', 'verb', i.verb), el('span', 'what', i.what, ' ', el('span', 'how', i.how))))));
+
+    const poster = el('section', 'poster',
+      el('header', 'ph',
+        el('div', 'by', m.byline),
+        el('div', null, el('h1', null, `${m.title} `, el('span', 'view', doc.poster.view)), el('p', 'thesis', el('span', 'key', m.thesis_key), ` ${m.thesis_rest}`)),
+        el('div', 'cnt', withCount(doc.poster.count))),
+      legend,
+      el('div', 'body', factory, band(secs[4], 4, 'dark inspector'), band(secs[5], 5, 'humans'), after),
+      el('footer', 'pf',
+        el('div', 'line', `${m.close_line_plain} `, el('span', 'key', m.close_line_key)),
+        el('div', 'who-am-i', m.byline, ' · ', list(m.sites).flatMap((s, i) => (i ? [' · ', el('b', null, s)] : [el('b', null, s)])))));
+    document.body.append(poster);
+    return poster;
+  }
+
+  // The factory's edge: around the agent sandbox and pipeline columns, their chevrons and factory policy.
+  function drawEdge(poster) {
+    const fac = poster.querySelector('.factory');
+    const r0 = fac.getBoundingClientRect();
+    const rects = ['.chev.c0', '.chev.c2', '.col[data-section="0"]', '.col[data-section="2"]', '.policy'].map((s) => fac.querySelector(s).getBoundingClientRect());
+    const pad = 12;
+    const l = Math.min(...rects.map((r) => r.left)) - r0.left - pad;
+    const t = Math.min(...rects.map((r) => r.top)) - r0.top - pad;
+    const rr = Math.max(...rects.map((r) => r.right)) - r0.left + pad;
+    const b = Math.max(...rects.map((r) => r.bottom)) - r0.top + pad;
+    Object.assign(fac.querySelector('.edge').style, { left: `${l}px`, top: `${t}px`, width: `${rr - l}px`, height: `${b - t}px` });
+  }
+
+  // Raise --pk from 0.8 in steps of 0.02 while the poster still fits its page, as the carousel's section pages do.
+  function fits(poster) {
+    const toolsOverlap = [...poster.querySelectorAll('.meta')].some((m) => { const t = m.querySelector('.tools'); return t.scrollWidth > t.clientWidth + 1; });
+    const body = poster.querySelector('.body');
+    const last = body.lastElementChild.getBoundingClientRect();
+    const bodyBox = body.getBoundingClientRect();
+    return poster.scrollHeight <= poster.clientHeight && poster.scrollWidth <= poster.clientWidth && body.scrollHeight <= body.clientHeight
+      && last.bottom <= bodyBox.bottom - parseFloat(getComputedStyle(body).paddingBottom) + 0.5 && !toolsOverlap;
+  }
+  function fit(poster) {
+    let k = 80;
+    poster.style.setProperty('--pk', (k / 100).toFixed(2));
+    while (k < 130) {
+      poster.style.setProperty('--pk', ((k + 2) / 100).toFixed(2));
+      if (!fits(poster)) { poster.style.setProperty('--pk', (k / 100).toFixed(2)); break; }
+      k += 2;
+    }
+    return poster.style.getPropertyValue('--pk');
+  }
+
+  async function loadFonts() {
+    const faces = fonts.map((ff) => new FontFace(ff.family, `url("fonts/${ff.file}") format("truetype")`, { weight: ff.weight, stretch: ff.stretch, style: 'normal', display: 'block' }));
+    for (const face of faces) document.fonts.add(face);
+    await Promise.all(faces.map((face) => face.load()));
+    await document.fonts.ready;
+    return faces.map((face) => `${face.family} ${face.weight} ${face.stretch}: ${face.status}`);
+  }
+
+  (async () => {
+    try {
+      const poster = build();
+      const loaded = await loadFonts();
+      const pk = fit(poster);
+      drawEdge(poster);
+      done({ ok: true, pk, fonts: loaded });
+    } catch (e) {
+      console.error(String(e && e.stack ? e.stack : e));
+      done({ ok: false, error: String(e) });
+    }
+  })();
+})();
+</script>
+</body>
+</html>
