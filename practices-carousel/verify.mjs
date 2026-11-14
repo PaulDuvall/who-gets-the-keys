@@ -4,10 +4,10 @@
  * and the report below it to out/report.md, and exits nonzero on any FAIL.
  *
  *   node verify.mjs                  every check; render.mjs must have written out/ first
- *   node verify.mjs --only schema,practices,phrasing
+ *   node verify.mjs --only schema,practices,phrasing,receipt
  *
  * Schema, Practices and Phrasing read only carousel.yaml and practices.yaml, so they need no browser; nor does Receipt,
- * which reads page 11's receipt against git and the repository's record of the run. The others need
+ * which reads page 11's receipt against git and the quoted run logs. The others need
  * Chromium (Playwright from factory-video/playwright.mjs), pdfinfo, pdffonts and pdftotext. Fonts, Offline, Count and
  * Text cover the poster too, and Poster checks its layout. A check that throws is reported as a FAIL.
  *
@@ -131,7 +131,9 @@ function schemaCheck() {
   const r = doc.receipt;
   need(r, ['title', 'source', 'record', 'record_after', 'evidence', 'commit', 'spec_commit', 'printed_heading', 'backs_heading', 'gaps_heading', 'total', 'result', 'count', 'motto', 'under'], 'receipt');
   need(r?.stub, ['scenario', 'text', 'line', 'result'], 'receipt.stub');
+  if (isObj(r) && (!list(r.quotes).length || !list(r.stub?.quotes).length)) bad.push('receipt.quotes or receipt.stub.quotes is empty');
   for (const k of ['commit', 'spec_commit']) if (isObj(r) && !/^[0-9a-f]{40}$/.test(String(r[k]))) bad.push(`receipt.${k} is not a full commit SHA`);
+  if (isObj(r) && !/^[0-9a-f]{40}:./.test(String(r.record))) bad.push('receipt.record is not <full commit SHA>:<path>');
   if (!list(r?.printed).length) bad.push('receipt.printed is empty');
   for (const [i, l] of list(r?.printed).entries()) need(l, ['key', 'value'], `receipt.printed[${i}]`);
   if (!list(r?.gaps).every(isText)) bad.push('receipt.gaps holds an empty item');
@@ -141,6 +143,14 @@ function schemaCheck() {
     need(l, ['key', 'value', 'note'], `receipt.backs[${i}]`);
     if (!list(l?.shows).length && !list(l?.partly).length) bad.push(`receipt.backs[${i}] names no row`);
     for (const t of [...list(l?.shows), ...list(l?.partly)]) if (!rowTexts.has(t)) bad.push(`receipt.backs[${i}] names "${short(t, 40)}", which is no row's text`);
+    const quoted = (items, where) => list(items).forEach((e, j) => {
+      if (!isObj(e) || !isText(e.quote) || (e.git === undefined) === (e.log === undefined)) bad.push(`${where}[${j}] needs a quote and exactly one of git or log`);
+    });
+    quoted(l?.evidence, `receipt.backs[${i}].evidence`);
+  }
+  if (isObj(r)) {
+    list(r.quotes).forEach((e, j) => { if (!isObj(e) || !isText(e.quote)) bad.push(`receipt.quotes[${j}] needs a quote`); });
+    list(r.stub?.quotes).forEach((e, j) => { if (!isObj(e) || !isText(e.quote)) bad.push(`receipt.stub.quotes[${j}] needs a quote`); });
   }
   if (isObj(r) && !['{shown}', '{partly}', '{count}'].every((x) => String(r.count).includes(x))) bad.push('receipt.count lacks {shown}, {partly} or {count}');
   need(doc.close, ['heading'], 'close');
@@ -205,7 +215,8 @@ function phrasingCheck() {
       const key = node.key?.value;
       const tool = underTools(pathTo);
       if (typeof key === 'string') texts.push(['key', key]);
-      if (YAML.isScalar(node.value) && typeof node.value.value === 'string' && !(tool && key === 'url')) texts.push([tool && key === 'name' ? 'tool name' : key, node.value.value]);
+      // A receipt quote is verbatim text from git or a log, so it is skipped too.
+      if (YAML.isScalar(node.value) && typeof node.value.value === 'string' && !(tool && key === 'url') && key !== 'quote') texts.push([tool && key === 'name' ? 'tool name' : key, node.value.value]);
     }
     if (YAML.isScalar(node) && YAML.isSeq(pathTo[pathTo.length - 1]) && typeof node.value === 'string') texts.push(['item', node.value]);
   });
@@ -221,17 +232,71 @@ function phrasingCheck() {
 }
 
 // ------------------------------------------------------------------ PDF
-// Receipt: page 11 is a real receipt. Its printed lines are the block that `record` keeps after `record_after`, and
-// COMMIT, AGENT and SPEC are what the commit itself says. The spec commit is an ancestor, touches specs/ and the task
-// file the SPEC line names, and carries an SSH signature by a security key. Every digest, short SHA and run ID on the
-// page is in `record` or `evidence`, and the stub's line starts with its scenario's expected line.
-function sshsigKeyType(raw) {
-  const m = /^gpgsig(?:-sha256)? -----BEGIN SSH SIGNATURE-----\n([\s\S]*?)\n -----END SSH SIGNATURE-----$/m.exec(raw);
+// Receipt: page 11 is a real receipt, and every value on it comes from somewhere a reader can look.
+// - The printed lines equal the block `record` keeps after `record_after`, read at the pinned commit `record` names,
+//   and COMMIT, AGENT and SPEC equal the commit's own hash and trailers.
+// - The spec commit is an ancestor of the commit, adds the requirement under specs/ and the task file, and carries one
+//   SSH signature header whose key is a security key listed in approvers.txt at its parent, with namespace git and
+//   the touch flag. The pipeline's signatures check verifies the signature itself (SPEC-001-R12).
+// - Each `backs` line, the header and the stub cite quotes: `git` text at a pinned commit, or `log` lines that the
+//   evidence file quotes under that job's ID. Every number and digest the line shows must be in its own quotes.
+const HEX_TOKEN = /\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\d)[0-9a-f]{7,64}\b/g;
+const NUM_TOKEN = /\d+(?:[.:-]\d+)*/g;
+// A number in a pool, as a whole number: no digit or dot before it and no digit after it.
+function hasNumber(pool, n) {
+  for (let i = pool.indexOf(n); i >= 0; i = pool.indexOf(n, i + 1)) {
+    const before = pool[i - 1] ?? '';
+    const after = pool[i + n.length] ?? '';
+    if (!/[\d.]/.test(before) && !/\d/.test(after)) return true;
+  }
+  return false;
+}
+// The tokens of a string that a pool must hold: digests by prefix, and numbers whole or as the pool's decimals rounded.
+function unbacked(text, pool) {
+  const lower = pool.toLowerCase();
+  const hexes = String(text).match(HEX_TOKEN) ?? [];
+  const missing = hexes.filter((h) => !lower.includes(h));
+  const rest = hexes.reduce((t, h) => t.split(h).join(' '), String(text));
+  // Numbers are matched outside digests and base64, whose digits would match almost any small number.
+  const plain = pool.replace(HEX_TOKEN, ' ').replace(/[A-Za-z0-9+/]{43}=/g, ' ');
+  const decimals = plain.match(/\d+\.\d+/g) ?? [];
+  for (const n of rest.match(NUM_TOKEN) ?? []) {
+    const places = /^\d+\.(\d+)$/.exec(n)?.[1].length;
+    const rounded = places !== undefined && decimals.some((d) => Number(d).toFixed(places) === n);
+    if (!hasNumber(plain, n) && !rounded) missing.push(n);
+  }
+  return missing;
+}
+// The headers of a commit object end at its first blank line; a continuation line starts with a space.
+function commitHeaders(raw) {
+  const out = [];
+  for (const line of raw.slice(0, raw.indexOf('\n\n') < 0 ? raw.length : raw.indexOf('\n\n')).split('\n')) {
+    if (line.startsWith(' ') && out.length) out[out.length - 1][1] += `\n${line.slice(1)}`;
+    else out.push([line.slice(0, line.indexOf(' ')), line.slice(line.indexOf(' ') + 1)]);
+  }
+  return out;
+}
+// PROTOCOL.sshsig: "SSHSIG", uint32 version, then strings publickey, namespace, reserved, hash_algorithm, signature.
+// A security key's signature string holds its type, the signature, a flags byte and a counter.
+function readSshsig(armored) {
+  const m = /^-----BEGIN SSH SIGNATURE-----\n([\s\S]*?)\n-----END SSH SIGNATURE-----$/.exec(armored.trim());
   if (!m) return null;
-  const buf = Buffer.from(m[1].replace(/^ /gm, '').replace(/\s/g, ''), 'base64');
+  const buf = Buffer.from(m[1].replace(/\s/g, ''), 'base64');
   if (buf.subarray(0, 6).toString() !== 'SSHSIG') return null;
-  const pk = buf.subarray(14, 14 + buf.readUInt32BE(10));
-  return pk.subarray(4, 4 + pk.readUInt32BE(0)).toString();
+  const str = (b, from) => {
+    const len = b.readUInt32BE(from);
+    return [b.subarray(from + 4, from + 4 + len), from + 4 + len];
+  };
+  const [publickey, a1] = str(buf, 10);
+  const [namespace, a2] = str(buf, a1);
+  const [, a3] = str(buf, a2);
+  const [, a4] = str(buf, a3);
+  const [signature] = str(buf, a4);
+  const [keyType] = str(publickey, 0);
+  const [sigType, s1] = str(signature, 0);
+  const [, s2] = str(signature, s1);
+  const flags = sigType.toString().startsWith('sk-') && s2 < signature.length ? signature[s2] : null;
+  return { version: buf.readUInt32BE(6), keyType: keyType.toString(), key: publickey.toString('base64'), namespace: namespace.toString(), flags };
 }
 function receiptTally(r) {
   const shown = new Set(list(r?.backs).flatMap((l) => list(l.shows)));
@@ -242,28 +307,66 @@ function receiptCheck() {
   const r = doc.receipt;
   const bad = [];
   const git = (...a) => execFileSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const gitText = (src) => {
+    const [rev, file] = [src.slice(0, src.indexOf(':') < 0 ? src.length : src.indexOf(':')), src.includes(':') ? src.slice(src.indexOf(':') + 1) : null];
+    if (!/^[0-9a-f]{40}$/.test(rev)) throw new Error(`${src} does not pin a full commit SHA`);
+    return file ? git('show', `${rev}:${file}`) : git('log', '-1', '--format=%B', rev);
+  };
+  // The quoted log lines, grouped under the line that names each job.
+  const evidence = fs.readFileSync(path.join(ROOT, r.evidence), 'utf8');
+  const block = /### Log lines, quoted[\s\S]*?```text\n([\s\S]*?)\n```/.exec(evidence)?.[1];
+  if (!block) bad.push(`${r.evidence} has no "Log lines, quoted" block`);
+  const jobs = new Map(String(block ?? '').split(/\n\s*\n/).map((g) => [/job (\d+)/.exec(g.split('\n')[0])?.[1], g]));
+  // A pool is the text of a line's quotes, each found where it says, with any base64 SHA-256 in them decoded to hex.
+  const pool = (items, label) => {
+    const texts = [];
+    for (const [i, e] of list(items).entries()) {
+      const where = `${label} quote ${i + 1}`;
+      try {
+        const source = e.git !== undefined ? gitText(String(e.git)) : jobs.get(String(e.log));
+        if (source === undefined) bad.push(`${where}: job ${e.log} is not in the quoted log lines`);
+        else if (!source.includes(e.quote)) bad.push(`${where} is not in ${e.git ?? `job ${e.log}`}`);
+        else texts.push(e.quote, ...(e.git ? [String(e.git).slice(0, 40)] : []));
+      } catch (err) {
+        bad.push(`${where}: ${String(err.message || err).split('\n')[0]}`);
+      }
+    }
+    for (const b64 of texts.join('\n').match(/[A-Za-z0-9+/]{43}=/g) ?? []) texts.push(Buffer.from(b64, 'base64').toString('hex'));
+    return texts.join('\n');
+  };
+  const backed = (label, strings, items) => {
+    const p = pool(items, label);
+    for (const t of strings) for (const miss of unbacked(t, p)) bad.push(`${label}: "${miss}" is in none of its quotes`);
+  };
+  // The printed lines, against the record at its pinned commit and the commit itself.
   const wide = Math.max(...r.printed.map((l) => l.key.length));
   const printed = r.printed.map((l) => `${l.key.padEnd(wide)} ${l.value}`).join('\n');
-  const kept = fs.readFileSync(path.join(ROOT, r.record), 'utf8');
-  const at = kept.indexOf(r.record_after);
-  const block = at < 0 ? null : /```text\n([\s\S]*?)\n```/.exec(kept.slice(at));
-  if (!block) bad.push(`${r.record} has no text block after "${r.record_after}"`);
-  else if (block[1] !== printed) bad.push(`the printed lines differ from the block in ${r.record}`);
-  const value = (k) => r.printed.find((l) => l.key === k)?.value;
-  let message = '';
+  let kept = '';
   try {
-    message = git('log', '-1', '--format=%B', r.commit);
+    kept = gitText(String(r.record));
+  } catch (err) {
+    bad.push(`record: ${String(err.message || err).split('\n')[0]}`);
+  }
+  const at = kept.indexOf(r.record_after);
+  const shown = at < 0 ? null : /```text\n([\s\S]*?)\n```/.exec(kept.slice(at));
+  if (!shown) bad.push(`${r.record} has no text block after "${r.record_after}"`);
+  else if (shown[1] !== printed) bad.push(`the printed lines differ from the block in ${r.record}`);
+  const value = (k) => r.printed.find((l) => l.key === k)?.value;
+  let trailers = [];
+  try {
+    const paragraphs = git('log', '-1', '--format=%B', r.commit).trim().split(/\n\s*\n/);
+    trailers = [...(paragraphs[paragraphs.length - 1] ?? '').matchAll(/^([A-Za-z-]+): (.+)$/gm)].map((x) => [x[1], x[2].trim()]);
   } catch {
     bad.push(`commit ${r.commit.slice(0, 12)} is not in this clone`);
   }
-  if (message) {
-    const trailers = [...message.matchAll(/^([A-Za-z-]+): (.+)$/gm)].map((x) => [x[1], x[2].trim()]);
-    const trailer = (k) => trailers.filter(([key]) => key === k).map(([, v]) => v);
+  const trailer = (k) => trailers.filter(([key]) => key === k).map(([, v]) => v);
+  if (trailers.length) {
     if (value('COMMIT') !== r.commit.slice(0, 12)) bad.push("COMMIT is not the commit's first 12 characters");
     if (value('SPEC') !== (trailer('Spec').join(', ') || 'none reported')) bad.push("SPEC differs from the commit's Spec trailers");
     const agent = trailer('Agent')[0];
     if (value('AGENT') !== (agent ? `${agent} (as reported by the commit)` : 'none reported')) bad.push("AGENT differs from the commit's Agent trailer");
   }
+  // The spec commit: ancestor, its files, and one signature header by an approver's security key.
   let raw = '';
   try {
     raw = git('cat-file', 'commit', r.spec_commit);
@@ -271,26 +374,48 @@ function receiptCheck() {
     bad.push(`spec commit ${r.spec_commit.slice(0, 12)} is not in this clone`);
   }
   if (raw) {
-    const type = sshsigKeyType(raw);
-    if (!type?.startsWith('sk-')) bad.push(`spec commit ${r.spec_commit.slice(0, 7)} has no security-key signature (${type ?? 'none'})`);
+    const short7 = r.spec_commit.slice(0, 7);
+    const want = git('rev-parse', '--show-object-format').trim() === 'sha256' ? 'gpgsig-sha256' : 'gpgsig';
+    const sigs = commitHeaders(raw).filter(([k]) => k.startsWith('gpgsig'));
+    const sig = sigs.length === 1 && sigs[0][0] === want ? readSshsig(sigs[0][1]) : null;
+    let approvers = '';
+    try {
+      approvers = git('show', `${r.spec_commit}^:approvers.txt`);
+    } catch {
+      bad.push(`no approvers.txt at ${short7}'s parent`);
+    }
+    const keys = approvers.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#')).flatMap((l) => l.trim().split(/\s+/).filter((w) => w.startsWith('AAAA')));
+    if (!sig) bad.push(`spec commit ${short7} does not have exactly one ${want} header holding an SSH signature`);
+    else if (!(sig.version === 1 && sig.namespace === 'git' && sig.keyType.startsWith('sk-') && keys.includes(sig.key) && sig.flags !== null && (sig.flags & 0x01))) {
+      bad.push(`spec commit ${short7}'s signature is not by a security key in approvers.txt with namespace git and a touch (${sig.keyType}, ${sig.namespace})`);
+    }
     if (spawnSync('git', ['-C', ROOT, 'merge-base', '--is-ancestor', r.spec_commit, r.commit]).status !== 0) bad.push('the spec commit is not an ancestor of the commit');
-    const files = git('show', '--name-only', '--format=', r.spec_commit).split('\n');
-    if (!files.some((f) => f.startsWith('specs/'))) bad.push('the spec commit changes nothing under specs/');
+    const status = git('show', '--name-status', '--format=', r.spec_commit).split('\n').filter(Boolean).map((l) => l.split('\t'));
+    const diff = git('show', '--format=', r.spec_commit, '--', 'specs/');
     const spec = r.backs.find((l) => l.key === 'SPEC');
-    for (const task of String(spec?.value ?? '').match(/TASK-[A-Z0-9-]+/g) ?? []) if (!files.includes(`tasks/${task}.task.md`)) bad.push(`the spec commit does not add tasks/${task}.task.md`);
-    for (const id of String(spec?.value ?? '').match(/SPEC-\d{3}-R\d+/g) ?? []) if (!message.includes(`Spec: ${id}`)) bad.push(`${id} is not a Spec trailer of the commit`);
+    for (const id of String(spec?.value ?? '').match(/SPEC-\d{3}-R\d+/g) ?? []) {
+      if (!trailer('Spec').includes(id)) bad.push(`${id} is not a Spec trailer of the commit`);
+      if (!diff.split('\n').some((l) => l.startsWith(`+| ${id} |`))) bad.push(`the spec commit does not add ${id} under specs/`);
+    }
+    for (const task of String(spec?.value ?? '').match(/TASK-[A-Z0-9-]+/g) ?? []) {
+      if (!status.some((f) => /^[AR]/.test(f[0]) && f[f.length - 1] === `tasks/${task}.task.md`)) bad.push(`the spec commit does not add tasks/${task}.task.md`);
+    }
   }
-  // Every digest and run ID on the page is in the record or the evidence note, as the logs gave it.
-  const records = kept + fs.readFileSync(path.join(ROOT, r.evidence), 'utf8');
-  const strings = [r.source, ...r.printed.map((l) => l.value), ...r.backs.flatMap((l) => [l.value, l.note]), r.stub.line, r.result];
-  const tokens = new Set(strings.flatMap((t) => String(t).match(/\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\d)[0-9a-f]{7,64}\b|\b\d{9,}\b/g) ?? []));
-  for (const t of tokens) if (!records.includes(t)) bad.push(`${t} is in neither ${r.record} nor ${r.evidence}`);
+  // Each line's numbers and digests, against its own quotes.
+  backed('header', [r.source, r.result], r.quotes);
+  for (const l of r.backs) {
+    if (!list(l.evidence).length) bad.push(`${l.key} cites no evidence`);
+    backed(l.key, [l.value, l.note], l.evidence);
+  }
+  backed('stub', [r.stub.text, r.stub.line], r.stub.quotes);
+  if (!list(r.stub.quotes).some((e) => String(e.quote).includes(r.stub.line))) bad.push("no stub quote holds the stub's whole line");
   const scenarios = YAML.parse(fs.readFileSync(path.join(ROOT, 'scenarios/scenarios.yaml'), 'utf8'));
   const sc = list(scenarios?.scenarios ?? scenarios).find((x) => x?.id === r.stub.scenario);
   if (!sc) bad.push(`scenario ${r.stub.scenario} is not in scenarios/scenarios.yaml`);
   else if (!String(r.stub.line).startsWith(sc.expect)) bad.push(`the stub's line does not start with ${r.stub.scenario}'s expected "${sc.expect}"`);
+  const n = [r.quotes, r.stub.quotes, ...r.backs.map((l) => l.evidence)].reduce((t, x) => t + list(x).length, 0);
   const t = receiptTally(r);
-  record('Receipt', !bad.length, bad.length ? bad.slice(0, 4).join('; ') : `the ${r.printed.length} printed lines match ${r.record} and commit ${r.commit.slice(0, 12)}; spec commit ${r.spec_commit.slice(0, 7)} signed by a security key; ${tokens.size} digests and run IDs all in the record; evidence for ${t.shown} rows in full and ${t.partly} in part; ${r.stub.scenario}'s line`);
+  record('Receipt', !bad.length, bad.length ? `${bad.length} problem(s): ${bad.slice(0, 4).join('; ')}` : `the ${r.printed.length} printed lines match ${r.record.slice(0, 7)}:${r.record.split(':')[1]} and commit ${r.commit.slice(0, 12)}; spec commit ${r.spec_commit.slice(0, 7)} adds its requirement and task and is signed by an approver's security key; every number and digest on the page in its line's ${n} quotes; evidence for ${t.shown} rows in full and ${t.partly} in part`);
 }
 
 function pdfText(page, file = PDF) {
