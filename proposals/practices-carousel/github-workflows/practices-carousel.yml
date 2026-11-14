@@ -1,7 +1,7 @@
 # Builds the practices carousel in practices-carousel/ (decision 0009): carousel.yaml rendered to an 11-page PDF,
 # a PNG per page, a contact sheet and the one-page poster, with verify.mjs's checks and report. It runs on a push to
 # main that changes the kit, practices.yaml (every row cites its IDs), the files page 11's Receipt check reads or this
-# workflow, and on demand. That check reads two commits of the history, so the checkout fetches all of it. The build job
+# workflow, and on demand. That check verifies signatures over commits in the history, so the checkout fetches all of it. The build job
 # uploads out/ as one artifact, practices-carousel-<short SHA>-<UTC time>. The prune job then deletes every earlier
 # one, so only the newest build is kept. No job reads a secret, uses AWS or a cache. Nothing is committed and no
 # release is made, so no job needs contents: write.
@@ -15,7 +15,6 @@ on:
       - "practices-carousel/**"
       - "practices.yaml"
       - "scenarios/scenarios.yaml"
-      - "docs/notes/tracer-2-t4.md"
       - "docs/notes/practices-carousel.md"
       - ".github/workflows/practices-carousel.yml"
 
