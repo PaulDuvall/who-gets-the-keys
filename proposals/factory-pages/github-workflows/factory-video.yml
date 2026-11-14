@@ -167,7 +167,7 @@ jobs:
           site="$RUNNER_TEMP/site"
           mkdir -p "$site"
           cp out/factory-guided.mp4 out/factory-guided.srt out/poster.png "$site/"
-          short="${GITHUB_SHA::7}"
+          short="${GITHUB_SHA:0:7}"
           built="$(date -u +%Y-%m-%dT%H:%MZ)"
           cat > "$site/index.html" <<EOF
           <!doctype html>
