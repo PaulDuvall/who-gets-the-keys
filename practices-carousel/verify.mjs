@@ -76,8 +76,9 @@ function schemaCheck() {
   if (!isObj(doc.where) || !Object.values(doc.where).every((v) => typeof v === 'string')) bad.push('where is not a map of labels');
   need(doc.legend, ['windows', 'untagged', 'diy', 'tools'], 'legend');
   need(doc.labels, ['diy', 'ref', 'page', 'pages'], 'labels');
-  need(doc.poster, ['view', 'count'], 'poster');
+  need(doc.poster, ['view', 'count', 'back', 'back_count'], 'poster');
   if (isObj(doc.poster) && !String(doc.poster.count || '').includes('{count}')) bad.push('poster.count has no {count}');
+  if (isObj(doc.poster) && !String(doc.poster.back_count || '').includes('{count}')) bad.push('poster.back_count has no {count}');
   need(doc.factory, ['heading', 'lede', 'edge'], 'factory');
   const boxes = [
     ...list(doc.factory?.flow).map((b, i) => [`factory.flow[${i}]`, b]),
@@ -334,7 +335,8 @@ function measure() {
       const own = box ? rect(box) : r;
       if (lines.some((b) => b.left < own.left - 1.5 || b.right > own.right + 1.5)) outside.push(`text "${n.textContent.trim().slice(0, 30)}" runs out of its box`);
     }
-    const page = { n: poster ? 'poster' : Number(s.dataset.page), kind: poster ? 'poster' : s.dataset.kind, k: s.style.getPropertyValue(poster ? '--pk' : '--k') || null, scroll: s.scrollHeight > s.clientHeight || s.scrollWidth > s.clientWidth, outside: [...new Set(outside)].slice(0, 3), rowsAboveLegend: true };
+    const back = s.classList.contains('back');
+    const page = { n: back ? 'poster back' : poster ? 'poster' : Number(s.dataset.page), kind: back ? 'back' : poster ? 'poster' : s.dataset.kind, k: s.style.getPropertyValue(back ? '--bk' : poster ? '--pk' : '--k') || null, scroll: s.scrollHeight > s.clientHeight || s.scrollWidth > s.clientWidth, outside: [...new Set(outside)].slice(0, 3), rowsAboveLegend: true };
     if (poster) {
       const body = s.querySelector('.body');
       const last = rect(body.lastElementChild);
@@ -418,6 +420,15 @@ function measure() {
       if (i && order[i - 1].bottom > b.top + 0.5) misplaced.push(`${['factory', 'inspector', 'routing humans', 'pages 9 and 10', 'footer'][i]} is not below what comes before it`);
     });
     out.poster.misplaced = misplaced;
+    // The back: one box to tick per row, section by section in file order.
+    const b = document.querySelector('.poster.back');
+    out.poster.back = b
+      ? {
+          items: [...b.querySelectorAll('.ck')].map((li) => ({ row: li.dataset.row, section: Number(li.closest('.ck-sec')?.dataset.sec ?? -1), box: !!li.querySelector('.box'), text: li.textContent })),
+          sections: [...b.querySelectorAll('.ck-sec h2')].map((h) => h.textContent),
+          count: b.querySelector('.count')?.textContent ?? null,
+        }
+      : null;
   }
   return out;
 }
@@ -436,13 +447,19 @@ function fitCheck(m, pm) {
       const k = Number(p.k);
       if (!(k >= 0.8 && k <= 1.3)) bad.push(`poster: --pk ${p.k} is outside 0.8 to 1.3`);
     }
+    if (p.kind === 'back') {
+      const k = Number(p.k);
+      if (!(k >= 0.8 && k <= 1.5)) bad.push(`poster back: --bk ${p.k} is outside 0.8 to 1.5`);
+    }
   }
   if (!pm?.pages?.length) bad.push('the poster was not measured');
   for (const r of [...m.meta, ...(pm?.meta ?? [])]) if (r.wide || r.under) bad.push(`page ${r.page}: tools run under the tags on "${r.row}"`);
   const ks = m.pages.filter((p) => p.kind === 'section');
-  const pk = pm?.pages?.[0]?.k;
-  report.push('## Fit', '', '| Page | Section | --k |', '|---|---|---|', ...ks.map((p, i) => `| ${p.n} | ${doc.sections[i]?.name} | ${p.k} |`), `| poster | all | ${pk} (--pk) |`, '');
-  record('Fit', !bad.length, `${bad.length ? `${bad.slice(0, 4).join('; ')}. ` : ''}--k: ${ks.map((p) => `p${p.n} ${p.k}`).join(', ')}; poster --pk ${pk}`);
+  const pk = pm?.pages?.find((p) => p.kind === 'poster')?.k;
+  const bk = pm?.pages?.find((p) => p.kind === 'back')?.k;
+  report.push('## Fit', '', '| Page | Section | --k |', '|---|---|---|', ...ks.map((p, i) => `| ${p.n} | ${doc.sections[i]?.name} | ${p.k} |`), `| poster front | all | ${pk} (--pk) |`, `| poster back | all | ${bk} (--bk) |`, '');
+  if (!bk) bad.push('the poster has no back');
+  record('Fit', !bad.length, `${bad.length ? `${bad.slice(0, 4).join('; ')}. ` : ''}--k: ${ks.map((p) => `p${p.n} ${p.k}`).join(', ')}; poster --pk ${pk}, back --bk ${bk}`);
 }
 
 function mapCheck(m) {
@@ -491,8 +508,11 @@ function countCheck(m, pm) {
   };
   const coverPdf = inText(PDF, 1, doc.meta.subtitle);
   const posterPdf = inText(POSTER_PDF, 1, doc.poster.count);
-  const ok = shown === ROWS.length && m.count === String(shown) && pm?.count === String(shown) && cards === shown && coverPdf && posterPdf;
-  record('Count', ok, `${shown} rows on pages 3 to 8 and ${cards} cards on the poster, of ${ROWS.length} in carousel.yaml; the cover says ${m.count ?? 'nothing'}${coverPdf ? ', as its PDF text does' : ', and its PDF text differs'}; the poster says ${pm?.count ?? 'nothing'}${posterPdf ? ', as its PDF text does' : ', and its PDF text differs'}`);
+  const items = pm?.poster?.back?.items.length ?? 0;
+  const backCount = pm?.poster?.back?.count;
+  const backPdf = inText(POSTER_PDF, 2, doc.poster.back_count);
+  const ok = shown === ROWS.length && m.count === String(shown) && pm?.count === String(shown) && cards === shown && items === shown && backCount === String(shown) && coverPdf && posterPdf && backPdf;
+  record('Count', ok, `${shown} rows on pages 3 to 8, ${cards} cards on the poster's front and ${items} boxes on its back, of ${ROWS.length} in carousel.yaml; the back says ${backCount ?? 'nothing'}${backPdf ? ', as its PDF text does' : ', and its PDF text differs'}; the cover says ${m.count ?? 'nothing'}${coverPdf ? ', as its PDF text does' : ', and its PDF text differs'}; the poster says ${pm?.count ?? 'nothing'}${posterPdf ? ', as its PDF text does' : ', and its PDF text differs'}`);
 }
 
 // Poster: one page; every row exactly once, in its section's column or band; the factory flows left to right; the
@@ -526,11 +546,23 @@ function posterCheck(pm) {
     pages = Number((info.match(/^Pages:\s+(\d+)/m) || [])[1]);
     size = (info.match(/^Page size:\s+([\d.]+ x [\d.]+)/m) || [])[1] || '';
     const [w, h] = size.split(' x ').map(Number);
-    if (pages !== 1) bad.push(`poster.pdf has ${pages} pages`);
+    if (pages !== 2) bad.push(`poster.pdf has ${pages} pages, not 2: the front and the back`);
     if (Math.abs(w - POSTER.width * 0.75) > 1 || Math.abs(h - POSTER.height * 0.75) > 1) bad.push(`poster.pdf is ${size} pt`);
   }
-  if (!fs.existsSync(path.join(OUT, 'poster.png'))) bad.push('missing out/poster.png');
-  record('Poster', !bad.length, bad.length ? bad.join('; ') : `1 page of ${size} pt; all ${got.length} rows once each, each card with its row's words, in their sections' places; each column under its arrow, the bands in order; flow left to right; columns and policy inside the factory's edge, spec, production, inspector and humans outside`);
+  for (const f of ['poster.png', 'poster-back.png']) if (!fs.existsSync(path.join(OUT, f))) bad.push(`missing out/${f}`);
+  // The back: every row once, in file order, each with its box, under its own section's heading.
+  const B = P.back;
+  if (!B) bad.push('the poster has no back');
+  else {
+    const order = ROWS.map(({ row, section }) => `${section}\u0000${row.text}`);
+    const listed = B.items.map((it) => `${it.section}\u0000${it.row}`);
+    if (order.join('\n') !== listed.join('\n')) bad.push(`the back's checklist differs from the rows: ${order.length} rows, ${listed.length} items`);
+    if (B.items.some((it) => !it.box)) bad.push('an item on the back has no box to tick');
+    const missingWords = ROWS.filter(({ row }, i) => !norm(B.items[i]?.text || '').includes(norm(row.text)) || (row.lead && !norm(B.items[i]?.text || '').includes(norm(row.lead))));
+    if (missingWords.length) bad.push(`${missingWords.length} item(s) on the back lack their row's words`);
+    if (B.sections.join('\n') !== doc.sections.map((x) => x.name).join('\n')) bad.push("the back's section headings differ from the sections");
+  }
+  record('Poster', !bad.length, bad.length ? bad.join('; ') : `2 pages of ${size} pt. Front: all ${got.length} rows once each, each card with its row's words, in their sections' places; each column under its arrow, the bands in order; flow left to right; columns and policy inside the factory's edge, spec, production, inspector and humans outside. Back: a box to tick for each of the ${B.items.length} rows, in order, under its section`);
 }
 
 // Text: every string carousel.yaml puts on a page is in that page of the PDF, as pdftotext reads it.
@@ -567,9 +599,13 @@ function textCheck() {
     }
   };
   for (const [page, strings] of Object.entries(expect)) look(PDF, page, strings, `page ${page}`);
-  if (fs.existsSync(POSTER_PDF)) look(POSTER_PDF, 1, poster, 'poster');
-  else missing.push('no out/poster.pdf');
-  record('Text', !missing.length, missing.length ? `${missing.length} string(s) not in the PDF: ${missing.slice(0, 4).join('; ')}` : `all ${n} strings carousel.yaml puts on the 10 pages and the poster are in the PDF text`);
+  const back = [m.title, doc.poster.back, String(doc.poster.back_count).replace('{count}', String(ROWS.length)), doc.legend.windows, doc.windows.always,
+    ...doc.sections.flatMap((x) => [x.name, x.tag, ...x.rows.flatMap((r) => [r.text, r.lead].filter(Boolean))]), `${m.close_line_plain} ${m.close_line_key}`, ...m.sites];
+  if (fs.existsSync(POSTER_PDF)) {
+    look(POSTER_PDF, 1, poster, 'poster front');
+    look(POSTER_PDF, 2, back, 'poster back');
+  } else missing.push('no out/poster.pdf');
+  record('Text', !missing.length, missing.length ? `${missing.length} string(s) not in the PDF: ${missing.slice(0, 4).join('; ')}` : `all ${n} strings carousel.yaml puts on the 10 pages and both sides of the poster are in the PDF text`);
 }
 
 // ------------------------------------------------------------------ coverage report

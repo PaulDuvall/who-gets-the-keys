@@ -13,6 +13,7 @@ export const FONT_DIR = path.join(DIR, 'fonts');
 export const PDF = path.join(OUT, 'who-gets-the-keys-carousel.pdf');
 export const POSTER_PDF = path.join(OUT, 'poster.pdf');
 export const POSTER_PNG = path.join(OUT, 'poster.png');
+export const POSTER_BACK_PNG = path.join(OUT, 'poster-back.png');
 export const WIDTH = 1080;
 export const HEIGHT = 1350;
 /** The one-page poster: the same content on one page, laid out like the factory. */
