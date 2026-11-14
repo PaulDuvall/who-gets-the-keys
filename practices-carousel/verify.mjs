@@ -6,7 +6,8 @@
  *   node verify.mjs                  every check; render.mjs must have written out/ first
  *   node verify.mjs --only schema,practices,phrasing
  *
- * Schema, Practices and Phrasing read only carousel.yaml and practices.yaml, so they need no browser. The others need
+ * Schema, Practices and Phrasing read only carousel.yaml and practices.yaml, so they need no browser; nor does Receipt,
+ * which reads page 11's receipt against git and the repository's record of the run. The others need
  * Chromium (Playwright from factory-video/playwright.mjs), pdfinfo, pdffonts and pdftotext. Fonts, Offline, Count and
  * Text cover the poster too, and Poster checks its layout. A check that throws is reported as a FAIL.
  *
@@ -27,7 +28,7 @@ const report = [];
 
 const args = process.argv.slice(2);
 const onlyAt = args.indexOf('--only');
-const CHECKS = ['schema', 'practices', 'phrasing', 'fit', 'map', 'poster', 'fonts', 'offline', 'count', 'pages', 'text'];
+const CHECKS = ['schema', 'practices', 'phrasing', 'receipt', 'fit', 'map', 'poster', 'fonts', 'offline', 'count', 'pages', 'text'];
 const ONLY = onlyAt >= 0 ? new Set(String(args[onlyAt + 1] || '').split(',').filter(Boolean)) : null;
 if (ONLY && (!ONLY.size || [...ONLY].some((k) => !CHECKS.includes(k)))) {
   console.error(`--only takes a comma-separated list of: ${CHECKS.join(', ')}`);
@@ -126,6 +127,22 @@ function schemaCheck() {
   for (const [i, h] of list(doc.humans?.rows).entries()) need(h, ['label', 'text', 'note'], `humans.rows[${i}]`);
   need(doc.humans?.day_one, ['heading', 'end'], 'humans.day_one');
   if (!list(doc.humans?.day_one?.items).every(isText) || !list(doc.humans?.day_one?.items).length) bad.push('humans.day_one.items is empty');
+  // Page 11: the receipt's fields, and each evidence line names rows that exist, in full or in part.
+  const r = doc.receipt;
+  need(r, ['title', 'source', 'record', 'record_after', 'evidence', 'commit', 'spec_commit', 'printed_heading', 'backs_heading', 'gaps_heading', 'total', 'result', 'count', 'motto', 'under'], 'receipt');
+  need(r?.stub, ['scenario', 'text', 'line', 'result'], 'receipt.stub');
+  for (const k of ['commit', 'spec_commit']) if (isObj(r) && !/^[0-9a-f]{40}$/.test(String(r[k]))) bad.push(`receipt.${k} is not a full commit SHA`);
+  if (!list(r?.printed).length) bad.push('receipt.printed is empty');
+  for (const [i, l] of list(r?.printed).entries()) need(l, ['key', 'value'], `receipt.printed[${i}]`);
+  if (!list(r?.gaps).every(isText)) bad.push('receipt.gaps holds an empty item');
+  const rowTexts = new Set(ROWS.map(({ row }) => row?.text));
+  if (!list(r?.backs).length) bad.push('receipt.backs is empty');
+  for (const [i, l] of list(r?.backs).entries()) {
+    need(l, ['key', 'value', 'note'], `receipt.backs[${i}]`);
+    if (!list(l?.shows).length && !list(l?.partly).length) bad.push(`receipt.backs[${i}] names no row`);
+    for (const t of [...list(l?.shows), ...list(l?.partly)]) if (!rowTexts.has(t)) bad.push(`receipt.backs[${i}] names "${short(t, 40)}", which is no row's text`);
+  }
+  if (isObj(r) && !['{shown}', '{partly}', '{count}'].every((x) => String(r.count).includes(x))) bad.push('receipt.count lacks {shown}, {partly} or {count}');
   need(doc.close, ['heading'], 'close');
   for (const [i, c] of list(doc.close?.items).entries()) need(c, ['verb', 'what', 'how'], `close.items[${i}]`);
   record('Schema', !bad.length, bad.length ? `${bad.length} problem(s): ${bad.slice(0, 6).join('; ')}` : `${ROWS.length} rows in ${list(doc.sections).length} sections, 7 factory boxes, every key defined, every tool link https://`);
@@ -204,6 +221,78 @@ function phrasingCheck() {
 }
 
 // ------------------------------------------------------------------ PDF
+// Receipt: page 11 is a real receipt. Its printed lines are the block that `record` keeps after `record_after`, and
+// COMMIT, AGENT and SPEC are what the commit itself says. The spec commit is an ancestor, touches specs/ and the task
+// file the SPEC line names, and carries an SSH signature by a security key. Every digest, short SHA and run ID on the
+// page is in `record` or `evidence`, and the stub's line starts with its scenario's expected line.
+function sshsigKeyType(raw) {
+  const m = /^gpgsig(?:-sha256)? -----BEGIN SSH SIGNATURE-----\n([\s\S]*?)\n -----END SSH SIGNATURE-----$/m.exec(raw);
+  if (!m) return null;
+  const buf = Buffer.from(m[1].replace(/^ /gm, '').replace(/\s/g, ''), 'base64');
+  if (buf.subarray(0, 6).toString() !== 'SSHSIG') return null;
+  const pk = buf.subarray(14, 14 + buf.readUInt32BE(10));
+  return pk.subarray(4, 4 + pk.readUInt32BE(0)).toString();
+}
+function receiptTally(r) {
+  const shown = new Set(list(r?.backs).flatMap((l) => list(l.shows)));
+  const partly = new Set(list(r?.backs).flatMap((l) => list(l.partly)).filter((t) => !shown.has(t)));
+  return { shown: shown.size, partly: partly.size };
+}
+function receiptCheck() {
+  const r = doc.receipt;
+  const bad = [];
+  const git = (...a) => execFileSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const wide = Math.max(...r.printed.map((l) => l.key.length));
+  const printed = r.printed.map((l) => `${l.key.padEnd(wide)} ${l.value}`).join('\n');
+  const kept = fs.readFileSync(path.join(ROOT, r.record), 'utf8');
+  const at = kept.indexOf(r.record_after);
+  const block = at < 0 ? null : /```text\n([\s\S]*?)\n```/.exec(kept.slice(at));
+  if (!block) bad.push(`${r.record} has no text block after "${r.record_after}"`);
+  else if (block[1] !== printed) bad.push(`the printed lines differ from the block in ${r.record}`);
+  const value = (k) => r.printed.find((l) => l.key === k)?.value;
+  let message = '';
+  try {
+    message = git('log', '-1', '--format=%B', r.commit);
+  } catch {
+    bad.push(`commit ${r.commit.slice(0, 12)} is not in this clone`);
+  }
+  if (message) {
+    const trailers = [...message.matchAll(/^([A-Za-z-]+): (.+)$/gm)].map((x) => [x[1], x[2].trim()]);
+    const trailer = (k) => trailers.filter(([key]) => key === k).map(([, v]) => v);
+    if (value('COMMIT') !== r.commit.slice(0, 12)) bad.push("COMMIT is not the commit's first 12 characters");
+    if (value('SPEC') !== (trailer('Spec').join(', ') || 'none reported')) bad.push("SPEC differs from the commit's Spec trailers");
+    const agent = trailer('Agent')[0];
+    if (value('AGENT') !== (agent ? `${agent} (as reported by the commit)` : 'none reported')) bad.push("AGENT differs from the commit's Agent trailer");
+  }
+  let raw = '';
+  try {
+    raw = git('cat-file', 'commit', r.spec_commit);
+  } catch {
+    bad.push(`spec commit ${r.spec_commit.slice(0, 12)} is not in this clone`);
+  }
+  if (raw) {
+    const type = sshsigKeyType(raw);
+    if (!type?.startsWith('sk-')) bad.push(`spec commit ${r.spec_commit.slice(0, 7)} has no security-key signature (${type ?? 'none'})`);
+    if (spawnSync('git', ['-C', ROOT, 'merge-base', '--is-ancestor', r.spec_commit, r.commit]).status !== 0) bad.push('the spec commit is not an ancestor of the commit');
+    const files = git('show', '--name-only', '--format=', r.spec_commit).split('\n');
+    if (!files.some((f) => f.startsWith('specs/'))) bad.push('the spec commit changes nothing under specs/');
+    const spec = r.backs.find((l) => l.key === 'SPEC');
+    for (const task of String(spec?.value ?? '').match(/TASK-[A-Z0-9-]+/g) ?? []) if (!files.includes(`tasks/${task}.task.md`)) bad.push(`the spec commit does not add tasks/${task}.task.md`);
+    for (const id of String(spec?.value ?? '').match(/SPEC-\d{3}-R\d+/g) ?? []) if (!message.includes(`Spec: ${id}`)) bad.push(`${id} is not a Spec trailer of the commit`);
+  }
+  // Every digest and run ID on the page is in the record or the evidence note, as the logs gave it.
+  const records = kept + fs.readFileSync(path.join(ROOT, r.evidence), 'utf8');
+  const strings = [r.source, ...r.printed.map((l) => l.value), ...r.backs.flatMap((l) => [l.value, l.note]), r.stub.line, r.result];
+  const tokens = new Set(strings.flatMap((t) => String(t).match(/\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\d)[0-9a-f]{7,64}\b|\b\d{9,}\b/g) ?? []));
+  for (const t of tokens) if (!records.includes(t)) bad.push(`${t} is in neither ${r.record} nor ${r.evidence}`);
+  const scenarios = YAML.parse(fs.readFileSync(path.join(ROOT, 'scenarios/scenarios.yaml'), 'utf8'));
+  const sc = list(scenarios?.scenarios ?? scenarios).find((x) => x?.id === r.stub.scenario);
+  if (!sc) bad.push(`scenario ${r.stub.scenario} is not in scenarios/scenarios.yaml`);
+  else if (!String(r.stub.line).startsWith(sc.expect)) bad.push(`the stub's line does not start with ${r.stub.scenario}'s expected "${sc.expect}"`);
+  const t = receiptTally(r);
+  record('Receipt', !bad.length, bad.length ? bad.slice(0, 4).join('; ') : `the ${r.printed.length} printed lines match ${r.record} and commit ${r.commit.slice(0, 12)}; spec commit ${r.spec_commit.slice(0, 7)} signed by a security key; ${tokens.size} digests and run IDs all in the record; evidence for ${t.shown} rows in full and ${t.partly} in part; ${r.stub.scenario}'s line`);
+}
+
 function pdfText(page, file = PDF) {
   return execFileSync('pdftotext', ['-f', String(page), '-l', String(page), '-raw', '-enc', 'UTF-8', file, '-'], { encoding: 'utf8' });
 }
@@ -223,8 +312,9 @@ function pagesCheck() {
   const pages = Number((info.match(/^Pages:\s+(\d+)/m) || [])[1]);
   const sizes = [...info.matchAll(/^Page\s+(\d+) size:\s+([\d.]+) x ([\d.]+) pts/gm)].map((m) => [Number(m[1]), m[2], m[3]]);
   const wrong = sizes.filter(([, w, h]) => w !== '810' || h !== '1013.04').map(([n, w, h]) => `page ${n} is ${w} x ${h}`);
-  const ok = pages === 10 && sizes.length === 10 && !wrong.length;
-  record('Pages', ok, `${pages} pages${pages === 10 ? '' : ', not 10'}; ${wrong.length ? wrong.join(', ') : `each 810 x 1013.04 pt, which is ${WIDTH} x ${HEIGHT} px as Chromium rounds it`}`);
+  // Cover, map, six sections, humans, close and the receipt of a real run (the owner added page 11 on 2026-11-14).
+  const ok = pages === 11 && sizes.length === 11 && !wrong.length;
+  record('Pages', ok, `${pages} pages${pages === 11 ? '' : ', not 11'}; ${wrong.length ? wrong.join(', ') : `each 810 x 1013.04 pt, which is ${WIDTH} x ${HEIGHT} px as Chromium rounds it`}`);
 }
 
 // The PostScript name (name ID 6) of a TrueType file, as a PDF names an embedded font.
@@ -444,6 +534,10 @@ function fitCheck(m, pm) {
       const k = Number(p.k);
       if (!(k >= 0.8 && k <= 1.5)) bad.push(`page ${p.n}: --k ${p.k} is outside 0.8 to 1.5`);
     }
+    if (p.kind === 'receipt') {
+      const k = Number(p.k);
+      if (!(k >= 0.8 && k <= 1.3)) bad.push(`page ${p.n}: --k ${p.k} is outside 0.8 to 1.3`);
+    }
     if (p.kind === 'poster') {
       const k = Number(p.k);
       if (!(k >= 0.8 && k <= 1.3)) bad.push(`poster: --pk ${p.k} is outside 0.8 to 1.3`);
@@ -456,11 +550,13 @@ function fitCheck(m, pm) {
   if (!pm?.pages?.length) bad.push('the poster was not measured');
   for (const r of [...m.meta, ...(pm?.meta ?? [])]) if (r.wide || r.under) bad.push(`page ${r.page}: tools run under the tags on "${r.row}"`);
   const ks = m.pages.filter((p) => p.kind === 'section');
+  const rk = m.pages.find((p) => p.kind === 'receipt')?.k;
+  if (!rk) bad.push('the receipt page has no --k');
   const pk = pm?.pages?.find((p) => p.kind === 'poster')?.k;
   const bk = pm?.pages?.find((p) => p.kind === 'back')?.k;
-  report.push('## Fit', '', '| Page | Section | --k |', '|---|---|---|', ...ks.map((p, i) => `| ${p.n} | ${doc.sections[i]?.name} | ${p.k} |`), `| poster front | all | ${pk} (--pk) |`, `| poster back | all | ${bk} (--bk) |`, '');
+  report.push('## Fit', '', '| Page | Section | --k |', '|---|---|---|', ...ks.map((p, i) => `| ${p.n} | ${doc.sections[i]?.name} | ${p.k} |`), `| ${PAGES} | receipt | ${rk} |`, `| poster front | all | ${pk} (--pk) |`, `| poster back | all | ${bk} (--bk) |`, '');
   if (!bk) bad.push('the poster has no back');
-  record('Fit', !bad.length, `${bad.length ? `${bad.slice(0, 4).join('; ')}. ` : ''}--k: ${ks.map((p) => `p${p.n} ${p.k}`).join(', ')}; poster --pk ${pk}, back --bk ${bk}`);
+  record('Fit', !bad.length, `${bad.length ? `${bad.slice(0, 4).join('; ')}. ` : ''}--k: ${ks.map((p) => `p${p.n} ${p.k}`).join(', ')}, receipt p${PAGES} ${rk}; poster --pk ${pk}, back --bk ${bk}`);
 }
 
 function mapCheck(m) {
@@ -509,11 +605,15 @@ function countCheck(m, pm) {
   };
   const coverPdf = inText(PDF, 1, doc.meta.subtitle);
   const posterPdf = inText(POSTER_PDF, 1, doc.poster.count);
+  // The receipt's count, computed here from its lines' rows, is what page 11 prints.
+  const tally = receiptTally(doc.receipt);
+  const receiptText = String(doc.receipt?.count ?? '').replace('{shown}', String(tally.shown)).replace('{partly}', String(tally.partly)).replace('{count}', String(shown));
+  const receiptPdf = fs.existsSync(PDF) && hasTool('pdftotext') && norm(pdfText(PAGES, PDF)).includes(norm(receiptText));
   const items = pm?.poster?.back?.items.length ?? 0;
   const backCount = pm?.poster?.back?.count;
   const backPdf = inText(POSTER_PDF, 2, doc.poster.back_count);
-  const ok = shown === ROWS.length && m.count === String(shown) && pm?.count === String(shown) && cards === shown && items === shown && backCount === String(shown) && coverPdf && posterPdf && backPdf;
-  record('Count', ok, `${shown} rows on pages 3 to 8, ${cards} cards on the poster's front and ${items} boxes on its back, of ${ROWS.length} in carousel.yaml; the back says ${backCount ?? 'nothing'}${backPdf ? ', as its PDF text does' : ', and its PDF text differs'}; the cover says ${m.count ?? 'nothing'}${coverPdf ? ', as its PDF text does' : ', and its PDF text differs'}; the poster says ${pm?.count ?? 'nothing'}${posterPdf ? ', as its PDF text does' : ', and its PDF text differs'}`);
+  const ok = shown === ROWS.length && m.count === String(shown) && pm?.count === String(shown) && cards === shown && items === shown && backCount === String(shown) && coverPdf && posterPdf && backPdf && receiptPdf;
+  record('Count', ok, `${shown} rows on pages 3 to 8, ${cards} cards on the poster's front and ${items} boxes on its back, of ${ROWS.length} in carousel.yaml; the back says ${backCount ?? 'nothing'}${backPdf ? ', as its PDF text does' : ', and its PDF text differs'}; the cover says ${m.count ?? 'nothing'}${coverPdf ? ', as its PDF text does' : ', and its PDF text differs'}; the poster says ${pm?.count ?? 'nothing'}${posterPdf ? ', as its PDF text does' : ', and its PDF text differs'}; the receipt ${receiptPdf ? `says "${receiptText}"` : `does not say "${receiptText}"`}`);
 }
 
 // Poster: one page; every row exactly once, in its section's column or band; the factory flows left to right; the
@@ -579,9 +679,12 @@ function textCheck() {
     expect[i + 3] = [s.name, s.tag, s.blurb, doc.legend.windows, doc.windows.always, doc.legend.untagged, doc.legend.diy, doc.legend.tools, ...s.rows.flatMap((r) => [r.text, r.lead, r.ref, ...list(r.tools).map((t) => t.name), doc.where[r.where]].filter(Boolean))];
   });
   const h = doc.humans;
-  expect[PAGES - 1] = [h.heading, ...h.rows.flatMap((r) => [r.label, r.text, r.note]), h.day_one.heading, ...h.day_one.items, h.day_one.end];
+  expect[PAGES - 2] = [h.heading, ...h.rows.flatMap((r) => [r.label, r.text, r.note]), h.day_one.heading, ...h.day_one.items, h.day_one.end];
   const c = doc.close;
-  expect[PAGES] = [c.heading, ...c.items.flatMap((i) => [i.verb, i.what, i.how]), `${m.close_line_plain} ${m.close_line_key}`, m.byline, ...m.sites];
+  expect[PAGES - 1] = [c.heading, ...c.items.flatMap((i) => [i.verb, i.what, i.how]), `${m.close_line_plain} ${m.close_line_key}`, m.byline, ...m.sites];
+  const r = doc.receipt;
+  expect[PAGES] = [r.title, r.source, r.printed_heading, ...r.printed.flatMap((l) => [l.key, l.value]), r.backs_heading, ...r.backs.flatMap((l) => [l.key, l.value, l.note]),
+    `${r.gaps_heading}: ${r.gaps.join(' · ')}`, r.total, r.result, r.stub.text, r.stub.line, r.stub.result, r.motto, r.under];
   // The poster holds every row, the title, thesis and windows of page 1, the headings and lines of pages 9 and 10, and
   // the spec, pipeline and production boxes of page 2. It leaves out the cover's subtitle, each section's blurb, page
   // 9's notes, the other boxes' text on page 2 and the seconds and minutes window labels.
@@ -606,7 +709,7 @@ function textCheck() {
     look(POSTER_PDF, 1, poster, 'poster front');
     look(POSTER_PDF, 2, back, 'poster back');
   } else missing.push('no out/poster.pdf');
-  record('Text', !missing.length, missing.length ? `${missing.length} string(s) not in the PDF: ${missing.slice(0, 4).join('; ')}` : `all ${n} strings carousel.yaml puts on the 10 pages and both sides of the poster are in the PDF text`);
+  record('Text', !missing.length, missing.length ? `${missing.length} string(s) not in the PDF: ${missing.slice(0, 4).join('; ')}` : `all ${n} strings carousel.yaml puts on the 11 pages and both sides of the poster are in the PDF text`);
 }
 
 // ------------------------------------------------------------------ coverage report
@@ -644,6 +747,10 @@ else if (doc) {
   }
 }
 if (want('phrasing')) safely('Phrasing', phrasingCheck);
+if (want('receipt')) {
+  if (doc) safely('Receipt', receiptCheck);
+  else unparsed('receipt');
+}
 const BROWSER = ['fit', 'map', 'poster', 'fonts', 'offline', 'count'].filter(want);
 if (BROWSER.length && !doc) BROWSER.forEach(unparsed);
 else if (BROWSER.length) {
