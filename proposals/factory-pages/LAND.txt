@@ -1,0 +1,25 @@
+# Backlog v5p, and f6c as its duplicate: rebuild the factory video whenever its end card's counts change, and publish
+# it to GitHub Pages with a README link. SPEC-001-R235: the factory-video workflow also runs and rebuilds the guided
+# video when a push to main changes docs/progress.json; on main the build job lays out a page that plays it and names
+# the commit, and a deploy job with only pages: write and id-token: write publishes it with actions/deploy-pages.
+# github.sh makes environment github-pages deployable from main only and sets the Pages source to GitHub Actions.
+# Batch notes: docs/notes/factory-pages.md. The owner sets the Pages source to GitHub Actions before this lands.
+# No deployable path changes (SPEC-001-R232), so main's sandbox deploy is skipped; the github-pages deploy is not gated.
+message: spec: rebuild the factory video when its counts change, and publish it to GitHub Pages (backlog v5p)
+spec: SPEC-001-R235
+# Each is on main since an earlier batch landed: R234 (fc97f75), the R50 limit (1d623a3), the badge (2cd7646), f6c (659aba5).
+requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R234 |
+requires: specs/SPEC-001-delivery-pipeline.md gh attestation verify --limit 100
+requires: README.md progress%20updated
+requires: .tasks/backlog.jsonl who-gets-the-keys-f6c
+move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
+move: github-workflows/factory-video.yml .github/workflows/factory-video.yml
+move: test/factory-pages.test.ts test/factory-pages.test.ts
+move: test/checks-before-main.test.ts test/checks-before-main.test.ts
+move: scripts/bootstrap/github.sh scripts/bootstrap/github.sh
+move: traceability.md traceability.md
+move: README.md README.md
+move: factory-video/README.md factory-video/README.md
+move: backlog.jsonl .tasks/backlog.jsonl
+move: docs/progress.json docs/progress.json
+move: docs/progress.svg docs/progress.svg
