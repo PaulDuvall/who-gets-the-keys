@@ -1,0 +1,22 @@
+# Backlog w8x: warn before an sca exception expires, and check that each exception keeps its evidence.
+# SPEC-001-R233: from 14 days before an ignoreUntil, the sca check prints CHECK sca WARNING lines on standard error
+# and in the run's summary, and still passes. SPEC-001-R234: before OSV-Scanner runs, the sca check fails on a line
+# outside the exceptions file's form, an entry without ignoreUntil, a repeated ID, a reason without What, Why not
+# fixed, Why not reached, Evidence and Expires, or an entry without exactly one section in specs/sca-exceptions.md.
+# Batch notes: docs/notes/sca-expiry-warning.md. No workflow, lockfile or deployable path changes.
+message: spec: warn before an sca exception expires, and check that each keeps its evidence (backlog w8x)
+spec: SPEC-001-R233
+spec: SPEC-001-R234
+spec: SPEC-001-R10
+# The evidence log from s7e (4e7c522) and the backlog with f6c (892c366) are on main.
+requires: specs/sca-exceptions.md ## GHSA-mf5v-w3w3-f6cg
+requires: .tasks/backlog.jsonl who-gets-the-keys-f6c
+requires: scripts/checks.ts const exceptions = existsSync("specs/sca-exceptions.toml")
+move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
+move: sca-exceptions.md specs/sca-exceptions.md
+move: scripts/checks.ts scripts/checks.ts
+move: test/sca-exceptions.test.ts test/sca-exceptions.test.ts
+move: traceability.md traceability.md
+move: backlog.jsonl .tasks/backlog.jsonl
+move: docs/progress.json docs/progress.json
+move: docs/progress.svg docs/progress.svg
