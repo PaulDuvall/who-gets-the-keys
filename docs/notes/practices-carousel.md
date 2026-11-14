@@ -67,6 +67,12 @@ Each fix was made to fail once on purpose, as decision 0009, "The checks", lists
 
 On 2026-11-14 the owner asked whether the carousel accounts for every relevant check on the reference architecture's application pipeline page. It did not: Appendix A kept the security scans and dropped the tests, infrastructure scans, SBOM and progressive release, and neither `practices.yaml` nor the deck snapshot lists them. The owner chose four grouped rows, `source: dpra` (decision 0009, owner question 8). The Practices check accepts that source only on a row that cites no practice. Every new tool link returned 200 on 2026-11-14. Page 5 overflowed with both a test row and the release row, so the release row went to page 7, and two rows were shortened to fit at `--k` 0.84.
 
+## The pipeline-view poster
+
+On 2026-11-14 the owner shared the earlier "Pipeline view" poster, 43 practices, as a source of additions and changes, and said specs are more than EARS. Three practices the carousel lacked were added, `source: pipeline-view`, with the poster's OWASP IDs; specs list EARS, Gherkin and Markdown; three rows gained a tool. Every new link returned 200, and the Claude Code docs name `allowedMcpServers`, `managed-mcp.json`, `--max-turns` and `--max-budget-usd`. The OWASP page lists the 2025 edition, not a 2026 one, and three of the IDs do not match its titles; decision 0009, owner question 10, holds that. Firecrawl had run out of credits, so the page was fetched with `curl`.
+
+Fitting 43 rows took three steps, each checked by Fit: the staging-tests row moved to page 4; the section summaries widened from 42 to 52 characters; and the legend's tools line became "Tools are examples", which fits on the second line (239 px free, measured) where "Tools: examples of the kind of tool to use" needed 366 px.
+
 ## Not fixed
 
 Findings 6, 11 and 12 of the first review, for the reasons given. The ten Vitest failures in the preflight are the container's, and the candidate run's test check covers them.
