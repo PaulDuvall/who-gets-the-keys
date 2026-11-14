@@ -40,8 +40,8 @@ export function rowsOf(doc) {
   return sections.flatMap((s, i) => (Array.isArray(s?.rows) ? s.rows : []).map((row) => ({ section: i, name: s.name, row })));
 }
 
-/** Pages: cover, factory map, one per section, humans, close. */
-export const pageCount = (doc) => 4 + (Array.isArray(doc?.sections) ? doc.sections.length : 0);
+/** Pages: cover, factory map, one per section, humans, close, and the receipt of a real run. */
+export const pageCount = (doc) => 5 + (Array.isArray(doc?.sections) ? doc.sections.length : 0);
 
 /**
  * Opens a template (carousel.html unless `template` names poster.html's) in a fresh context under print media, with
