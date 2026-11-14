@@ -4,7 +4,7 @@ For the next agent session. Read this and `CLAUDE.md` first. It replaces `docs/n
 
 ## Where things stand
 
-Updated on 2026-11-14, after step H-3 below. `main` is at `12693a8`, and the owner queue is empty. SPEC-001-R232 is confirmed on `main`: see "H-3 result".
+Updated on 2026-11-14, after steps H-3, H-4 and N-3 below. `main` is at `4e7c522`. SPEC-001-R232 is confirmed on `main`: see "H-3 result". s7e is done: every sca exception now expires on 2027-01-13, with its evidence in `specs/sca-exceptions.md`. This update is on `candidate/handoff-2026-11-14b` until the owner moves `main` to it (step H-6).
 
 Landed on 2026-11-12 and 2026-11-13, each verified through the GitHub connector:
 
@@ -20,6 +20,8 @@ Landed on 2026-11-12 and 2026-11-13, each verified through the GitHub connector:
 | `a6de08a` | sca exception for GHSA-mf5v-w3w3-f6cg, signed by the owner by hand (H-2). `docs/notes/sca-mf5v.md` | none |
 | `894c313` | Skip main's deploy when nothing deployable changed, SPEC-001-R232 (N-2) | nh9, closed |
 | `12693a8` | This note, second version, and `docs/notes/sca-mf5v.md` (H-3). main's run skipped the deploy | none |
+| `039d0e4` | H-3's record, the staged sca renewal, the backlog's s7e correction and w8x, and the batch notes (H-4) | s7e, w8x |
+| `4e7c522` | sca exceptions renewed to 2027-01-13 with `specs/sca-exceptions.md`, the evidence log, signed by the owner (N-3) | s7e, closed |
 
 Every deploy since 2026-11-11 reported Terraform `No changes.`; the deploys for `a6de08a` and `894c313` applied 0 added, 0 changed, 0 destroyed.
 
@@ -33,6 +35,10 @@ Give one step at a time, in the "Owner steps" format, and read each result yours
 | H-2 | Done: the owner's hand-signed exception `a6de08a`, then `land.sh --to-main` | approved, `No changes.` |
 | N-2 | Done: `land.sh proposals/deploy-paths`, signed, `894c313` | approved, `No changes.` |
 | H-3 | Done: `land.sh --to-main 12693a8… candidate/handoff-2026-11-13b`, `main` moved to `12693a8` | none: the deploy was skipped (SPEC-001-R232) |
+| H-4 | Done: `land.sh --to-main 039d0e4… candidate/s7e-2026-11-14`; main's run 43550653581 | none: skipped |
+| N-3 | Done: `land.sh proposals/sca-renewal-2027-01`, signed, `4e7c522`; candidate run 43551717934, main's run 43551920052 | none: skipped |
+| H-5 | `git push origin --delete candidate/handoff-2026-11-14`: H-4 landed its commit `3e618a8` | none |
+| H-6 | `scripts/bootstrap/land.sh --to-main <tip of candidate/handoff-2026-11-14b> candidate/handoff-2026-11-14b` | none expected |
 
 ### H-3 result
 
@@ -60,11 +66,12 @@ A skipped deploy writes no deployment, so `894c313` stays the comparison point. 
 | g4e, deploy to `sandbox` with no reviewer | held behind s3p | Staged on `candidate/sandbox-gate`, not landed. Rebuild it after s3p, on nh9's landed `land.sh` (`894c313`). Drop its R221 change. Notes: `docs/notes/sandbox-gate.md` |
 | o1p, land a signed batch with one push to `main` | open | Mechanical; no trust change. Changes `land.sh`, so build on nh9's landed copy (`894c313`) |
 | v5p, publish the factory video to GitHub Pages | open | Not staged yet. Pins verified with `git ls-remote` on 2026-11-13: `actions/deploy-pages` v5.0.1 `368f82528645a54fb793d4d04e342629a3f51346`, `actions/upload-pages-artifact` v5.0.0 `fc324d3547104276b827a68afc52ff2a11cc49c9`. Deploy job: `pages: write`, `id-token: write`, environment `github-pages`. The newest factory-video artifact, all eight files zipped, is 68.5 MB, so the guided video fits Pages' 100 MB file limit. The owner turns on Pages, source "GitHub Actions", in the repository settings; check GitHub's docs for where before saying so |
-| s7e, sca exceptions | open | Its title is stale: all 8 exceptions, GHSA-mf5v-w3w3-f6cg included, expire on 2026-12-08. When they pass, the sca check fails on `main`. Due before the others |
+| s7e, sca exceptions | closed, `4e7c522` | All 8 expire on 2027-01-13. Renew before then: re-run every check in `specs/sca-exceptions.md`, "How each claim was checked". Notes: `docs/notes/sca-renewal-2027-01.md` |
+| w8x, warn before an sca exception expires, and check each has its evidence | open, filed 2026-11-14 | The owner chose a separate batch. Needs a new SPEC-001 requirement and a change to `scripts/checks.ts`. Due well before 2027-01-13 |
 | r3m, alarm on refused break-glass attempts | open | Priority 1; amends R217; needs an owner apply |
 | Not filed yet | from 2026-11-13 | A `land.sh --sca-exception` mode with the touch cue; clear `summary_next` when main's run fails; `openssh-client` in `cloud-session-setup.sh`. Details: `docs/notes/sca-mf5v.md`, "For the backlog" |
 
-Dependabot reports 6 moderate alerts on `main`; the sca check passes. Compare them with OSV when s7e is done.
+Dependabot reported 6 moderate alerts on `main` on 2026-11-13 and 7 on 2026-11-14; the sca check passes. Nobody has compared them with OSV's eight (backlog 0v4). Do not cite Dependabot as a check for a newly reachable fix: on 2026-11-14 this session did, unverified, and corrected it in `docs/notes/sca-renewal-2027-01.md`.
 
 ## What this session learned
 
@@ -82,6 +89,9 @@ Dependabot reports 6 moderate alerts on `main`; the sca check passes. Compare th
 | The owner's bare signed commit printed no cue to touch the key | Never give the owner a signing command outside `land.sh` without saying to touch when the key blinks |
 | A session ran on the "Coding" environment, not "WGTK Environment": Node.js 22, no `node_modules`, no `ssh-keygen`, `api.osv.dev` blocked. Ten land and signature tests failed for that reason alone | Run this repository's sessions on "WGTK Environment". Before a preflight, check `node --version` and `command -v ssh-keygen` |
 | The owner restarted the Mac during H-1; that `land.sh` had pushed nothing | Before giving a step again, read `main` and the candidate branch with `git ls-remote origin` |
+| A preflight worktree linked the checkout's `node_modules`, and the install check's `npm ci` emptied the checkout through the link (2026-11-14) | Never link `node_modules` into a worktree that runs the checks; use a hard-linked copy (`cp -al`) |
+| `GIT_LITERAL_PATHSPECS=1`, exported for `git mv`, made the checks read `specs/*.md` and `*package-lock.json` as literal names, so trace and one test failed | Run the checks in a shell without it |
+| The cloud clone was shallow, 54 commits: the trace check failed on the cut-off commit, and `git log -S` named the wrong first commit | `git fetch --unshallow origin` before any check or history lookup |
 
 ## Owner preferences that apply
 
