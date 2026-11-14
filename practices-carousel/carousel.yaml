@@ -161,7 +161,7 @@ sections:
         practices: [P09]
         tools:
           - { name: ZAP API scan, url: "https://www.zaproxy.org/docs/docker/api-scan/" }
-      - text: Gate on mutation score, run on changed code only
+      - text: Fail a change whose mutation score drops, on changed code only
         when: [minutes]
         where: pipeline
         practices: [P12, P14]

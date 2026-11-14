@@ -39,7 +39,7 @@ A general-purpose subagent reviewed `0e2acac..71d354e` against the task's requir
 | 4 | The template held text of its own: DIY, the OWASP prefix, the map's page labels | Fixed. They moved to `labels` in `carousel.yaml`. The ` · ` separator stays in the templates as punctuation |
 | 5 | Count compared a number with itself and needed the word "practices" | Fixed. It counts the rows the pages render and the poster's cards, and finds the number where the subtitle's and the poster's templates put it |
 | 6 | Schema accepts `tools: []` | Not changed. Six of Appendix A's rows name no tool, because each is a rule you write; the owner's tools are examples (decision 0009) |
-| 7 | "Gate on mutation score" uses "gate" for a check; "Observes" sits in the sandbox in the hours window | Not changed: the owner's words. Decision 0009, owner question 7 |
+| 7 | "Gate on mutation score" uses "gate" for a check; "Observes" sits in the sandbox in the hours window | The first now reads "Fail a change whose mutation score drops, on changed code only", as the owner chose. The second is unchanged: the owner's words. Decision 0009, owner question 7 |
 | 8 | `verify.mjs` could throw before printing its table, and `--only` with a bad name passed with no checks | Fixed. A check that throws is a FAIL with its error, a check the page could not build is a FAIL, and `--only` with an unknown or empty name exits 2 |
 | 9 | The landing steps named one commit, and the `requires:` lines could never refuse | Fixed. The steps name the candidate tip, and the `requires:` lines are gone |
 | 10 | Protecting `fonts.json` alone does not stop an unsigned change to `build.sh` or the templates | Recorded. Decision 0009 says so in decision 8 and asks the owner (question 6) |
@@ -48,4 +48,4 @@ A general-purpose subagent reviewed `0e2acac..71d354e` against the task's requir
 
 ## Not fixed
 
-Findings 6, 7, 11 and 12 above, for the reasons given. The ten Vitest failures in the preflight are the container's, and the candidate run's test check covers them.
+Findings 6, 11 and 12 above, and the second half of 7, for the reasons given. The ten Vitest failures in the preflight are the container's, and the candidate run's test check covers them.
