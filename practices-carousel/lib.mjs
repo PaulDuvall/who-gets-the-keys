@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import YAML from 'yaml';
+import { printReceipt } from './receipt-proof.mjs';
 
 export const DIR = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(DIR, '..');
@@ -48,6 +49,10 @@ export const pageCount = (doc) => 5 + (Array.isArray(doc?.sections) ? doc.sectio
  * the content and the font list injected before any page script runs, and waits until the page has loaded its fonts,
  * fitted itself and drawn its lines. Every request, page error and console error is collected in `log`.
  */
+let printed;
+/** The receipt receipt-proof.mjs prints, once per process. */
+export const printedReceipt = () => (printed ??= printReceipt());
+
 export async function openCarousel(browser, doc, template = CAROUSEL, deviceScaleFactor = 1) {
   const { fonts } = loadFonts();
   const data = {
@@ -55,6 +60,8 @@ export async function openCarousel(browser, doc, template = CAROUSEL, deviceScal
     count: rowsOf(doc).length,
     pages: pageCount(doc),
     fonts: fonts.map((f) => ({ family: f.family, weight: f.weight, stretch: f.stretch, file: f.file })),
+    // Page 11's lines, printed from verified evidence: the template shows them as they are.
+    receipt: printedReceipt(),
   };
   const ctx = await browser.newContext({ viewport: { width: template.width, height: template.height }, deviceScaleFactor });
   await ctx.addInitScript((d) => {

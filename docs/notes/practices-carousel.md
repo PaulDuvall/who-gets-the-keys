@@ -83,41 +83,67 @@ On 2026-11-14 the owner said the whole picture is the factory: the inspector wat
 
 ## Page 11: a real receipt
 
-On 2026-11-14 the owner asked for a sample receipt that shows "No evidence, no deploy" and many of the 42 practices, then made it page 11. Three versions followed, each after the owner's or a reviewer's objection.
+On 2026-11-14 the owner asked for a sample receipt that shows "No evidence, no deploy" and many of the 42 practices, then made it page 11. Four versions followed, each after the owner's or a reviewer's objection.
 
 | Version | What it showed | The objection |
 |---|---|---|
 | `TASK-0042`, illustrative | Invented values and a PASS on every line | The owner: no real evidence, such as provenance, hash pins or attestations; it reads as marketing |
-| `8504e11`, `12cff5e` | `main` run 114's seven printed lines, and log quotes behind each | The reviewer: some evidence overstated, and the check passed false values. The owner: it needs actual hashes and digital signatures |
-| This one | Full hashes and signatures, each one verified offline | |
+| `8504e11`, `12cff5e` | `main` run 114's seven printed lines, and log quotes behind each | A reviewer: some evidence overstated, and the check passed false values. The owner: it needs actual hashes and digital signatures |
+| `0382853` | Full hashes and signatures, each verified offline | A reviewer: `carousel.yaml` chose the trust anchor, so forged evidence passed; no certificate identity was pinned, so a candidate run's real signatures passed as `main`'s; words and short IDs were unchecked |
+| This one | The same values, printed by `receipt-proof.mjs` from verified evidence | |
 
-Page 11 now shows, for the delivery `main` run 114 deployed (the runner producer's commit `9f959a3`, for SPEC-014-R7), every hash and signature in full. `receipt-proof.mjs` derives each one from git and `practices-carousel/evidence/`, and verifies every signature with `node:crypto`, with no network and no `ssh-keygen`. Rekor log indexes 3757924837 and 3757925836 can be looked up by anyone at search.sigstore.dev.
+A receipt is printed by a machine, as the pipeline's receipt job prints its lines from verified statements (SPEC-001-R55). So `receipt-proof.mjs` now prints page 11's ten lines and its gaps, and `carousel.yaml` holds only the wording around them. Its templates may name only `{ref}`, `{run}`, `{date}` and `{deployed}`, values the printer proves, and hold no digit of their own. The printer pins in code what the receipt is for and what it trusts:
 
-### What is proved, line by line
+| Pin | Value |
+|---|---|
+| Delivery | commit `9f959a3`, spec commit `c7c6b4d`, run 42501305077 attempt 1, `refs/heads/main`, `.github/workflows/pipeline.yml` |
+| Trust root | `evidence/sigstore-trusted-root.json` by its SHA-256, `6494e21e…`, and Rekor log `c0d23d6a…` |
+| Identity | Issuer `https://token.actions.githubusercontent.com`; the SAN and build signer `…/pipeline.yml@refs/heads/main`; signer and source digests the commit; source repository, ref `refs/heads/main`, run `…/runs/42501305077/attempts/1`, runner `github-hosted`. SPEC-001-R50 pins the pipeline's own receipt check the same way |
+| Rows | The rows each line covers, in full or in part, by their text in `carousel.yaml` |
 
-| Line | Value | How the Receipt check proves it |
+The batch protects `receipt-proof.mjs`. An unsigned change to any pin then fails the signatures check. `verify.mjs`, `lib.mjs` and the template stay unprotected, as decision 0009's decision 8 says of the kit's code. An unsigned change there could skip the check or render other lines. Owner question 6 covers that choice.
+
+### What each line proves
+
+| Line | Value | Proof |
 |---|---|---|
-| SPEC | SPEC-014-R7, TASK-T4-DUP-COLUMNS, commit `c7c6b4d…` | `git show` of `c7c6b4d` adds the requirement row under `specs/` and the task file under `tasks/`. It is an ancestor of `9f959a3` |
-| APPROVED | Key `SHA256:xOytozuSnsPFefpE13WurNValJwO/f0QYyU1aqLHwGE`, signature `AAAAIQCU…` | The commit's one `gpgsig` header is an SSHSIG blob with namespace `git` and hash `sha512`. Its key is `sk-ecdsa-sha2-nistp256@openssh.com`, application `ssh:who-gets-the-keys`, listed in `approvers.txt` at the parent. The flags byte asserts a touch, and the counter is 1923. The ECDSA P-256 signature verifies over SHA-256(application), the flags, the counter and SHA-256 of the signed data, as OpenSSH's `ssh-ecdsa-sk.c` checks it |
-| AGENT | `sha256:1eda4ee5…` | `CLAUDE_CODE_VERSION` and `CLAUDE_CODE_SHA256` in `.github/workflows/producer.yml` at `c7c6b4d`. The signed commit names its tree by hash, so the pin is inside what the approver signed. Turns and cost come from the run's log, quoted below |
-| DIFF | `sha256:0c1051d0…` | `git diff --binary --no-renames --abbrev=7 c7c6b4d 9f959a3`, hashed: the bytes the producer's agent job wrote and its publish job checked (`PATCH_SHA256`, quoted below) |
-| COMMIT | `9f959a35…` | The commit and its last-paragraph trailers |
-| FILES | `sha256:722ac671…` | The subject of both verified statements |
-| SLSA, RECORD | Payload digests `ed093ed1…` and `fc4de60a…`, DSSE signatures `MEYCIQD3…` and `MEUCIAbq…` | Each statement in `evidence/` hashes to the payload hash its Rekor entry logged. Its DSSE signature verifies with the Fulcio certificate in that entry. The certificate chains to the Fulcio root in Sigstore's trusted root and was valid when Rekor logged the entry. Rekor's signed entry timestamp verifies with the Rekor key in the trusted root. The inclusion proof reaches the root hash its checkpoint names, and the checkpoint is signed by that key. RECORD's statement holds SPEC-014-R7, agent Claude Code and model `not recorded` |
-| SIGNER | `pipeline.yml@refs/heads/main`, `github-hosted`, certificate serials | Both certificates' SAN and Fulcio extensions: build signer and source digests are `9f959a3`, runner `github-hosted`, run `42501305077` attempt 1 |
-| DEPLOY | `cirGcVoNEagYllHWjviAKNAav4EOSi564+nsdKTnZsw=` | The base64 of the FILES digest, and the `source_code_hash` Terraform planned in the deploy job, quoted below |
+| SPEC | SPEC-014-R7, TASK-T4-DUP-COLUMNS | `c7c6b4d`, an ancestor of `9f959a3`, adds exactly one requirement row under `specs/` and one task file |
+| APPROVED | Key `SHA256:xOytozuS…`, signature `AAAAIQCU…`, flags, counter 1923 | The commit's one signature header, the one git verifies, is an SSHSIG blob with namespace `git`. Its key is a security key that `approvers.txt` admits at the parent, with its options honoured. Its flags hold every bit `REQUIRED_SIGNATURE_FLAGS` names in `scripts/checks.ts` at the parent. Its signature verifies over the commit without that header, as OpenSSH's `ssh-ecdsa-sk.c` checks it. `sk-ssh-ed25519` keys verify too |
+| AGENT | `sha256:1eda4ee5…`, Claude Code 2.1.304, MCP servers allowed: 0 | `producer.yml` in the tree of the signed spec commit. Turns and cost come from the run log |
+| DIFF | `sha256:0c1051d0…` | `git diff c7c6b4d 9f959a3`, with no user or system git settings and explicit prefixes, equals the `PATCH_SHA256` the publish job checked |
+| COMMIT | `9f959a35…`, its Spec and Agent trailers | The commit's last paragraph. The checks' pass lines come from the run log, in SPEC-001-R1's order |
+| FILES | `sha256:722ac671…` | The one subject of both verified statements |
+| SLSA, RECORD | Payload digests, DSSE signatures, Rekor indexes and times, the provenance/v2 record | Each statement hashes to the payload its Rekor entry logged, and its DSSE signature verifies. Each Fulcio certificate chains issuer by issuer to a CA in the pinned root. Every certificate in the chain, and the CA's `validFor`, covers the moment Rekor logged it. The leaf is for code signing, with the pinned identity in its extensions, parsed as DER. Each Rekor entry is in the pinned log, whose key was valid then. Its signed entry timestamp verifies, its inclusion proof reaches its checkpoint's root, its UUID is that tree and leaf hash, and its checkpoint carries the log's key hint and signature. The SLSA statement names the pinned workflow, ref, commit and run |
+| SIGNER | `pipeline.yml@refs/heads/main`, `github-hosted`, run, certificate serials, issuer | The pinned identity, which both certificates match |
+| DEPLOY | `source_code_hash cirGcVoN…=` | The base64 of the FILES digest, which the deploy log's planned change must name. `pipeline.yml` at the commit takes an OIDC role and holds no access key. Counts and time come from the run log |
+| Gaps | The model, intent and task lines, the producer run, a hash of every agent input, a signer the agent can't edit | From what the proofs lack: the record's model is `not recorded`; it has no task, intent or producer run; the statement has no factory fingerprint; and the signer's workflow is in the repository it signs |
 
-Every long token on page 11, meaning a digest, signature, fingerprint, serial or base64 value, must be a fact its line's proof group derived. Every number must be in that group or in the line's quotes. Eight deliberate breaks each fail the check: one byte of a statement, a DSSE signature, an inclusion-proof hash, the Rekor key in the trusted root, the DIFF hash on the page, the approver's signature on the page, an unsigned spec commit, and the turn count.
+A line whose proof fails prints NOT VERIFIED, and the Receipt check fails.
+
+### What was tried, and failed
+
+| Attack | Result |
+|---|---|
+| The reviewer's forged CA, Rekor key and entries, in `evidence/` | The trusted root is not the pinned one |
+| Real evidence from candidate run 42501078505, same commit | The certificate names `refs/heads/candidate/TASK-T4-DUP-COLUMNS-owner`, not `refs/heads/main` |
+| The reviewer's expired CA and old timestamps, with the root re-pinned to theirs | No CA valid at that time |
+| The reviewer's forged leaf, re-pinned | Not for code signing |
+| A Rekor UUID edited | Not its tree and leaf hash |
+| A byte of a statement, an unsigned spec commit, another pinned ref | Each fails its proof |
+| A `lines` key, or a digit of its own, in `carousel.yaml`'s receipt | The Schema check |
+| A row renamed in `carousel.yaml` | The line's claim names no row |
+
+One probe did not run: a user git setting such as `diff.noprefix`, passed through the environment. The repository's `no-sign` hook refuses any command that sets git configuration, as SPEC-001-R39 intends. The printer runs only read-only git commands, with the user's and the system's git settings switched off and explicit diff prefixes.
 
 ### What is not proved
 
 | Gap | Why |
 |---|---|
-| The trusted root itself | `evidence/sigstore-trusted-root.json` is the file Sigstore's TUF CDN served on 2026-11-14 under the SHA-256 that `targets.json` version 14 names (`6494e21e…`). The check does not walk TUF's signed metadata back to a root of trust. The batch adds the file to `specs/protected-paths.txt`, so changing it needs an approver's signature |
-| The statements' bytes | Rekor stores a DSSE entry's payload hash, not its payload. The two statements in `evidence/` were rebuilt from the run's facts and `scripts/receipt.ts` at `9f959a3`, and each hashes exactly to what Rekor logged, so they are the signed bytes |
-| The certificates' SCTs | Each Fulcio certificate embeds a certificate-transparency timestamp. The check does not verify it |
-| Turns, cost, the checks' pass lines, the deploy's counts and time | Only the run logs hold them. They are quoted below, from GitHub's logs, which expire. Anyone can compare them with the job each names while the logs last |
-| The producer run, the model, the task, every agent input, the signer's reach | "Missing so far" on the page. The receipt names none of them yet (decision 0002, tracer 2) |
+| The trusted root itself | The pin is the SHA-256 that Sigstore's TUF `targets.json` version 14 named on 2026-11-14. The check does not walk TUF's signed metadata back to a root of trust |
+| The certificates' SCTs | Not verified |
+| Turns, cost, the checks' pass lines, the deploy's planned hash, counts and time | Only GitHub's logs hold them, and they expire. The printer reads them from the quotes below and prints them after "run log:" |
+| The statements' bytes | Rekor stores a DSSE entry's payload hash. The statements in `evidence/` were rebuilt from the run's facts and `scripts/receipt.ts` at `9f959a3`, and each hashes exactly to what Rekor logged |
+| That the RECORD digest names this run | The provenance/v2 statement is the same bytes in every run on this commit. The certificate's pinned ref and run tie each signature to run 42501305077 |
 
 ### Log lines, quoted
 
@@ -195,6 +221,24 @@ A subagent reviewed `8504e11` against the raw logs, git and the specs. Every val
 | 6 | Trailers were read from the whole message, and the Spec match was a substring | Fixed: the last paragraph only, and exact IDs |
 | 7 | The workflow: sound, but it runs only on `main` | Unchanged. Decision 0009 runs the build on `main` and on demand |
 | 8, 9 | Docs that disagreed, and six sentences over 30 words | Fixed |
+
+### Review of `0382853`
+
+A subagent reviewed the third version against OpenSSH's PROTOCOL.sshsig and `ssh-ecdsa-sk.c`, DSSE, Rekor, RFC 9162 and Fulcio's OIDs, and attacked it with forged and real evidence. It found the SSH and Rekor cryptography correct. Its findings, and what happened to each:
+
+| # | Finding | Outcome |
+|---|---|---|
+| 1 | `carousel.yaml` chose the evidence directory, so a forged root passed | Fixed. The printer pins the directory, the root's SHA-256 and the Rekor log, and the batch protects the printer |
+| 2 | No certificate identity was pinned; a candidate run's real signatures passed | Fixed. Issuer, SAN, build signer, repository, ref, run and runner are pinned, and the SLSA statement's workflow, ref, commit and run are checked |
+| 3 | Words and short IDs on the page were unchecked, and the Spec check had regressed | Fixed. The printer prints every line, and `carousel.yaml` can put no value on the receipt |
+| 4 | Each line chose its own proof, lines could be dropped, gaps and rows edited | Fixed. The printer fixes the lines, derives the gaps and holds the row claims |
+| 5 | The chain check was signature-only | Fixed: issuer by issuer, CA flags, validity at signing time, the CA's `validFor`, code-signing usage. SCTs are still unchecked |
+| 6 | The Rekor UUID was not checked | Fixed. Its tree and leaf hash must match |
+| 7 | Smaller Rekor checks | Fixed: leaf index within the tree, origin line and tree ID, key hint, payload hash algorithm, the log key's `validFor` |
+| 8 | Extensions were found by byte search | Fixed. A DER parse of the extensions, refusing a repeated OID |
+| 9 | `approvers.txt` options, flags from `REQUIRED_SIGNATURE_FLAGS`, `sk-ssh-ed25519`, trailing bytes | Fixed |
+| 10 | The diff hash depended on git settings | Fixed, as above |
+| 11 | Docs claimed more than the code verified | Rewritten for this version |
 
 ## Not fixed
 

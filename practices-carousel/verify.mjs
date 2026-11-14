@@ -7,7 +7,7 @@
  *   node verify.mjs --only schema,practices,phrasing,receipt
  *
  * Schema, Practices and Phrasing read only carousel.yaml and practices.yaml, so they need no browser; nor does Receipt,
- * which reads page 11's receipt against git and the quoted run logs. The others need
+ * which runs receipt-proof.mjs, the printer of page 11's lines, against git and evidence/. The others need
  * Chromium (Playwright from factory-video/playwright.mjs), pdfinfo, pdffonts and pdftotext. Fonts, Offline, Count and
  * Text cover the poster too, and Poster checks its layout. A check that throws is reported as a FAIL.
  *
@@ -18,8 +18,8 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
-import { proveReceipt } from './receipt-proof.mjs';
-import { DIR, FONT_DIR, HEIGHT, OUT, PDF, POSTER, POSTER_PDF, ROOT, WIDTH, loadCarousel, loadFonts, offlineProblems, openCarousel, pageCount, rowsOf, sha256 } from './lib.mjs';
+import { RECEIPT, RECEIPT_ROWS } from './receipt-proof.mjs';
+import { DIR, FONT_DIR, HEIGHT, OUT, PDF, POSTER, POSTER_PDF, ROOT, WIDTH, loadCarousel, loadFonts, offlineProblems, openCarousel, pageCount, printedReceipt, rowsOf, sha256 } from './lib.mjs';
 
 const results = [];
 function record(name, pass, detail) {
@@ -128,25 +128,21 @@ function schemaCheck() {
   for (const [i, h] of list(doc.humans?.rows).entries()) need(h, ['label', 'text', 'note'], `humans.rows[${i}]`);
   need(doc.humans?.day_one, ['heading', 'end'], 'humans.day_one');
   if (!list(doc.humans?.day_one?.items).every(isText) || !list(doc.humans?.day_one?.items).length) bad.push('humans.day_one.items is empty');
-  // Page 11: the receipt's fields; each line names a proof group, rows that exist, and well-formed quotes.
+  // Page 11: the wording around the printed receipt. Its templates name only values the printer proves, and hold no
+  // digit of their own, so no number on the receipt comes from carousel.yaml.
   const r = doc.receipt;
-  need(r, ['title', 'source', 'evidence', 'proofs', 'commit', 'spec_commit', 'gaps_heading', 'total', 'result', 'count', 'motto', 'under'], 'receipt');
+  need(r, ['title', 'source', 'gaps_heading', 'total', 'result', 'count', 'motto', 'under'], 'receipt');
   need(r?.stub, ['scenario', 'text', 'line', 'result'], 'receipt.stub');
-  for (const k of ['commit', 'spec_commit']) if (isObj(r) && !/^[0-9a-f]{40}$/.test(String(r[k]))) bad.push(`receipt.${k} is not a full commit SHA`);
-  if (!list(r?.gaps).every(isText)) bad.push('receipt.gaps holds an empty item');
-  const rowTexts = new Set(ROWS.map(({ row }) => row?.text));
-  const quoted = (items, where) => list(items).forEach((e, j) => {
-    if (!isObj(e) || !isText(e.quote) || (e.git === undefined) === (e.log === undefined)) bad.push(`${where}[${j}] needs a quote and exactly one of git or log`);
-  });
-  if (!list(r?.lines).length) bad.push('receipt.lines is empty');
-  for (const [i, l] of list(r?.lines).entries()) {
-    need(l, ['key', 'value', 'note', 'proof'], `receipt.lines[${i}]`);
-    for (const t of [...list(l?.shows), ...list(l?.partly)]) if (!rowTexts.has(t)) bad.push(`receipt.lines[${i}] names "${short(t, 40)}", which is no row's text`);
-    quoted(l?.evidence, `receipt.lines[${i}].evidence`);
+  for (const k of ['title', 'source', 'gaps_heading', 'total', 'result']) {
+    const t = String(r?.[k] ?? '');
+    for (const name of t.match(/\{(\w+)\}/g) ?? []) if (!['{ref}', '{run}', '{date}', '{deployed}'].includes(name)) bad.push(`receipt.${k} names ${name}, which the printer does not prove`);
+    if (/\d/.test(t.replace(/\{\w+\}/g, ''))) bad.push(`receipt.${k} holds a digit of its own`);
   }
-  quoted(r?.quotes, 'receipt.quotes');
-  quoted(r?.stub?.quotes, 'receipt.stub.quotes');
-  if (isObj(r) && (!list(r.quotes).length || !list(r.stub?.quotes).length)) bad.push('receipt.quotes or receipt.stub.quotes is empty');
+  for (const k of ['commit', 'spec_commit', 'lines', 'gaps', 'quotes', 'evidence', 'proofs']) if (isObj(r) && k in r) bad.push(`receipt.${k} belongs to receipt-proof.mjs, which prints the receipt`);
+  if (!list(r?.stub?.quotes).length) bad.push('receipt.stub.quotes is empty');
+  list(r?.stub?.quotes).forEach((e, j) => {
+    if (!isObj(e) || !isText(e.quote) || !isText(e.git)) bad.push(`receipt.stub.quotes[${j}] needs git and a quote`);
+  });
   if (isObj(r) && !['{shown}', '{partly}', '{count}'].every((x) => String(r.count).includes(x))) bad.push('receipt.count lacks {shown}, {partly} or {count}');
   need(doc.close, ['heading'], 'close');
   for (const [i, c] of list(doc.close?.items).entries()) need(c, ['verb', 'what', 'how'], `close.items[${i}]`);
@@ -227,100 +223,50 @@ function phrasingCheck() {
 }
 
 // ------------------------------------------------------------------ PDF
-// Receipt: page 11 is a real receipt. receipt-proof.mjs derives, and verifies offline, every hash and signature the
-// page may show, grouped by line. Each page line's long tokens (digests, signatures, fingerprints, serials, base64)
-// must be facts its `proof` group proved; its numbers must be in those facts or in its own quotes. A quote is `git`
-// text at a pinned commit, or a `log` line the evidence file quotes under that job's ID. A line with `require_quote`
-// must also find its long tokens in its quotes, so a run log says the same.
-const HEX_TOKEN = /\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\d)[0-9a-f]{7,64}\b/g;
-const LONG_TOKEN = /[A-Za-z0-9+/:=_-]{20,}/g;
-const NUM_TOKEN = /\d+(?:[.:-]\d+)*/g;
-// A time is a number to back, not a value only a proof supplies; these names hold digits that are not values.
-const ISO_TIME = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/;
-const NAMES = /\b(?:sha256|sha512|base64)\b/gi;
-// A number in a pool, as a whole number: no digit or dot before it and no digit after it.
+// Receipt: page 11's lines are what receipt-proof.mjs prints from verified evidence, so the check is that every proof
+// passed and every row a line claims is a row carousel.yaml has. The stub, the one part carousel.yaml writes, must
+// quote its line and its numbers from git at a pinned commit, and match its scenario.
 function hasNumber(pool, n) {
   for (let i = pool.indexOf(n); i >= 0; i = pool.indexOf(n, i + 1)) {
     if (!/[\d.]/.test(pool[i - 1] ?? '') && !/\d/.test(pool[i + n.length] ?? '')) return true;
   }
   return false;
 }
-// The long tokens of a string, and its hex tokens: the values only a proof may supply.
-function strongTokens(text) {
-  const t = String(text);
-  const long = (t.match(LONG_TOKEN) ?? []).filter((x) => /\d/.test(x) && !ISO_TIME.test(x));
-  return [...new Set([...long, ...(t.match(HEX_TOKEN) ?? [])])];
-}
-// The numbers of a string not in a pool, whole or as a pool decimal rounded, outside its strong tokens.
-function unbackedNumbers(text, pool) {
-  const rest = strongTokens(text).reduce((t, h) => t.split(h).join(' '), String(text)).replace(NAMES, ' ');
-  const plain = pool.replace(LONG_TOKEN, (x) => (ISO_TIME.test(x) ? x : ' ')).replace(HEX_TOKEN, ' ');
-  const decimals = plain.match(/\d+\.\d+/g) ?? [];
-  return (rest.match(NUM_TOKEN) ?? []).filter((n) => {
-    const places = /^\d+\.(\d+)$/.exec(n)?.[1].length;
-    return !hasNumber(plain, n) && !(places !== undefined && decimals.some((d) => Number(d).toFixed(places) === n));
-  });
-}
-function receiptTally(r) {
-  const shown = new Set(list(r?.lines).flatMap((l) => list(l.shows)));
-  const partly = new Set(list(r?.lines).flatMap((l) => list(l.partly)).filter((t) => !shown.has(t)));
+function receiptTally(lines) {
+  const shown = new Set(lines.flatMap((l) => list(l?.shows)));
+  const partly = new Set(lines.flatMap((l) => list(l?.partly)).filter((t) => !shown.has(t)));
   return { shown: shown.size, partly: partly.size };
 }
 function receiptCheck() {
   const r = doc.receipt;
-  const bad = [];
-  const { facts, problems } = proveReceipt({ root: ROOT, evidence: path.join(ROOT, r.proofs), commit: r.commit, specCommit: r.spec_commit });
-  bad.push(...problems);
-  const git = (...a) => execFileSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-  const gitText = (src) => {
-    const i = src.indexOf(':');
-    const rev = i < 0 ? src : src.slice(0, i);
-    if (!/^[0-9a-f]{40}$/.test(rev)) throw new Error(`${src} does not pin a full commit SHA`);
-    return i < 0 ? git('log', '-1', '--format=%B', rev) : git('show', `${rev}:${src.slice(i + 1)}`);
-  };
-  const notes = fs.readFileSync(path.join(ROOT, r.evidence), 'utf8');
-  const block = /### Log lines, quoted[\s\S]*?```text\n([\s\S]*?)\n```/.exec(notes)?.[1];
-  if (!block) bad.push(`${r.evidence} has no "Log lines, quoted" block`);
-  const jobs = new Map(String(block ?? '').split(/\n\s*\n/).map((g) => [/job (\d+)/.exec(g.split('\n')[0])?.[1], g]));
-  const quotes = (items, label) => {
-    const texts = [];
-    for (const [i, e] of list(items).entries()) {
-      try {
-        const source = e.git !== undefined ? gitText(String(e.git)) : jobs.get(String(e.log));
-        if (source === undefined) bad.push(`${label} quote ${i + 1}: job ${e.log} is not in the quoted log lines`);
-        else if (!source.includes(e.quote)) bad.push(`${label} quote ${i + 1} is not in ${e.git ?? `job ${e.log}`}`);
-        else texts.push(e.quote);
-      } catch (err) {
-        bad.push(`${label} quote ${i + 1}: ${String(err.message || err).split('\n')[0]}`);
-      }
+  const printed = printedReceipt();
+  const bad = [...printed.problems];
+  const rowTexts = new Set(ROWS.map(({ row }) => row?.text));
+  for (const [key, rows] of Object.entries(RECEIPT_ROWS)) for (const t of [...rows.shows, ...rows.partly]) if (!rowTexts.has(t)) bad.push(`${key} claims "${short(t, 40)}", which is no row's text`);
+  if (printed.lines.some((l) => !l || l.value === 'NOT VERIFIED')) bad.push('a receipt line is NOT VERIFIED');
+  // The stub: its whole line and its numbers in its quotes, each quote in git at its pinned commit.
+  const quoted = [];
+  for (const [i, e] of list(r.stub.quotes).entries()) {
+    const at = String(e.git).indexOf(':');
+    const rev = String(e.git).slice(0, at);
+    try {
+      if (!/^[0-9a-f]{40}$/.test(rev)) throw new Error('does not pin a full commit SHA');
+      const text = execFileSync('git', ['-C', ROOT, 'show', `${rev}:${String(e.git).slice(at + 1)}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      if (!text.includes(e.quote)) throw new Error(`is not in ${e.git}`);
+      quoted.push(e.quote);
+    } catch (err) {
+      bad.push(`stub quote ${i + 1} ${String(err.message || err).split('\n')[0]}`);
     }
-    return texts.join('\n');
-  };
-  const hold = (label, strings, proved, quoted, requireQuote) => {
-    const facts = proved.join('\n');
-    for (const [i, t] of strings.entries()) {
-      for (const tok of strongTokens(t)) {
-        if (!facts.includes(tok)) bad.push(`${label}: "${short(tok, 24)}" is not a value its proof derived`);
-        else if (requireQuote && i === 0 && !quoted.includes(tok) && !quoted.includes(tok.replace(/^sha256:/, ''))) bad.push(`${label}: "${short(tok, 24)}" is in none of its quotes`);
-      }
-      for (const n of unbackedNumbers(t, `${facts}\n${quoted}`)) bad.push(`${label}: "${n}" is in neither its proof nor its quotes`);
-    }
-  };
-  hold('header', [r.source, r.result], [], quotes(r.quotes, 'header'), false);
-  for (const l of r.lines) {
-    if (!facts[l.proof]) bad.push(`${l.key}: proof group "${l.proof}" proved nothing`);
-    hold(l.key, [l.value, l.note, l.sig ?? ''], facts[l.proof] ?? [], quotes(l.evidence, l.key), l.require_quote === true);
   }
-  const stub = quotes(r.stub.quotes, 'stub');
-  hold('stub', [r.stub.text, r.stub.line], [], stub, false);
-  if (!stub.includes(r.stub.line)) bad.push("no stub quote holds the stub's whole line");
+  const pool = quoted.join('\n');
+  if (!pool.includes(r.stub.line)) bad.push("no stub quote holds the stub's whole line");
+  for (const n of `${r.stub.text} ${r.stub.result}`.match(/\d+(?:[.:-]\d+)*/g) ?? []) if (!hasNumber(pool, n)) bad.push(`the stub's "${n}" is in none of its quotes`);
   const scenarios = YAML.parse(fs.readFileSync(path.join(ROOT, 'scenarios/scenarios.yaml'), 'utf8'));
   const sc = list(scenarios?.scenarios ?? scenarios).find((x) => x?.id === r.stub.scenario);
   if (!sc) bad.push(`scenario ${r.stub.scenario} is not in scenarios/scenarios.yaml`);
   else if (!String(r.stub.line).startsWith(sc.expect)) bad.push(`the stub's line does not start with ${r.stub.scenario}'s expected "${sc.expect}"`);
-  const shownTokens = r.lines.flatMap((l) => strongTokens(`${l.value} ${l.note} ${l.sig ?? ''}`)).length;
-  const t = receiptTally(r);
-  record('Receipt', !bad.length, bad.length ? `${bad.length} problem(s): ${bad.slice(0, 4).join('; ')}` : `${shownTokens} hashes, signatures and IDs on page 11, each proved: the approver's SSH signature on ${r.spec_commit.slice(0, 7)}, two DSSE signatures with Fulcio certificates chained to Sigstore's root, two Rekor entries with verified timestamps, inclusion proofs and checkpoints, and the diff and deploy hashes recomputed; evidence for ${t.shown} rows in full and ${t.partly} in part`);
+  const t = receiptTally(printed.lines);
+  record('Receipt', !bad.length, bad.length ? `${bad.length} problem(s): ${bad.slice(0, 4).join('; ')}` : `${printed.lines.length} lines printed from verified evidence: the approver's SSH signature on ${RECEIPT.specCommit.slice(0, 7)}; two DSSE signatures, their Fulcio chains to the pinned root and the pinned identity; two Rekor entries' timestamps, inclusion proofs, UUIDs and checkpoints; the diff and deploy hashes recomputed. Evidence for ${t.shown} rows in full and ${t.partly} in part; ${printed.gaps.length} gaps`);
 }
 
 function pdfText(page, file = PDF) {
@@ -636,7 +582,7 @@ function countCheck(m, pm) {
   const coverPdf = inText(PDF, 1, doc.meta.subtitle);
   const posterPdf = inText(POSTER_PDF, 1, doc.poster.count);
   // The receipt's count, computed here from its lines' rows, is what page 11 prints.
-  const tally = receiptTally(doc.receipt);
+  const tally = receiptTally(printedReceipt().lines);
   const receiptText = String(doc.receipt?.count ?? '').replace('{shown}', String(tally.shown)).replace('{partly}', String(tally.partly)).replace('{count}', String(shown));
   const receiptPdf = fs.existsSync(PDF) && hasTool('pdftotext') && norm(pdfText(PAGES, PDF)).includes(norm(receiptText));
   const items = pm?.poster?.back?.items.length ?? 0;
@@ -713,7 +659,9 @@ function textCheck() {
   const c = doc.close;
   expect[PAGES - 1] = [c.heading, ...c.items.flatMap((i) => [i.verb, i.what, i.how]), `${m.close_line_plain} ${m.close_line_key}`, m.byline, ...m.sites];
   const r = doc.receipt;
-  expect[PAGES] = [r.title, r.source, ...r.lines.flatMap((l) => [l.key, l.value, l.sig, l.note].filter(Boolean)), `${r.gaps_heading}: ${r.gaps.join(' · ')}`, r.total, r.result, r.stub.text, r.stub.line, r.stub.result, r.motto, r.under];
+  const pr = printedReceipt();
+  const fill = (t) => String(t).replace(/\{(ref|run|date|deployed)\}/g, (_, k) => pr.vars[k]);
+  expect[PAGES] = [r.title, fill(r.source), ...pr.lines.filter(Boolean).flatMap((l) => [l.key, l.value, l.sig, l.note].filter(Boolean)), `${r.gaps_heading}: ${pr.gaps.join(' · ')}`, r.total, fill(r.result), r.stub.text, r.stub.line, r.stub.result, r.motto, r.under];
   // The poster holds every row, the title, thesis and windows of page 1, the headings and lines of pages 9 and 10, and
   // the spec, pipeline and production boxes of page 2. It leaves out the cover's subtitle, each section's blurb, page
   // 9's notes, the other boxes' text on page 2 and the seconds and minutes window labels.
