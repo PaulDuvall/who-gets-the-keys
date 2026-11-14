@@ -460,7 +460,7 @@ receipt:
   count: "Evidence for {shown} of the {count} practices, and for part of {partly} more"
   stub:
     scenario: B10
-    text: "Scenario B10, 2026-11-07 · an unattested artifact at deploy"
+    text: "Scenario B10, 2026-11-07 · an unattested artifact"
     line: "CHECK attestation FAILED: dist/function.zip"
     result: DEPLOY JOB STOPS
     quotes:
