@@ -1,0 +1,377 @@
+# Source of record for the "Who gets the keys?" LinkedIn carousel: a factory view.
+# Every row cites the practices.yaml IDs it shows, or `source: qa` when the practice comes
+# only from the deck's Q&A slides, which specs/source-of-record/slides.txt does not hold.
+meta:
+  title: Who gets the keys?
+  thesis_key: The pipeline
+  thesis_rest: holds the keys to production.
+  subtitle: "{count} practices for code an AI agent writes, with when each one runs, where in the factory it runs and tools to start with."
+  byline: Paul Duvall · AI Native DevCon 2026
+  close_line_plain: The agent writes the change, and
+  close_line_key: the pipeline ships it.
+  sites: [paulmduvall.com, redactedventures.com]
+
+windows:
+  before: Before code
+  seconds: Seconds, in the agent's sandbox
+  minutes: Minutes, in the pipeline
+  hours: Hours, in production
+  always: Always on
+
+where:
+  sandbox: Sandbox
+  pipeline: ""            # untagged on the page: the pipeline is the default
+  policy: Factory policy
+  inspector: Inspector
+  human-intent: Human · intent
+  human-approval: Human · approval
+  human-security: Human · security
+
+legend:
+  windows: "Runs: before code, in the sandbox (seconds), in the pipeline (minutes), in production (hours)"
+  untagged: "Untagged: runs in the pipeline"
+  diy: rules you write
+
+factory:
+  heading: The factory
+  lede: Everything that turns a signed spec into a deployed change. The pipeline is its main workflow, and it holds the only deploy key.
+  edge: The factory's edge
+  flow:
+    - name: Signed spec
+      text: An engineer captures the customer's intent and signs it with a security key.
+      page: [5, 9]
+    - name: Agent sandbox
+      text: One cloud runner per task. Its commands get no secrets, no deploy keys and no network. It returns a patch.
+      page: 3
+    - name: Pipeline
+      text: Runs the checks of record, signs the evidence and holds the only deploy key.
+      mark: Holds the only deploy key
+      page: [4, 5]
+    - name: Production
+      text: Changes only when the evidence for a change is complete.
+      page: 5
+  around:
+    - name: Factory policy
+      text: Guards the keys with pinned inputs, one deploy identity, no other writer to production and signed changes to the factory itself.
+      page: 6
+    - name: Inspector
+      text: Sits outside the factory in a security account and watches the pipeline and production for drift.
+      page: 7
+    - name: Humans
+      text: Approve intent, approve irreversible actions and handle security events.
+      page: [8, 9]
+
+sections:
+  - name: Agent sandbox
+    tag: One cloud runner per task
+    blurb: The agent runs on a runner started for one task. Its commands get no network and no secrets, and its only output is a patch.
+    rows:
+      - lead: Told
+        text: Limit what the agent can do to an allow list of commands and paths
+        ref: LLM01
+        when: [seconds]
+        where: sandbox
+        practices: [P15, P24]
+        tools:
+          - { name: GitHub-hosted runners, url: "https://docs.github.com/en/actions/concepts/runners/github-hosted-runners" }
+          - { name: Claude Code permissions, url: "https://code.claude.com/docs/en/settings" }
+      - lead: Assigned
+        text: Treat issues, docs and URLs as read-only data
+        when: [seconds]
+        where: sandbox
+        practices: [P15, P46]
+        tools:
+          - { name: issue forms, url: "https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms" }
+          - { name: sandbox egress allowlist, url: "https://code.claude.com/docs/en/sandboxing" }
+      - lead: Knows
+        text: Check provenance and integrity of what it retrieves
+        ref: LLM05
+        when: [minutes]
+        where: pipeline
+        practices: [P16]
+        tools:
+          - { name: signed commits, url: "https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification" }
+          - { name: Sigstore, url: "https://docs.sigstore.dev/" }
+      - lead: Observes
+        text: Read telemetry redacted, with no prod credentials
+        when: [hours]
+        where: sandbox
+        practices: [P17]
+        tools:
+          - { name: CloudWatch masking, url: "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/mask-sensitive-log-data.html" }
+          - { name: OTel redaction, url: "https://opentelemetry.io/docs/security/handling-sensitive-data/" }
+      - lead: Writes
+        text: Check new dependencies against an allowlist and a hash-pinned mirror
+        ref: LLM04
+        when: [seconds, minutes]
+        where: sandbox
+        practices: [P18, P19]
+        tools:
+          - { name: npm ci, url: "https://docs.npmjs.com/cli/commands/npm-ci" }
+          - { name: pip --require-hashes, url: "https://pip.pypa.io/en/stable/topics/secure-installs/" }
+          - { name: CodeArtifact, url: "https://docs.aws.amazon.com/codeartifact/latest/ug/welcome.html" }
+      - text: Flag agent tests that assert nothing before the patch leaves the sandbox
+        when: [seconds]
+        where: sandbox
+        practices: [P11]
+        tools:
+          - { name: vitest/expect-expect, url: "https://github.com/vitest-dev/eslint-plugin-vitest" }
+      - text: Scan for secrets in the sandbox and again in the pipeline
+        when: [seconds, minutes]
+        where: sandbox
+        practices: [P06]
+        tools:
+          - { name: gitleaks, url: "https://github.com/gitleaks/gitleaks" }
+          - { name: push protection, url: "https://docs.github.com/en/code-security/concepts/secret-security/push-protection" }
+
+  - name: Pipeline checks
+    tag: The checks of record
+    blurb: The pipeline runs the same checks on every change, the agent's or a human's, and nothing reaches main without them.
+    rows:
+      - text: SAST on every change
+        when: [minutes]
+        where: pipeline
+        practices: [P07]
+        tools:
+          - { name: Semgrep, url: "https://semgrep.dev/docs/" }
+          - { name: CodeQL, url: "https://codeql.github.com/" }
+      - text: SCA on every lockfile
+        when: [minutes]
+        where: pipeline
+        practices: [P08]
+        tools:
+          - { name: OSV-Scanner, url: "https://google.github.io/osv-scanner/" }
+          - { name: Dependabot, url: "https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain" }
+      - text: DAST where there is an HTTP surface, in parallel
+        when: [minutes, hours]
+        where: pipeline
+        practices: [P09]
+        tools:
+          - { name: ZAP API scan, url: "https://www.zaproxy.org/docs/docker/api-scan/" }
+      - text: Gate on mutation score, run on changed code only
+        when: [minutes]
+        where: pipeline
+        practices: [P12, P14]
+        tools:
+          - { name: Stryker, url: "https://stryker-mutator.io/docs/stryker-js/incremental/" }
+          - { name: PIT, url: "https://pitest.org/" }
+      - text: Property tests hold invariants across generated inputs
+        when: [minutes]
+        where: pipeline
+        practices: [P13]
+        tools:
+          - { name: Hypothesis, url: "https://hypothesis.readthedocs.io/" }
+          - { name: fast-check, url: "https://fast-check.dev/" }
+
+  - name: Pipeline evidence
+    tag: Evidence authorizes the deploy
+    blurb: Evidence does the job a human used to skim on a change request, and it covers intent as well as behavior.
+    rows:
+      - text: The customer confirms acceptance criteria before code exists
+        when: [before]
+        where: human-intent
+        practices: [P47]
+        tools:
+          - { name: EARS, url: "https://alistairmavin.com/ears/" }
+      - text: Specs change only through an approver-signed commit
+        when: [before, minutes]
+        where: human-intent
+        practices: [P02]
+        tools:
+          - { name: signed commits, url: "https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification" }
+          - { name: rulesets, url: "https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets" }
+      - text: Trace every change to a spec ID and every requirement to a test
+        when: [minutes]
+        where: pipeline
+        diy: true
+        practices: [P03, P04, P05]
+        tools:
+          - { name: git trailers, url: "https://git-scm.com/docs/git-interpret-trailers" }
+      - text: An independent validator compares spec and code, and can only fail a change
+        when: [minutes]
+        where: pipeline
+        diy: true
+        practices: [P22]
+        tools:
+          - { name: Claude Code headless, url: "https://code.claude.com/docs/en/headless" }
+      - text: The pipeline signs attestations, and deploy verifies them first
+        when: [minutes]
+        where: pipeline
+        practices: [P20]
+        tools:
+          - { name: GitHub attestations, url: "https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations" }
+          - { name: Sigstore, url: "https://docs.sigstore.dev/" }
+      - text: Provenance records the commit, spec ID, agent and model version
+        when: [minutes]
+        where: pipeline
+        practices: [P21]
+        tools:
+          - { name: SLSA, url: "https://slsa.dev/" }
+          - { name: in-toto, url: "https://in-toto.io/" }
+
+  - name: Factory policy
+    tag: Guard the keys
+    blurb: The pipeline can hold the keys only if it is the best-protected system you run.
+    rows:
+      - text: Pin actions by commit SHA, dependencies and images by hash
+        when: [minutes]
+        where: pipeline
+        practices: [P28, P29]
+        tools:
+          - { name: zizmor unpinned-uses, url: "https://docs.zizmor.sh/audits/" }
+      - text: No cache shared between untrusted jobs and release
+        when: [minutes]
+        where: pipeline
+        practices: [P27]
+        tools:
+          - { name: zizmor cache-poisoning, url: "https://docs.zizmor.sh/audits/" }
+      - text: Deploy with one short-lived identity, federated through OIDC
+        when: [minutes]
+        where: policy
+        practices: [P30]
+        tools:
+          - { name: GitHub OIDC, url: "https://docs.github.com/en/actions/concepts/security/openid-connect" }
+          - { name: npm trusted publishing, url: "https://docs.npmjs.com/trusted-publishers" }
+      - text: No other principal, human or agent, can change prod
+        when: [always]
+        where: policy
+        practices: [P24]
+        tools:
+          - { name: AWS SCPs, url: "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html" }
+      - text: A human approves irreversible actions, and the pipeline checks the approval
+        ref: LLM03
+        when: [minutes]
+        where: human-approval
+        practices: [P26]
+        tools:
+          - { name: terraform show -json, url: "https://developer.hashicorp.com/terraform/internals/json-format" }
+          - { name: env reviewers, url: "https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments" }
+      - text: Approvers sign every change to the factory that the agent proposes
+        when: [minutes]
+        where: human-approval
+        practices: [P25, P49]
+        tools:
+          - { name: rulesets, url: "https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets" }
+          - { name: signed commits, url: "https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification" }
+      - text: Prove IAM changes add no access and nothing public
+        when: [minutes]
+        where: pipeline
+        practices: [P37]
+        tools:
+          - { name: IAM Access Analyzer, url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/access-analyzer-custom-policy-checks.html" }
+
+  - name: Inspector
+    tag: Watch the pipeline from outside the factory
+    blurb: The inspector runs in a security account the pipeline can't reach. Production drift redeploys the last attested build, and pipeline or spec drift freezes deploys.
+    rows:
+      - text: Detect from a security account the pipeline can't reach
+        when: [hours]
+        where: inspector
+        practices: [P35]
+        tools:
+          - { name: org CloudTrail, url: "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/creating-trail-organization.html" }
+          - { name: AWS Config, url: "https://docs.aws.amazon.com/config/latest/developerguide/WhatIsConfig.html" }
+      - lead: Prod drift
+        text: Redeploy the last attested build and notify
+        when: [hours]
+        where: inspector
+        diy: true
+        practices: [P31, P39]
+        tools:
+          - { name: EventBridge, url: "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-what-is.html" }
+      - lead: Pipeline, spec drift
+        text: Freeze deploys
+        when: [hours]
+        where: inspector
+        diy: true
+        practices: [P32, P33]
+        tools: []
+      - lead: Break-glass
+        text: A separate, alarmed path, reconciled as prod drift
+        when: [hours]
+        where: human-security
+        practices: [P34]
+        tools:
+          - { name: EventBridge, url: "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-what-is.html" }
+      - text: Allowlist expected changes by principal and action
+        when: [hours]
+        where: inspector
+        source: qa
+        practices: []
+        tools:
+          - { name: AWS Config, url: "https://docs.aws.amazon.com/config/latest/developerguide/WhatIsConfig.html" }
+
+  - name: Route humans
+    tag: Late reviews are defects
+    blurb: Every review after the code exists gets a root cause, and the fix is usually a new check.
+    rows:
+      - text: Risk tiers set in the room route every change, and a classifier can only escalate
+        when: [minutes]
+        where: human-intent
+        diy: true
+        practices: [P45]
+        tools: []
+      - text: A human handles security events, and the fix runs the same pipeline
+        when: [minutes]
+        where: human-security
+        diy: true
+        practices: [P44, P38]
+        tools: []
+      - text: Root-cause each review after code exists and codify the check
+        when: [hours]
+        where: human-intent
+        diy: true
+        practices: [P36]
+        tools: []
+      - text: Measure cry wolf and miss wolf, and steer by revert rate
+        when: [hours]
+        where: human-intent
+        diy: true
+        practices: [P36]
+        tools: []
+      - text: Circuit breakers tighten approval when reverts move
+        when: [hours]
+        where: pipeline
+        diy: true
+        practices: [P40, P43]
+        tools: []
+      - text: Each waiver records who approved it and when it expires
+        when: [minutes]
+        where: pipeline
+        practices: [P48]
+        tools:
+          - { name: OSV-Scanner ignoreUntil, url: "https://google.github.io/osv-scanner/configuration/" }
+
+humans:
+  heading: Where humans still decide
+  rows:
+    - label: Intent
+      text: Capture and approve the spec before code exists.
+      note: The customer confirms the acceptance criteria.
+    - label: Approval
+      text: Approve irreversible actions and changes to the factory, and the pipeline carries them out.
+      note: Deletes of stateful resources, IAM that loosens access, factory changes signed by two engineers.
+    - label: Security
+      text: Handle security events, and the fix runs the same pipeline.
+      note: A blocked injection, a break-glass use.
+  day_one:
+    heading: Day one for a small team
+    source: qa
+    items:
+      - Secrets and dependency scanning
+      - One deploy identity
+      - Agents in a cloud sandbox, with no prod keys or long-lived credentials
+    end: About an afternoon of setup.
+
+close:
+  heading: Three things to do tomorrow
+  items:
+    - verb: Check
+      what: Make controls machine-checkable.
+      how: Stop treating downstream review as a control.
+    - verb: Trace
+      what: Verify intent and behavior.
+      how: Confirm intent before code exists and trace every change to it.
+    - verb: Prove
+      what: Let evidence authorize every deploy.
+      how: A deploy without complete evidence stops.

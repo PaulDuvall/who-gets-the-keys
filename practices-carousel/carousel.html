@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Who gets the keys? carousel</title>
+<!--
+  The page template for the practices carousel. It holds no content: render.mjs injects carousel.yaml as
+  window.__CAROUSEL__ before this page's script runs, with the font files to load from fonts/. The script builds the
+  ten pages, loads the fonts, fits each section page and draws the factory map, then sets window.__CAROUSEL_READY__.
+  Nothing is fetched over the network.
+-->
+<style>
+/* Ten 1080 x 1350 pages (LinkedIn 4:5). Dark cover and close, light pages between, one section per page. */
+@page { size: 1080px 1350px; margin: 0; background: #f7f8f9; }
+/* Chromium rounds each PDF page to 1013.04 pt, 0.72 px taller than a slide, and nothing on the slide paints that strip.
+   The page background does, so it carries the slide's colour: --paper here, --band on the dark pages' named page. */
+@page dark { background: #121820; }
+.dark { page: dark; }
+:root {
+  --paper: #f7f8f9; --ink: #121820; --muted: #59646f; --line: #dce1e6;
+  --band: #121820; --band-ink: #eef1f4; --band-muted: #9aa6b2; --band-line: #2a3440;
+  --brass: #94650e; --brass-hi: #e2b04f; --brass-soft: #f1e6cc;
+  --w-before: #94650e; --w-s: #0b7a72; --w-m: #2350b8; --w-h: #8b3a8f; --w-off: #dfe4e9;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #c9cfd5; -webkit-font-smoothing: antialiased; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { font-family: var(--font-body); color: var(--ink); }
+.slide { width: 1080px; height: 1350px; overflow: hidden; position: relative; background: var(--paper); page-break-after: always; break-after: page; display: flex; flex-direction: column; padding: 64px 72px 52px; }
+.slide:last-child { page-break-after: auto; break-after: auto; }
+.dark { background: var(--band); color: var(--band-ink); }
+a { color: inherit; text-decoration: none; }
+
+.top { display: flex; justify-content: space-between; align-items: baseline; font: 500 20px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.dark .top { color: var(--band-muted); }
+.pg { font-variant-numeric: tabular-nums; }
+
+/* Cover */
+.cover h1 { margin: 120px 0 0; font: 800 172px/0.9 var(--font-display); font-stretch: 115%; letter-spacing: -.025em; }
+.cover .thesis { margin: 40px 0 0; font: 600 46px/1.15 var(--font-display); }
+.cover .thesis .key { color: var(--brass-hi); white-space: nowrap; }
+.cover .sub { margin: 28px 0 0; font-size: 30px; line-height: 1.4; color: var(--band-muted); max-width: 30ch; text-wrap: pretty; }
+.timeline { margin-top: auto; }
+.timeline .bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.timeline .bar i { height: 22px; border-radius: 4px; }
+.timeline .lab { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; font: 500 22px var(--font-mono); color: var(--band-muted); }
+.timeline .cap { margin: 0 0 18px; font: 600 24px var(--font-body); color: var(--band-ink); }
+
+/* Section pages */
+.sec-head { margin-top: 34px; }
+.sec-head h2 { margin: 0; font: 800 92px/0.95 var(--font-display); font-stretch: 115%; letter-spacing: -.01em; text-transform: uppercase; }
+.sec-head .tag { margin: 12px 0 0; font: 600 38px/1.15 var(--font-display); color: var(--brass); }
+.sec-head .blurb { margin: 18px 0 0; font-size: 27px; line-height: 1.4; color: var(--muted); max-width: 42ch; }
+.rows { list-style: none; margin: 30px 0 0; padding: 0; border-top: 3px solid var(--ink); }
+.rows li { padding: calc(18px * var(--k, 1)) 0 calc(17px * var(--k, 1)); border-bottom: 1px solid var(--line); }
+.rows .p { font-size: calc(31px * var(--k, 1)); font-weight: 600; line-height: 1.24; text-wrap: pretty; }
+.rows .lead { font: 700 calc(22px * var(--k, 1)) var(--font-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--brass); margin-right: 12px; }
+.rows .ref { font: 500 calc(21px * var(--k, 1)) var(--font-mono); color: var(--muted); margin-left: 10px; white-space: nowrap; }
+.rows .meta { display: flex; align-items: center; gap: 14px; margin-top: calc(8px * var(--k, 1)); }
+.rows .tools { flex: 1 1 auto; min-width: 0; font: calc(22px * var(--k, 1))/1.35 var(--font-mono); color: var(--muted); }
+.rows .tools a { white-space: nowrap; }
+.rows .sep { color: #b6bfc8; }
+.diy { display: inline-block; font: 600 18px var(--font-mono); letter-spacing: .04em; color: var(--brass); border: 2px solid var(--brass); border-radius: 5px; padding: 0 6px; }
+.who { flex: none; font: 600 17px var(--font-mono); letter-spacing: .05em; text-transform: uppercase; background: #e8ecef; border-radius: 5px; padding: 3px 10px; }
+.who.human { background: var(--brass-soft); color: var(--brass); }
+.track { flex: none; display: grid; grid-template-columns: repeat(4, 20px); gap: 4px; }
+.track i { height: 14px; border-radius: 3px; background: var(--w-off); }
+.track .b { background: var(--w-before); } .track .s { background: var(--w-s); } .track .m { background: var(--w-m); } .track .h { background: var(--w-h); }
+.track.all i { background: var(--ink); }
+
+.legend { margin-top: auto; padding-top: 20px; display: flex; flex-wrap: wrap; gap: 10px 28px; align-items: center; font-size: 20px; color: var(--muted); }
+.legend b { color: var(--ink); font-weight: 600; }
+.lkey { display: inline-flex; gap: 4px; margin-right: 8px; vertical-align: 2px; }
+.lkey span { font: 600 16px var(--font-mono); color: #fff; padding: 1px 6px; border-radius: 4px; }
+.legend .diy { font-size: 15px; border-width: 1.5px; margin-right: 6px; }
+
+/* Humans and day one */
+.big-h { margin: 34px 0 0; font: 800 76px/0.98 var(--font-display); font-stretch: 115%; letter-spacing: -.01em; }
+.humans { margin-top: 30px; display: grid; gap: 0; border-top: 3px solid var(--ink); }
+.humans .h { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 24px; align-items: baseline; padding: 24px 0; border-bottom: 1px solid var(--line); }
+.humans dt { font: 700 26px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--brass); }
+.humans dd { margin: 0; font-size: 32px; font-weight: 600; line-height: 1.3; text-wrap: pretty; }
+.humans .note { display: block; margin-top: 6px; font-size: 24px; font-weight: 400; color: var(--muted); }
+.dayone { margin-top: auto; background: var(--brass-soft); border-radius: 14px; padding: 30px 34px 32px; }
+.dayone .k { font: 600 20px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--brass); }
+.dayone ul { margin: 16px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.dayone li { font-size: 30px; font-weight: 600; line-height: 1.3; padding-left: 28px; position: relative; }
+.dayone li::before { content: ""; position: absolute; left: 0; top: .48em; width: 12px; height: 12px; border-radius: 2px; background: var(--brass); }
+.dayone .end { margin: 18px 0 0; font: 700 28px var(--font-display); color: var(--brass); }
+
+/* Close */
+.close h2 { margin: 52px 0 0; font: 800 40px var(--font-mono); font-weight: 600; font-size: 22px; letter-spacing: .08em; text-transform: uppercase; color: var(--band-muted); }
+.three { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 18px; }
+.three li { border: 2px solid var(--band-line); border-radius: 14px; padding: 28px 30px; display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 20px; align-items: baseline; }
+.three .verb { font: 800 36px var(--font-display); font-stretch: 115%; letter-spacing: .04em; text-transform: uppercase; color: var(--brass-hi); }
+.three .what { font: 600 36px/1.2 var(--font-body); }
+.three .how { display: block; margin-top: 8px; font-size: 26px; line-height: 1.35; color: var(--band-muted); }
+.sign { margin-top: auto; border-top: 2px solid var(--band-line); padding-top: 30px; }
+.sign .line { font: 700 38px/1.2 var(--font-display); }
+.sign .line .key { color: var(--brass-hi); white-space: nowrap; }
+.sign .who-am-i { margin-top: 18px; font-size: 26px; color: var(--band-muted); }
+.sign .who-am-i b { color: var(--band-ink); font-weight: 600; }
+
+/* Factory map (page 2): the same tokens. Text is 26 px or larger so it reads on a phone without zooming. */
+.factory .lede { margin: 18px 0 0; font-size: 27px; line-height: 1.4; color: var(--muted); text-wrap: pretty; }
+.fmap { position: relative; margin-top: 30px; display: grid; grid-template-columns: minmax(0, 1fr) 392px; column-gap: 48px;
+  grid-template-rows: auto 42px auto 42px auto 42px auto;
+  grid-template-areas: "spec humans" "a1 ." "sandbox policy" "a2 policy" "pipeline policy" "a3 ." "production inspector"; }
+.fbox { position: relative; z-index: 1; border-radius: 14px; padding: 14px 20px 16px; background: #fff; border: 2px solid var(--line); }
+.fbox .hd { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.fbox .name { font: 600 26px var(--font-mono); letter-spacing: .05em; text-transform: uppercase; }
+.fbox .on { flex: none; font: 500 26px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.fbox .t { margin: 8px 0 0; font-size: 26px; line-height: 1.28; }
+.fb-spec { grid-area: spec; }
+.fb-sandbox { grid-area: sandbox; border-color: var(--w-s); }
+.fb-sandbox .name { color: var(--w-s); }
+.fb-pipeline { grid-area: pipeline; background: var(--band); color: var(--band-ink); border: 0; padding: 20px 24px 22px; }
+.fb-pipeline .name { color: var(--brass-hi); font-size: 30px; }
+.fb-pipeline .on { color: var(--band-muted); }
+.fb-pipeline .mark { display: inline-flex; align-items: center; gap: 12px; margin-top: 14px; padding: 5px 16px 5px 12px; border-radius: 8px;
+  background: var(--brass-hi); color: var(--band); font: 600 26px/1.3 var(--font-body); }
+.fb-pipeline .mark svg { flex: none; }
+.fb-production { grid-area: production; }
+.fb-policy { grid-area: policy; align-self: end; background: #e8ecef; border-color: #e8ecef; }
+.fb-humans { grid-area: humans; background: var(--brass-soft); border-color: var(--brass-soft); }
+.fb-humans .name { color: var(--brass); }
+.fb-inspector { grid-area: inspector; border-color: var(--w-h); }
+.fb-inspector .name { color: var(--w-h); }
+.edge { position: absolute; z-index: 0; border: 3px dashed var(--band-muted); border-radius: 22px; }
+.edge .label { position: absolute; right: 26px; top: -19px; padding: 0 10px; background: var(--paper); font: 600 26px/32px var(--font-mono);
+  letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.wires { position: absolute; inset: 0; z-index: 2; overflow: visible; pointer-events: none; }
+</style>
+</head>
+<body>
+<script>
+(() => {
+  'use strict';
+  const D = window.__CAROUSEL__;
+  const done = (v) => { window.__CAROUSEL_READY__ = v; };
+  if (!D) {
+    document.body.textContent = 'Build this page with render.mjs, which injects carousel.yaml.';
+    done({ ok: false, error: 'no data injected' });
+    return;
+  }
+  const { doc, count, pages, fonts } = D;
+  const SVGNS = 'http://www.w3.org/2000/svg';
+
+  // el(tag, class, ...children): an element whose children are elements or plain text. No markup is ever parsed.
+  function el(tag, cls, ...kids) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) e.append(k instanceof Node ? k : String(k));
+    return e;
+  }
+  const svg = (tag, attrs) => {
+    const e = document.createElementNS(SVGNS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, String(v));
+    return e;
+  };
+  const list = (v) => (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v]);
+  const top = (left, n) => el('div', 'top', el('span', null, left), el('span', 'pg', `${n} / ${pages}`));
+  const slide = (cls, n, page) => {
+    const s = el('section', `slide ${cls}`);
+    s.dataset.page = String(n);
+    if (page) s.dataset.kind = page;
+    return s;
+  };
+
+  const WINDOWS = [['before', 'b', '--w-before'], ['seconds', 's', '--w-s'], ['minutes', 'm', '--w-m'], ['hours', 'h', '--w-h']];
+
+  // Page 1: cover.
+  function cover() {
+    const s = slide('dark cover', 1, 'cover');
+    s.append(
+      top(doc.meta.byline, 1),
+      el('h1', null, doc.meta.title),
+      el('p', 'thesis', el('span', 'key', doc.meta.thesis_key), ` ${doc.meta.thesis_rest}`),
+      el('p', 'sub', ...String(doc.meta.subtitle).split('{count}').flatMap((part, i) => (i ? [el('span', 'count', String(count)), part] : [part]))),
+      el('div', 'timeline',
+        el('div', 'bar', WINDOWS.map(([, , v]) => { const i = el('i'); i.style.background = `var(${v})`; return i; })),
+        el('div', 'lab', WINDOWS.map(([key]) => el('span', null, doc.windows[key])))),
+    );
+    return s;
+  }
+
+  // Page 2: the factory map. Boxes sit on a grid; the factory's edge and the wires are drawn after layout.
+  const pagesLabel = (p) => { const ps = list(p); return `${ps.length > 1 ? 'pp.' : 'p.'} ${ps.join(', ')}`; };
+  const KEY_ICON = () => {
+    const i = svg('svg', { width: 34, height: 20, viewBox: '0 0 34 20', 'aria-hidden': 'true' });
+    i.append(svg('circle', { cx: 9, cy: 10, r: 6.5, fill: 'none', stroke: 'currentColor', 'stroke-width': 3.4 }),
+      svg('path', { d: 'M15.5 10H32M26 10v6M31 10v5', fill: 'none', stroke: 'currentColor', 'stroke-width': 3.4, 'stroke-linecap': 'round' }));
+    return i;
+  };
+  function fbox(cls, box) {
+    const b = el('div', `fbox fb-${cls}`,
+      el('div', 'hd', el('span', 'name', box.name), el('span', 'on', pagesLabel(box.page))),
+      el('p', 't', box.text));
+    if (box.mark) b.append(el('div', 'mark', KEY_ICON(), box.mark));
+    b.dataset.box = cls;
+    return b;
+  }
+  function factory() {
+    const f = doc.factory;
+    const s = slide('factory', 2, 'factory');
+    const [spec, sandbox, pipeline, production] = f.flow;
+    const [policy, inspector, humans] = f.around;
+    const map = el('div', 'fmap',
+      fbox('spec', spec), fbox('sandbox', sandbox), fbox('pipeline', pipeline), fbox('production', production),
+      fbox('policy', policy), fbox('inspector', inspector), fbox('humans', humans));
+    const edge = el('div', 'edge', el('span', 'label', f.edge));
+    map.prepend(edge);
+    s.append(top(doc.meta.title, 2), el('h2', 'big-h', f.heading), el('p', 'lede', f.lede), map);
+    return s;
+  }
+  // The edge encloses the agent sandbox, the pipeline and factory policy; the spec, production, humans and the
+  // inspector sit outside it. Wires: the flow downwards, humans to the spec and the pipeline, the inspector to the
+  // pipeline and production.
+  function drawFactory(s) {
+    const map = s.querySelector('.fmap');
+    const m = map.getBoundingClientRect();
+    const r = (name) => {
+      const b = map.querySelector(`.fb-${name}`).getBoundingClientRect();
+      return { l: b.left - m.left, t: b.top - m.top, r: b.right - m.left, b: b.bottom - m.top, w: b.width, h: b.height, cx: b.left - m.left + b.width / 2, cy: b.top - m.top + b.height / 2 };
+    };
+    const [spec, sandbox, pipeline, production, policy, inspector, humans] =
+      ['spec', 'sandbox', 'pipeline', 'production', 'policy', 'inspector', 'humans'].map(r);
+    const pad = 18;
+    const edge = map.querySelector('.edge');
+    const eTop = sandbox.t - pad;
+    const eBottom = Math.max(pipeline.b, policy.b) + pad;
+    Object.assign(edge.style, { left: `${-pad}px`, top: `${eTop}px`, width: `${m.width + 2 * pad}px`, height: `${eBottom - eTop}px` });
+
+    const w = svg('svg', { class: 'wires', width: m.width, height: m.height, viewBox: `0 0 ${m.width} ${m.height}` });
+    const defs = svg('defs');
+    for (const [id, colour] of [['ink', 'var(--ink)'], ['brass', 'var(--brass)'], ['watch', 'var(--w-h)']]) {
+      const mk = svg('marker', { id: `head-${id}`, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 5, markerHeight: 5, orient: 'auto-start-reverse' });
+      const p = svg('path', { d: 'M0 0L10 5L0 10z' });
+      p.style.fill = colour;
+      mk.append(p);
+      defs.append(mk);
+    }
+    w.append(defs);
+    const wire = (d, id, dashed) => {
+      const p = svg('path', { d, fill: 'none', 'stroke-width': 4, 'stroke-linejoin': 'round', 'marker-end': `url(#head-${id})` });
+      p.style.stroke = id === 'ink' ? 'var(--ink)' : id === 'brass' ? 'var(--brass)' : 'var(--w-h)';
+      if (dashed) p.setAttribute('stroke-dasharray', '10 8');
+      w.append(p);
+    };
+    const gap = 4;
+    wire(`M${spec.cx} ${spec.b + gap}V${sandbox.t - gap - 2}`, 'ink');
+    wire(`M${sandbox.cx} ${sandbox.b + gap}V${pipeline.t - gap - 2}`, 'ink');
+    wire(`M${pipeline.cx} ${pipeline.b + gap}V${production.t - gap - 2}`, 'ink');
+    const gx = (pipeline.r + policy.l) / 2;
+    wire(`M${humans.l - gap} ${humans.cy}H${spec.r + gap + 2}`, 'brass');
+    wire(`M${gx} ${humans.cy}V${pipeline.t + pipeline.h * 0.3}H${pipeline.r + gap + 2}`, 'brass');
+    wire(`M${inspector.l - gap} ${inspector.cy}H${production.r + gap + 2}`, 'watch', true);
+    wire(`M${gx} ${inspector.cy}V${pipeline.t + pipeline.h * 0.72}H${pipeline.r + gap + 2}`, 'watch', true);
+    map.append(w);
+  }
+
+  // Pages 3 to 8: one per section.
+  function track(when) {
+    const ws = list(when);
+    const t = el('span', ws.includes('always') ? 'track all' : 'track');
+    for (const [key, cls] of WINDOWS) t.append(el('i', ws.includes(key) ? cls : null));
+    return t;
+  }
+  function row(r) {
+    const tools = el('div', 'tools');
+    list(r.tools).forEach((tool, i) => {
+      if (i) tools.append(el('span', 'sep', ' · '));
+      const a = el('a', null, tool.name);
+      a.href = tool.url;
+      tools.append(a);
+    });
+    const label = doc.where[r.where];
+    return el('li', null,
+      el('div', 'p', r.lead ? el('span', 'lead', r.lead) : null, r.text, r.ref ? el('span', 'ref', `OWASP ${r.ref}`) : null),
+      el('div', 'meta', tools,
+        r.diy ? el('span', 'diy', 'DIY') : null,
+        label ? el('span', String(r.where).startsWith('human') ? 'who human' : 'who', label) : null,
+        track(r.when)));
+  }
+  function legend() {
+    const keys = el('span', 'lkey', WINDOWS.map(([key, , v]) => { const k = el('span', null, String(doc.windows[key]).charAt(0)); k.style.background = `var(${v})`; return k; }));
+    return el('div', 'legend',
+      el('span', null, keys, doc.legend.windows),
+      el('span', null, doc.legend.untagged),
+      el('span', null, el('span', 'diy', 'DIY'), doc.legend.diy));
+  }
+  function section(sec, n) {
+    const s = slide('sectionpage', n, 'section');
+    s.append(
+      top(doc.meta.title, n),
+      el('div', 'sec-head', el('h2', null, sec.name), el('p', 'tag', sec.tag), el('p', 'blurb', sec.blurb)),
+      el('ol', 'rows', list(sec.rows).map(row)),
+      legend());
+    return s;
+  }
+
+  // Page 9: where humans still decide, and day one.
+  function humansPage(n) {
+    const h = doc.humans;
+    const s = slide('humanspage', n, 'humans');
+    s.append(
+      top(doc.meta.title, n),
+      el('h2', 'big-h', h.heading),
+      el('dl', 'humans', list(h.rows).map((x) => el('div', 'h', el('dt', null, x.label), el('dd', null, x.text, el('span', 'note', x.note))))),
+      el('div', 'dayone', el('div', 'k', h.day_one.heading), el('ul', null, list(h.day_one.items).map((i) => el('li', null, i))), el('p', 'end', h.day_one.end)));
+    return s;
+  }
+
+  // Page 10: three things to do tomorrow, and the close.
+  function closePage(n) {
+    const c = doc.close;
+    const s = slide('dark close', n, 'close');
+    s.append(
+      top(doc.meta.title, n),
+      el('h2', null, c.heading),
+      el('ol', 'three', list(c.items).map((i) => el('li', null, el('span', 'verb', i.verb), el('span', 'what', i.what, el('span', 'how', i.how))))),
+      el('div', 'sign',
+        el('div', 'line', `${doc.meta.close_line_plain} `, el('span', 'key', doc.meta.close_line_key)),
+        el('div', 'who-am-i', doc.meta.byline, el('br'), list(doc.meta.sites).flatMap((site, i) => (i ? [' · ', el('b', null, site)] : [el('b', null, site)])))));
+    return s;
+  }
+
+  // The fit step (Appendix B): raise each section page's --k from 0.8 in steps of 0.02, keeping the last that fits.
+  function fits(page) {
+    const rows = page.querySelector('.rows').getBoundingClientRect();
+    const lg = page.querySelector('.legend').getBoundingClientRect();
+    const toolsOverlap = [...page.querySelectorAll('.meta')].some((m) => {
+      const t = m.querySelector('.tools');
+      return t.scrollWidth > t.clientWidth + 1;
+    });
+    return page.scrollHeight <= page.clientHeight && rows.bottom <= lg.top - 6 && !toolsOverlap;
+  }
+  function fit(page) {
+    let k = 80; // hundredths, so the steps do not drift
+    page.style.setProperty('--k', (k / 100).toFixed(2));
+    while (k < 150) {
+      page.style.setProperty('--k', ((k + 2) / 100).toFixed(2));
+      if (!fits(page)) { page.style.setProperty('--k', (k / 100).toFixed(2)); break; }
+      k += 2;
+    }
+    return page.style.getPropertyValue('--k');
+  }
+
+  async function loadFonts() {
+    const faces = fonts.map((f) => new FontFace(f.family, `url("fonts/${f.file}") format("truetype")`, { weight: f.weight, stretch: f.stretch, style: 'normal', display: 'block' }));
+    for (const face of faces) document.fonts.add(face);
+    await Promise.all(faces.map((face) => face.load()));
+    await document.fonts.ready;
+    return faces.map((face) => `${face.family} ${face.weight} ${face.stretch}: ${face.status}`);
+  }
+
+  (async () => {
+    try {
+      const sections = list(doc.sections);
+      document.body.append(cover(), factory(), ...sections.map((sec, i) => section(sec, i + 3)), humansPage(sections.length + 3), closePage(sections.length + 4));
+      const loaded = await loadFonts();
+      const k = {};
+      for (const page of document.querySelectorAll('.sectionpage')) k[page.dataset.page] = fit(page);
+      drawFactory(document.querySelector('.factory'));
+      done({ ok: true, k, fonts: loaded });
+    } catch (e) {
+      console.error(String(e && e.stack ? e.stack : e));
+      done({ ok: false, error: String(e) });
+    }
+  })();
+})();
+</script>
+</body>
+</html>
