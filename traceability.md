@@ -100,6 +100,7 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R227 | `test/progress.test.ts` | test | — |
 | SPEC-001-R228 | `test/progress.test.ts` | test | — |
 | SPEC-001-R229 | `test/progress.test.ts` | test | — |
+| SPEC-001-R235 | `test/factory-pages.test.ts`, `test/checks-before-main.test.ts` | test, workflows | — |
 | SPEC-001-R230 | `test/hook.test.ts` | test | — |
 | SPEC-002-R1 | `test/video.test.ts` | test | — |
 | SPEC-002-R2 | `test/video.test.ts` | test | — |

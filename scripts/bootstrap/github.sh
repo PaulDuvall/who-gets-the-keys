@@ -6,7 +6,8 @@ ruleset="protect main"
 
 usage() {
   echo "usage: scripts/bootstrap/github.sh [--vars]"
-  echo "  default  read-only workflow token, SHA pinning required, environments sandbox, probe and producer (main only),"
+  echo "  default  read-only workflow token, SHA pinning required, environments sandbox, probe, producer and github-pages"
+  echo "           (main only),"
   echo "           merge commits as the only merge method (if GitHub accepts this with linear history required, no pull request"
   echo "           merges in GitHub; a refusal is reported and the script exits 1),"
   echo "           ruleset \"${ruleset}\" blocking force pushes, deletion and merge commits on the default branch, and"
@@ -15,7 +16,8 @@ usage() {
   echo "           other setting is applied, the ruleset is skipped and the script exits 1."
   echo "           Once the repository is public, also: you as required reviewer on sandbox and probe (not producer,"
   echo "           whose runs only you can start; SPEC-001-R85),"
-  echo "           secret scanning, push protection and private vulnerability reporting."
+  echo "           secret scanning, push protection, private vulnerability reporting, and GitHub Pages built by"
+  echo "           GitHub Actions, which the factory-video workflow publishes to (SPEC-001-R235)."
   echo "  --vars   also set the secrets DEPLOY_ROLE_ARN, TRIAGE_ROLE_ARN, PROBE_ROLE_ARN and PRODUCER_ROLE_ARN and the"
   echo "           variable PRODUCER_MODEL from infra/sandbox outputs, and the variable TRIAGE_MODEL from \$TRIAGE_MODEL."
   echo "           Then deletes any repository variable of those four role ARN names: GitHub masks a secret in run"
@@ -59,7 +61,8 @@ echo "  default workflow token: read, can approve reviews: false"
 echo "  actions enabled: true, allowed: all, SHA pinning required: true"
 echo "  merge methods: merge commit true, squash false, rebase false, read back after the change."
 echo "    If GitHub accepts this with linear history required, no pull request merges in GitHub"
-echo "  environments sandbox, probe and producer, each deployable from branch main only; producer never has a reviewer"
+echo "  environments sandbox, probe, producer and github-pages, each deployable from branch main only;"
+echo "    producer and github-pages never have a reviewer"
 echo "  ruleset \"${ruleset}\": default branch, blocks force pushes, deletion and merge commits, requires status check"
 echo "    checks from GitHub Actions on the commit itself, no bypass actors, active (created or updated)."
 echo "    The app ID is read from main's checks run just before the ruleset step. If main has none yet, the ruleset is skipped"
@@ -67,8 +70,10 @@ if [ "$visibility" = "public" ]; then
   echo "  environments sandbox and probe: required reviewer ${me}, self-review allowed because your pushes deploy as you"
   echo "  secret scanning and push protection: enabled"
   echo "  private vulnerability reporting: enabled"
+  echo "  GitHub Pages: source GitHub Actions, created if absent"
 else
-  echo "  skipped while ${visibility}: required reviewers, secret scanning, push protection, private vulnerability reporting."
+  echo "  skipped while ${visibility}: required reviewers, secret scanning, push protection, private vulnerability reporting,"
+  echo "    GitHub Pages."
   echo "  Run this script again right after making the repository public, before the next push to main."
 fi
 confirm "Apply these settings?" || { echo "Nothing changed."; exit 1; }
@@ -82,9 +87,11 @@ if [ "$visibility" = "public" ]; then
   reviewers=", \"reviewers\": [{\"type\": \"User\", \"id\": ${me_id}}], \"prevent_self_review\": false"
 fi
 # producer gets no reviewer: only the owner can start producer.yml, and its job checks the actor (SPEC-001-R83, R85).
-for env in sandbox probe producer; do
+# github-pages gets none either: it publishes only the factory video built from main (SPEC-001-R235). Branch main only
+# keeps a workflow on any other branch from deploying to it.
+for env in sandbox probe producer github-pages; do
   env_reviewers="$reviewers"
-  [ "$env" != producer ] || env_reviewers=""
+  case "$env" in producer|github-pages) env_reviewers="" ;; esac
   gh api -X PUT "repos/${repo}/environments/${env}" --input - >/dev/null <<JSON
 {"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}${env_reviewers}}
 JSON
@@ -98,12 +105,34 @@ JSON
   fi
 done
 
+pages_failed=""
 if [ "$visibility" = "public" ]; then
   gh api -X PATCH "repos/${repo}" --input - >/dev/null <<'JSON'
 {"security_and_analysis": {"secret_scanning": {"status": "enabled"}, "secret_scanning_push_protection": {"status": "enabled"}}}
 JSON
   gh api -X PUT "repos/${repo}/private-vulnerability-reporting" >/dev/null
   echo "secret scanning, push protection, private vulnerability reporting: enabled"
+  # GitHub Pages, built by GitHub Actions, so the factory-video deploy job can publish from main (SPEC-001-R235).
+  # GET answers 404 while there is no Pages site; POST creates one and PUT changes it, each with build_type
+  # (docs.github.com/en/rest/pages/pages). On an HTTP error gh prints the response body on standard output and
+  # "(HTTP <code>)" on standard error, so only standard error tells a missing site from any other failure.
+  # A failure here must not stop the ruleset, as with the merge methods below.
+  pages_err="$(mktemp)"
+  if pages_type="$(gh api "repos/${repo}/pages" --jq '.build_type // ""' 2>"$pages_err")"; then
+    if [ "$pages_type" != workflow ]; then
+      gh api -X PUT "repos/${repo}/pages" -f build_type=workflow >/dev/null || pages_failed="GitHub refused to change its build type"
+    fi
+  elif grep -q '(HTTP 404)' "$pages_err"; then
+    gh api -X POST "repos/${repo}/pages" -f build_type=workflow >/dev/null || pages_failed="GitHub refused to create it"
+  else
+    pages_failed="it could not be read: $(tr '\n' ' ' <"$pages_err")"
+  fi
+  rm -f "$pages_err"
+  if [ -n "$pages_failed" ]; then
+    echo "GitHub Pages: not built by GitHub Actions, because ${pages_failed}"
+  else
+    echo "GitHub Pages: built and deployed by GitHub Actions"
+  fi
 fi
 
 # GitHub's docs say linear history needs squash or rebase merging allowed, so a refusal here must not stop the ruleset.
@@ -228,6 +257,12 @@ if [ -n "$ruleset_skipped" ]; then
   echo "Every other setting is applied. The ruleset \"${ruleset}\" is not: main has no checks run from GitHub Actions yet."
   echo "Wait for main's pipeline run to start, or push to main if you have not yet, then run this script again to apply the ruleset."
 fi
-if [ -n "$merge_refused" ] || [ -n "$ruleset_skipped" ]; then
+if [ -n "$pages_failed" ]; then
+  echo
+  echo "Every other setting is applied. GitHub Pages is not built by GitHub Actions, because ${pages_failed}."
+  echo "The factory-video workflow cannot publish until it is. Run this script again, or set it in the repository's"
+  echo "settings: Pages, Build and deployment, Source, GitHub Actions."
+fi
+if [ -n "$merge_refused" ] || [ -n "$ruleset_skipped" ] || [ -n "$pages_failed" ]; then
   exit 1
 fi

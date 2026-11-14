@@ -2,7 +2,7 @@
 
 The "software factory" scene for *Who Gets the Keys? Trust and Authority in Software Factories* (AI Native DevCon 2026). It has been built here since 2026-11-08 ([decision 0008](../docs/decisions/0008-factory-video-kit.md)), so the picture sits next to the specs it shows.
 
-**Watch it:** download the newest build from the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain), as [Outputs](#outputs) describes. `factory-guided.mp4` is the narrated version.
+**Watch it:** [https://paulduvall.github.io/who-gets-the-keys/](https://paulduvall.github.io/who-gets-the-keys/) plays the narrated version, `factory-guided.mp4`, built from `main`, with no sign-in. Every other file of the newest build is a workflow artifact, as [Outputs](#outputs) describes.
 
 The video shows what this repository should look like and do, not only what it does today. `claims.json` ties every on-screen label and narration line to a claim and cites how far the repository has got: built (requirements in `specs/`), planned (drafts in `docs/decisions/`) or open (backlog items). Each build checks the ledger and writes `out/claims-report.md`, so the video doubles as a check of the code against the target.
 
@@ -30,13 +30,16 @@ Google Slides cannot loop video, so the primary output for the deck is the loopi
 
 ## Outputs
 
-Generated files are never committed, so they never pile up in git history. `build.sh` writes them to `out/` on your machine. On every push to `main` that touches this folder, and on demand, the `factory-video` workflow (`.github/workflows/factory-video.yml`, landed in `9f887da` on 2026-11-08) builds and verifies them. It uploads them as one artifact, `factory-video-<short SHA>-<UTC time>`, then a separate job deletes every earlier `factory-video-` artifact. So only one copy of each file exists, and it expires 30 days after upload. The build job can only read the repository; the prune job can only delete artifacts. A failed check uploads nothing, and the previous build stays.
+Generated files are never committed, so they never pile up in git history. `build.sh` writes them to `out/` on your machine. On demand, and on a push to `main` when this folder, the workflow or the end card's counts in `docs/progress.json` changed since the last page published to GitHub Pages, the `factory-video` workflow (`.github/workflows/factory-video.yml`, landed in `9f887da` on 2026-11-08) builds and verifies them. So the published video counts `main`, and a build that failed is tried again by the next run (SPEC-001-R235). The workflow uploads them as one artifact, `factory-video-<short SHA>-<UTC time>`, then a separate job deletes every earlier `factory-video-` artifact. So only one copy of each file exists, and it expires 30 days after upload. The build job can only read the repository; the prune job can only delete artifacts. A failed check uploads nothing, and the previous build stays.
+
+On `main`, the build job also lays out a page of `factory-guided.mp4`, `factory-guided.srt`, `poster.png` and an `index.html` that plays the video and names the commit. The deploy job publishes it to GitHub Pages, at https://paulduvall.github.io/who-gets-the-keys/, with `actions/deploy-pages` as its only step and only `pages: write` and `id-token: write`. A failed build publishes nothing, and the page keeps the previous video.
 
 To download the newest build:
 
 | Where | How |
 |---|---|
-| Browser | Open the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain). Open the newest run whose Artifacts section lists a `factory-video-…` artifact, and download it; GitHub asks you to sign in. A push that changes only specs, decisions, proposals or the backlog runs the claims check alone, and its run lists a `factory-claims-…` artifact instead |
+| Browser, the guided video only | Open https://paulduvall.github.io/who-gets-the-keys/ |
+| Browser, every file | Open the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain). Open the newest run whose Artifacts section lists a `factory-video-…` artifact, and download it; GitHub asks you to sign in. A push that leaves the kit, the workflow and the end card's counts as they were runs the claims check alone, and its run lists a `factory-claims-…` artifact instead |
 | Terminal | The first command below, with the GitHub CLI signed in. It downloads the newest artifact whose name matches |
 | Nothing listed | No build has run in the last 30 days, so the artifact has expired. Start one with the second command, or with **Run workflow** on the runs page. Starting it needs write access |
 

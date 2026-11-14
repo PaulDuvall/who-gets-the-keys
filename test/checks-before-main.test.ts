@@ -23,6 +23,9 @@ const lines = script.split("\n").map((line) => line.trim());
 
 // A stand-in for gh: it logs every call, keeps each request body sent with --input -, and answers the reads github.sh makes.
 // STUB_REFUSE_MERGE fails the merge-method PATCH as GitHub would with a 422; STUB_MERGE_METHODS is what reading them back returns.
+// STUB_PAGES is the Pages site's build_type, or "absent" or "error" to answer its read with a 404 or a 500 as gh does: the
+// response body on standard output, "(HTTP <code>)" on standard error, exit 1. STUB_REFUSE_PAGES fails a write to the site
+// with a 422. STUB_NO_POLICIES answers that an environment has no deployment branch policy yet.
 const stubGh = [
   "#!/usr/bin/env bash",
   'printf \'%s\\n\' "$*" >> "$STUB_DIR/calls"',
@@ -30,6 +33,7 @@ const stubGh = [
   'if [ "${2:-}" = "-X" ]; then',
   '  if [[ " $* " == *" --input - "* ]]; then cat > "$STUB_DIR/body_${4//\\//_}"; fi',
   '  if [ -n "${STUB_REFUSE_MERGE:-}" ] && [[ " $* " == *" allow_squash_merge="* ]]; then echo "gh: Validation Failed (HTTP 422)" >&2; exit 1; fi',
+  '  if [ -n "${STUB_REFUSE_PAGES:-}" ] && [ "$4" = "repos/o/r/pages" ]; then echo \'{"message":"Validation Failed"}\'; echo "gh: Validation Failed (HTTP 422)" >&2; exit 1; fi',
   "  exit 0",
   "fi",
   'case "$2" in',
@@ -40,14 +44,20 @@ const stubGh = [
   '  user) if [ "$4" = ".id" ]; then echo 1; else echo owner; fi ;;',
   '  *"/rulesets?includes_parents=false") echo "${STUB_RULESET_ID:-}" ;;',
   '  *"/check-runs?check_name=checks") echo "${STUB_APP_ID:-}" ;;',
-  '  *"/deployment-branch-policies") echo main ;;',
+  '  *"/deployment-branch-policies") [ -n "${STUB_NO_POLICIES:-}" ] || echo main ;;',
+  '  "repos/o/r/pages")',
+  '    case "${STUB_PAGES:-legacy}" in',
+  '      absent) echo \'{"message":"Not Found","status":"404"}\'; echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;',
+  '      error) echo \'{"message":"Server Error","status":"500"}\'; echo "gh: Server Error (HTTP 500)" >&2; exit 1 ;;',
+  '      *) echo "${STUB_PAGES:-legacy}" ;;',
+  '    esac ;;',
   "  *) echo stub ;;",
   "esac",
   "",
 ].join("\n");
 
 interface EnvironmentBody { deployment_branch_policy: { protected_branches: boolean; custom_branch_policies: boolean }; reviewers?: { type: string; id: number }[] }
-interface Stub { appId: string; rulesetId: string; visibility?: string; refuseMerge?: boolean; mergeMethods?: string }
+interface Stub { appId: string; rulesetId: string; visibility?: string; refuseMerge?: boolean; mergeMethods?: string; pages?: string; refusePages?: boolean; noPolicies?: boolean }
 
 function runGithubSh(stub: Stub) {
   const dir = mkdtempSync(join(tmpdir(), "github-sh-"));
@@ -57,13 +67,14 @@ function runGithubSh(stub: Stub) {
     const env = {
       ...process.env, PATH: `${dir}:${process.env["PATH"] ?? ""}`, STUB_DIR: dir, STUB_APP_ID: stub.appId, STUB_RULESET_ID: stub.rulesetId,
       STUB_VISIBILITY: stub.visibility ?? "private", STUB_REFUSE_MERGE: stub.refuseMerge === true ? "1" : "", STUB_MERGE_METHODS: stub.mergeMethods ?? "true false false",
+      STUB_PAGES: stub.pages ?? "legacy", STUB_REFUSE_PAGES: stub.refusePages === true ? "1" : "", STUB_NO_POLICIES: stub.noPolicies === true ? "1" : "",
       REPO: "o/r", GH_TOKEN: "stub", GH_CONFIG_DIR: dir,
     };
     const r = spawnSync("bash", ["scripts/bootstrap/github.sh"], { input: "y\n", encoding: "utf8", env });
     const calls = read(join(dir, "calls")).trimEnd().split("\n");
     const bodyFile = join(dir, `body_repos_o_r_rulesets${stub.rulesetId ? `_${stub.rulesetId}` : ""}`);
     const ruleset = existsSync(bodyFile) ? (JSON.parse(read(bodyFile)) as Ruleset) : undefined;
-    const environments = Object.fromEntries(["sandbox", "probe", "producer"].map((env) => {
+    const environments = Object.fromEntries(["sandbox", "probe", "producer", "github-pages"].map((env) => {
       const file = join(dir, `body_repos_o_r_environments_${env}`);
       return [env, existsSync(file) ? (JSON.parse(read(file)) as EnvironmentBody) : undefined];
     }));
@@ -79,8 +90,10 @@ const tokenAndEnvironmentWrites = [
   "api -X PUT repos/o/r/environments/sandbox --input -",
   "api -X PUT repos/o/r/environments/probe --input -",
   "api -X PUT repos/o/r/environments/producer --input -",
+  "api -X PUT repos/o/r/environments/github-pages --input -",
 ];
 const secretScanningWrites = ["api -X PATCH repos/o/r --input -", "api -X PUT repos/o/r/private-vulnerability-reporting"];
+const pagesWrite = "api -X PUT repos/o/r/pages -f build_type=workflow";
 const mergeWrite = "api -X PATCH repos/o/r -F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=false";
 const settingWrites = [...tokenAndEnvironmentWrites, mergeWrite];
 const mergeRefused = "GitHub refused squash and rebase merges off while linear history is required.";
@@ -262,11 +275,51 @@ describe("SPEC-001 checks before main", () => {
   });
 
   it.each([
+    ["switches a Pages site built from a branch to GitHub Actions", "legacy", [pagesWrite]],
+    ["creates the Pages site, built by GitHub Actions, when reading it answers 404", "absent", ["api -X POST repos/o/r/pages -f build_type=workflow"]],
+    ["leaves a Pages site that GitHub Actions already builds alone", "workflow", []],
+  ])("SPEC-001-R235 github.sh makes environment github-pages deployable from main only with no reviewer, and %s", (_title, pages, write) => {
+    const run = runGithubSh({ appId: "15368", rulesetId: "7", visibility: "public", pages });
+    expect(run.status).toBe(0);
+    expect(run.environments["github-pages"]).toEqual({ deployment_branch_policy: { protected_branches: false, custom_branch_policies: true } });
+    expect(run.writes).toEqual([...tokenAndEnvironmentWrites, ...secretScanningWrites, ...write, mergeWrite, "api -X PUT repos/o/r/rulesets/7 --input -"]);
+    expect(run.out).toContain("environment github-pages: branch main only\n");
+    expect(run.out).toContain("GitHub Pages: built and deployed by GitHub Actions\n");
+  });
+
+  it.each([
+    ["the site cannot be read", { pages: "error" }, [], "it could not be read: gh: Server Error (HTTP 500)"],
+    ["GitHub refuses to create it", { pages: "absent", refusePages: true }, ["api -X POST repos/o/r/pages -f build_type=workflow"], "GitHub refused to create it"],
+    ["GitHub refuses to change it", { pages: "legacy", refusePages: true }, [pagesWrite], "GitHub refused to change its build type"],
+  ])("SPEC-001-R235 github.sh still applies the merge methods and the ruleset, then exits 1, when %s", (_title, stub, write, why) => {
+    const run = runGithubSh({ appId: "15368", rulesetId: "7", visibility: "public", ...stub });
+    expect(run.writes).toEqual([...tokenAndEnvironmentWrites, ...secretScanningWrites, ...write, mergeWrite, "api -X PUT repos/o/r/rulesets/7 --input -"]);
+    expect(run.out).toContain(`GitHub Pages: not built by GitHub Actions, because ${why}`);
+    expect(run.out).not.toContain("GitHub Pages: built and deployed by GitHub Actions");
+    expect(run.status).toBe(1);
+  });
+
+  it("SPEC-001-R235 github.sh adds the main-only deployment branch policy to github-pages, as to every environment, when it lacks one", () => {
+    const run = runGithubSh({ appId: "15368", rulesetId: "7", visibility: "public", pages: "workflow", noPolicies: true });
+    expect(run.status).toBe(0);
+    const policy = (env: string) => `api -X POST repos/o/r/environments/${env}/deployment-branch-policies -f name=main -f type=branch`;
+    expect(run.writes.filter((w) => w.includes("deployment-branch-policies"))).toEqual(["sandbox", "probe", "producer", "github-pages"].map(policy));
+    expect(run.writes.indexOf(policy("github-pages"))).toBe(run.writes.indexOf("api -X PUT repos/o/r/environments/github-pages --input -") + 1);
+  });
+
+  it("SPEC-001-R235 github.sh leaves GitHub Pages alone on a repository that is not public", () => {
+    const run = runGithubSh({ appId: "15368", rulesetId: "7", pages: "absent" });
+    expect(run.status).toBe(0);
+    expect(run.calls.filter((c) => c.includes("/pages"))).toEqual([]);
+    expect(run.environments["github-pages"]).toEqual({ deployment_branch_policy: { protected_branches: false, custom_branch_policies: true } });
+  });
+
+  it.each([
     ["refuses the merge-method change", true, "true true true"],
     ["accepts it but reads back squash and rebase merges still on", false, "true true true"],
   ])("SPEC-001-R41 github.sh still applies the environments, secret scanning and ruleset, then exits 1, when GitHub %s", (_title, refuseMerge, mergeMethods) => {
     const run = runGithubSh({ appId: "15368", rulesetId: "7", visibility: "public", refuseMerge, mergeMethods });
-    expect(run.writes).toEqual([...tokenAndEnvironmentWrites, ...secretScanningWrites, mergeWrite, "api -X PUT repos/o/r/rulesets/7 --input -"]);
+    expect(run.writes).toEqual([...tokenAndEnvironmentWrites, ...secretScanningWrites, pagesWrite, mergeWrite, "api -X PUT repos/o/r/rulesets/7 --input -"]);
     expect(run.ruleset?.rules.map((r) => r.type)).toContain("required_status_checks");
     expect(run.out).toContain(mergeRefused);
     expect(run.out).not.toContain('ruleset "protect main": skipped');

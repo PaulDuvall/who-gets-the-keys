@@ -144,6 +144,7 @@ Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and
 | Scenario probe role | Read state (`ReadOnlyAccess`) | Write: its one Lambda write grant exists so B11 can show the SCP deny it |
 | Break-glass role | Write, alarmed | Be assumed by anyone but the break-glass user, and by that user only with a TOTP code from the owner's YubiKey |
 | Break-glass user | Assume the break-glass role with a TOTP code, through `us-east-1`; every call it makes is alarmed | Anything else: its own policy denies every other action and every other role |
+| `factory-video.yml` deploy job | Publish the guided video, built from `main` by a job that can only read the repository, to GitHub Pages from environment `github-pages` | Run repository code; deploy from any branch but `main`; read a secret or reach AWS |
 
 ## Tool choices compared with the deck
 
@@ -256,12 +257,15 @@ The script it calls is [`scripts/bootstrap/cloud-session-setup.sh`](scripts/boot
 
 ## Factory video
 
-`factory-video/` builds the "software factory" scene for the talk: a narrated, captioned guided video, an 18 s loop for the deck, and a poster. It shows the factory this repository is building toward, and `factory-video/claims.json` records, claim by claim, how much of it is built. The videos are not committed. The `factory-video` workflow builds them on a push to `main` that changes `factory-video/`, or when started by hand. It keeps only the newest build, as one artifact named `factory-video-<short SHA>-<UTC time>`, which expires 30 days after upload.
+**Watch it: [https://paulduvall.github.io/who-gets-the-keys/](https://paulduvall.github.io/who-gets-the-keys/)**, the narrated guided video built from `main`, with no sign-in. The page names the commit it was built from.
+
+`factory-video/` builds the "software factory" scene for the talk: a narrated, captioned guided video, an 18 s loop for the deck, and a poster. It shows the factory this repository is building toward, and `factory-video/claims.json` records, claim by claim, how much of it is built. The videos are not committed. The `factory-video` workflow builds them when started by hand, and on a push to `main` when the kit, the workflow or the end card's counts in `docs/progress.json` changed since the last page published, so the end card follows `main` (SPEC-001-R227, R235). On `main`, a deploy job publishes the guided video to the page above with GitHub Pages. The workflow also keeps the newest build's files, as one artifact named `factory-video-<short SHA>-<UTC time>`, which expires 30 days after upload.
 
 | To get | Do |
 |---|---|
-| The newest videos in a browser | Open the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain). Open the newest run whose Artifacts section lists a `factory-video-…` artifact, and download it. Runs that only checked the claims list a `factory-claims-…` artifact instead. GitHub asks you to sign in to download |
-| The newest videos from a terminal | The command below, with the GitHub CLI signed in |
+| The guided video in a browser | Open [https://paulduvall.github.io/who-gets-the-keys/](https://paulduvall.github.io/who-gets-the-keys/). It plays `factory-guided.mp4` with its captions file beside it |
+| Every file of the newest build, in a browser | Open the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain). Open the newest run whose Artifacts section lists a `factory-video-…` artifact, and download it. Runs that only checked the claims list a `factory-claims-…` artifact instead. GitHub asks you to sign in to download |
+| Every file of the newest build, from a terminal | The command below, with the GitHub CLI signed in |
 | The one to watch | `factory-guided.mp4`: 124.8 s, 1920×1080, narrated and captioned. It shows the whole target, then ends on a card of what is built and what is left. [factory-video/README.md](factory-video/README.md#outputs) lists the other files |
 
 ```bash
