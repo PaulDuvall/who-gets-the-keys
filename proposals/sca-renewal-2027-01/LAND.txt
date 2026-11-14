@@ -1,0 +1,14 @@
+# Backlog s7e: renew the 8 sca exceptions, which all expire on 2026-12-08, to 2027-01-13, the owner's 60-day choice of
+# 2026-11-14. Checked on 2026-11-14 against PyPI, npm and the OSV database: no fixed version is reachable inside any
+# dependent's declared range, so every exception is still needed. Each reason now says what is excepted, why it is not
+# fixed, why our use does not reach the flaw, where the evidence is and when it expires. The new specs/sca-exceptions.md
+# is the evidence log: one section per exception, with run-time probes of the sast, lint and mutation checks and of the
+# B9 replay's settings. Batch notes: docs/notes/sca-renewal-2027-01.md.
+# No code, workflow or lockfile changes. Land it before 2026-12-08, or every push fails the sca check that day.
+message: spec: renew the sca exceptions to 2027-01-13 with an evidence log for each (backlog s7e)
+spec: SPEC-001-R10
+# main holds the newest exception, added on 2026-11-13, so the copy below replaces all 8.
+requires: specs/sca-exceptions.toml id = "GHSA-mf5v-w3w3-f6cg"
+# The copy holds exactly main's 8 IDs. If another exception lands first, land.sh's diff shows it removed: answer no.
+move: sca-exceptions.toml specs/sca-exceptions.toml
+move: sca-exceptions.md specs/sca-exceptions.md
