@@ -68,7 +68,7 @@ factory:
     - name: Pipeline
       text: Runs the checks of record, signs the evidence and holds the only deploy key.
       mark: Holds the only deploy key
-      page: [4, 5]
+      page: [4, 5, 11]
     - name: Production
       text: Changes only when the evidence for a change is complete.
       page: 5
@@ -445,6 +445,98 @@ humans:
       - One deploy identity
       - Agents in a cloud sandbox, with no prod keys or long-lived credentials
     end: About an afternoon of setup.
+
+# Page 11: one real receipt. main run 114 deployed the runner producer's delivery 9f959a3 to the sandbox on 2026-11-08.
+# `printed` is the receipt job's seven lines as `record` keeps them, and verify.mjs compares them with it and with the commit.
+# Each `backs` line is evidence from the same runs' logs, recorded in `evidence`. `shows` names the rows a line covers in
+# full and `partly` the rows it covers in part; verify.mjs counts both for the line under the slip.
+receipt:
+  title: RECEIPT
+  source: main run 114 · 2026-11-08 · copied from the pipeline's log
+  record: docs/notes/tracer-2-t4.md
+  record_after: "`main` run 114's receipt:"
+  evidence: docs/notes/practices-carousel.md
+  commit: 9f959a350e541d1aa52654e4ace7d7fdd4fa52a6
+  spec_commit: c7c6b4d98a4e2622979b333c299bd09b8c677ba5
+  printed_heading: Printed by the receipt job
+  printed:
+    - { key: COMMIT, value: 9f959a350e54 }
+    - { key: FILES, value: "dist/function.zip sha256:722ac6715a0d" }
+    - { key: AGENT, value: Claude Code (as reported by the commit) }
+    - { key: MODEL, value: not recorded }
+    - { key: SPEC, value: SPEC-014-R7 }
+    - { key: SIGNED, value: pipeline.yml@refs/heads/main (editable by the agent) }
+    - { key: VERIFIED, value: 2/2 predicate types }
+  backs_heading: What backs it
+  backs:
+    - key: SPEC
+      value: SPEC-014-R7 and TASK-T4-DUP-COLUMNS
+      note: signed with the approver's security key in c7c6b4d
+      shows:
+        - Specs change only through an approver-signed commit
+        - Trace every change to a spec ID and every requirement to a test
+        - Approvers sign every change to the factory that the agent proposes
+    - key: AGENT
+      value: producer run 42499336951, no network
+      note: "Claude Code 2.1.304 sha256:1eda4ee54631 · 10 of 40 turns · $0.24 of $5 · no MCP server"
+      shows:
+        - Cap turns and spend on every agent run
+        - Allowlist MCP servers by exact command or URL
+        - Pin actions by commit SHA, dependencies and images by hash
+      partly:
+        - "Record a hash of every agent input: instructions, skills, MCP config and model"
+    - key: DIFF
+      value: "sha256:0c1051d044e7 · inside the task's paths"
+      note: lint, typecheck, trace and test ran in the sandbox; a job with no agent committed it
+      shows:
+        - Limit what the agent can do to an allow list of commands and paths
+        - Run unit tests and code-quality checks in the sandbox and again in the pipeline
+    - key: CHECKS
+      value: 15 of 15 passed, secrets to mutation
+      note: SAST · SCA · property tests · mutation, break 95 · no cache · IaC lint
+      shows:
+        - SAST on every change
+        - SCA on every lockfile
+        - Fail a change whose mutation score drops, on changed code only
+        - Property tests hold invariants across generated inputs
+        - No cache shared between untrusted jobs and release
+      partly:
+        - Scan for secrets in the sandbox and again in the pipeline
+        - Scan infrastructure code and publish an SBOM
+        - Check new dependencies against an allowlist and a hash-pinned mirror
+    - key: BUILD
+      value: "dist/function.zip sha256:722ac6715a0d"
+      note: built once; SLSA v1 and provenance/v2 statements signed through Sigstore
+      partly:
+        - Provenance records the commit, spec ID, agent and model version
+    - key: VERIFY
+      value: signer pipeline.yml@refs/heads/main
+      note: GitHub-hosted runner · signer and source digest 9f959a350e54
+      shows:
+        - Build the artifact once and sign its attestations, and deploy verifies them first
+    - key: DEPLOY
+      value: OIDC role · plan.out · 0 added, 1 changed
+      note: "tip, attestation and receipt checked again first · Lambda hash sha256:722ac6715a0d"
+      shows:
+        - Deploy with one short-lived identity, federated through OIDC
+      partly:
+        - A human approves irreversible actions, and the pipeline checks the approval
+  gaps_heading: Missing so far
+  gaps:
+    - the model
+    - intent and task lines
+    - a hash of every agent input
+    - a signer the agent can't edit
+  total: DEPLOYED
+  result: sandbox · 16:46 UTC
+  count: "Evidence for {shown} of the {count} practices, and for part of {partly} more"
+  stub:
+    scenario: B10
+    text: "B10 · an unattested artifact reaches deploy"
+    line: "CHECK attestation FAILED: dist/function.zip"
+    result: NOT DEPLOYED
+  motto: No evidence, no deploy.
+  under: No agent runs in the jobs that verify and deploy. A line that fails stops the deploy.
 
 close:
   heading: Three things to do tomorrow

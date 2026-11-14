@@ -6,12 +6,12 @@
  *
  * Opens carousel.html in Chromium with the content injected (lib.mjs), waits for the fonts, the fit step and the
  * factory map, then writes:
- *   out/who-gets-the-keys-carousel.pdf   ten 1080 x 1350 px pages
- *   out/pages/p01.png ... p10.png        each page at 1080 x 1350
- *   out/contact.png                      all ten pages on one sheet
+ *   out/who-gets-the-keys-carousel.pdf   eleven 1080 x 1350 px pages
+ *   out/pages/p01.png ... p11.png        each page at 1080 x 1350
+ *   out/contact.png                      all eleven pages on one sheet
  *   out/poster.png, out/poster-back.png  the poster's front and back (poster.html), 2400 x 2200, each PNG at 2x
  *   out/poster.pdf                       both, as a two-page PDF
- *   out/render-log.json                  every request and error, and each section page's --k
+ *   out/render-log.json                  every request and error, and each section page's and the receipt's --k
  * It exits nonzero if the page asked for anything that is not file://, raised an error or logged one.
  * Playwright comes from video/record's pinned package, through factory-video/playwright.mjs.
  */
