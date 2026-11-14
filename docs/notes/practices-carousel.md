@@ -79,6 +79,8 @@ On 2026-11-14 the owner asked whether the carousel accounts for every relevant c
 
 On 2026-11-14 the owner shared the earlier "Pipeline view" poster, 43 practices, as a source of additions and changes, and said specs are more than EARS. Three practices the carousel lacked were added, `source: pipeline-view`, with the poster's OWASP IDs; specs list EARS, Gherkin and Markdown; three rows gained a tool. Every new link returned 200, and the Claude Code docs name `allowedMcpServers`, `managed-mcp.json`, `--max-turns` and `--max-budget-usd`. Correction: these notes first said the OWASP list is the 2025 edition and three IDs did not match it. OWASP's web page showed the 2025 list on 2026-11-14, but the owner showed the 2026 document, and every ID matches its titles (decision 0009, owner question 10). The cover and the poster now name the list. Firecrawl had run out of credits, so the page was fetched with `curl`.
 
+Correction, 2026-11-14: the release row first went to page 7, the inspector, because page 5 overflowed. The inspector runs in a security account the pipeline can't reach, and holds no deploy key, so it releases nothing; the row's own tag said it runs in the pipeline. At the owner's question it moved to page 4, Pipeline checks, where the deploy job releases it. Page 4 fits at `--k` 0.80, the floor, and page 7 at 1.08.
+
 Fitting 43 rows took three steps, each checked by Fit: the staging-tests row moved to page 4; the section summaries widened from 42 to 52 characters; and the legend's tools line became "Tools are examples", which fits on the second line (239 px free, measured) where "Tools: examples of the kind of tool to use" needed 366 px.
 
 ## Everything is the factory
