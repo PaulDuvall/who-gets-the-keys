@@ -1,0 +1,111 @@
+# Builds the practices carousel in practices-carousel/ (decision 0009): carousel.yaml rendered to a 10-page PDF, a
+# PNG per page and a contact sheet, with verify.mjs's checks and report. It runs on a push to main that changes the
+# kit, practices.yaml (every row cites its IDs) or this workflow, and on demand. The build job uploads out/ as one
+# artifact, practices-carousel-<short SHA>-<UTC time>. The prune job then deletes every earlier one, so only the
+# newest build is kept. No job reads a secret, uses AWS or a cache. Nothing is committed and no release is made, so
+# no job needs contents: write.
+name: practices-carousel
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "practices-carousel/**"
+      - "practices.yaml"
+      - ".github/workflows/practices-carousel.yml"
+
+permissions: {}
+cache-mode: none
+
+jobs:
+  build:
+    name: build and check the practices carousel
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: practices-carousel-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      # The kit reads carousel.yaml with the root yaml package, already a devDependency, so this adds nothing.
+      - name: Install the root packages, for yaml
+        timeout-minutes: 5
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      # Normally a few seconds. A hung package mirror once held this step for a whole job in factory-video.yml, so
+      # each attempt is capped, a failed attempt is retried once, and the step stops at 6 minutes.
+      - name: Install poppler, for pdfinfo, pdffonts and pdftotext
+        timeout-minutes: 6
+        run: |
+          apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30)
+          apt_install() {
+            sudo timeout 60 apt-get "${apt_opts[@]}" update &&
+              sudo timeout 90 apt-get "${apt_opts[@]}" install -y --no-install-recommends poppler-utils
+          }
+          if ! apt_install; then
+            echo "::warning::apt failed or timed out; retrying once"
+            sudo dpkg --configure -a || true
+            apt_install
+          fi
+      # Playwright comes from the walkthrough's pinned package, through factory-video/playwright.mjs.
+      - name: Install Playwright from video/record, and Chromium
+        timeout-minutes: 8
+        working-directory: video/record
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          sudo npx --no-install playwright install-deps chromium
+          npx --no-install playwright install chromium
+      # build.sh downloads the fonts fonts.json pins, refuses any whose SHA-256 differs, renders, and ends with
+      # verify.mjs, so a failed check stops the job before anything is uploaded.
+      - name: Build and check
+        run: practices-carousel/build.sh
+      - name: Name the artifact practices-carousel-<short SHA>-<UTC build time>
+        id: stamp
+        run: echo "name=practices-carousel-${GITHUB_SHA::7}-$(date -u +%Y%m%dT%H%MZ)" >> "$GITHUB_OUTPUT"
+      - name: Upload the PDF, page images, contact sheet and report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.stamp.outputs.name }}
+          path: practices-carousel/out/
+          if-no-files-found: error
+          retention-days: 30
+
+  prune:
+    name: keep only the newest practices carousel
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: practices-carousel-prune
+      cancel-in-progress: false
+    permissions:
+      actions: write # deletes earlier practices-carousel artifacts; nothing else in this job
+    steps:
+      - name: Delete every practices-carousel artifact except the newest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          prefix="practices-carousel-"
+          list="$(gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.expired | not) | "\(.created_at) \(.id) \(.name)"' |
+            awk -v p="$prefix" 'index($3, p) == 1' | sort -r)"
+          keep="$(printf '%s\n' "$list" | awk 'NF {print $2; exit}')"
+          if [ -z "$keep" ]; then
+            echo "No ${prefix} artifact found; nothing deleted."
+            exit 0
+          fi
+          printf '%s\n' "$list" | while read -r created id name; do
+            { [ -z "$id" ] || [ "$id" = "$keep" ]; } && continue
+            gh api -X DELETE "repos/$REPO/actions/artifacts/$id"
+            echo "Deleted ${name} (${created})"
+          done
+          echo "Kept ${prefix} artifact ${keep}."
