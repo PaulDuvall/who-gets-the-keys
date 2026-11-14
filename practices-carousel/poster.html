@@ -6,8 +6,10 @@
 <!--
   The poster of the practices carousel: the same carousel.yaml, the same tokens and fonts, on two 2400 x 2200 pages,
   the front and the back. It holds no content. render.mjs injects carousel.yaml as window.__CAROUSEL__ before this page's script runs.
-  The factory runs left to right: the signed spec, the first three sections as columns (the agent sandbox, then the
-  pipeline's checks and evidence), production; the fourth section, factory policy, under the columns. The fifth, the
+  The factory runs left to right: the signed spec, the first two sections as columns (the agent sandbox, then the
+  pipeline's checks), production. The third, evidence, is a band across the whole flow: its thread puts a stop under
+  each arrow, saying what is made or checked there, because evidence is made along the way and checked at every
+  gate. The fourth section, factory policy, sits under it. The fifth, the
   inspector, is framed by the security account the pipeline cannot reach; then the sixth, routing humans, then pages
   9 and 10 and the closing line. All of it is the factory. The back is a checklist: every practice, section by section, with a box to tick.
   Nothing is fetched over the network.
@@ -48,7 +50,7 @@ a { color: inherit; text-decoration: none; }
 .body { flex: 1; display: flex; flex-direction: column; gap: calc(18px * var(--pk)); padding: calc(26px * var(--pk)) 64px calc(22px * var(--pk)); min-height: 0; }
 
 /* The factory: the flow across the top, the columns under it, factory policy under them. */
-.factory { position: relative; margin-bottom: 16px; display: grid; grid-template-columns: 220px repeat(3, minmax(0, 1fr)) 220px; column-gap: 22px; row-gap: calc(12px * var(--pk)); }
+.factory { position: relative; margin-bottom: 16px; display: grid; grid-template-columns: 220px repeat(2, minmax(0, 1fr)) 220px; column-gap: 22px; row-gap: calc(12px * var(--pk)); }
 .chev { position: relative; z-index: 1; min-height: 78px; padding: 12px 34px 12px 22px; color: #fff; clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 0 100%, 16px 50%); }
 .chev:first-child { clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 0 100%); }
 .chev .n { font: 700 26px/1.1 var(--font-display); }
@@ -59,8 +61,22 @@ a { color: inherit; text-decoration: none; }
 .keyline svg { color: var(--brass-hi); flex: none; }
 .side { position: relative; z-index: 1; font-size: 20px; line-height: 1.35; color: var(--muted); padding: 2px 4px; }
 .side b { display: block; margin-bottom: 6px; font: 600 15px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
-.col { position: relative; z-index: 1; display: flex; flex-direction: column; gap: calc(10px * var(--pk)); }
-.policy { grid-column: 2 / 5; }
+/* Each column is wide now that evidence is a band, so its cards sit two to a row. */
+.col { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: calc(10px * var(--pk)); }
+.policy { grid-column: 2 / 4; }
+/* Evidence: a band across the whole flow, on the factory's own columns through subgrid. Its thread puts a stop under
+   each arrow, in that stage's colour, and its cards sit under the thread. */
+.band.evidence { grid-column: 1 / -1; grid-template-columns: subgrid; padding-inline: 0; row-gap: calc(12px * var(--pk)); background: #e9edf7; }
+.band.evidence .bt { grid-column: 1 / -1; grid-row: 1; padding-inline: 22px; display: flex; align-items: baseline; gap: 20px; }
+.band.evidence .bt p { margin: 0; }
+.band.evidence .stop { grid-row: 2; position: relative; padding: calc(14px * var(--pk)) 22px 0; border-top: 6px solid var(--w-m); font-size: calc(20px * var(--pk)); line-height: 1.3; }
+.band.evidence .stop::before { content: ''; position: absolute; left: 18px; top: -14px; width: 22px; height: 22px; border-radius: 50%; background: var(--paper); border: 6px solid; border-color: inherit; box-sizing: border-box; }
+.band.evidence .stop b { display: block; margin-bottom: 4px; font: 700 calc(16px * var(--pk)) var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+.band.evidence .stop.spec { border-color: var(--w-before); } .band.evidence .stop.spec b { color: var(--w-before); }
+.band.evidence .stop.sandbox { border-color: var(--w-s); } .band.evidence .stop.sandbox b { color: var(--w-s); }
+.band.evidence .stop.checks { border-color: var(--w-m); } .band.evidence .stop.checks b { color: var(--w-m); }
+.band.evidence .stop.production { border-color: var(--w-h); } .band.evidence .stop.production b { color: var(--w-h); }
+.band.evidence .cards { grid-column: 1 / -1; grid-row: 3; padding-inline: 22px; }
 /* The inspector's band is framed: the security account the pipeline cannot reach. */
 .band.inspector { outline: 3px dashed var(--band-muted); outline-offset: 8px; }
 .band .acct { position: absolute; right: 30px; top: -24px; padding: 0 10px; background: var(--paper); font: 600 18px/28px var(--font-mono);
@@ -197,6 +213,21 @@ a { color: inherit; text-decoration: none; }
     b.dataset.section = String(i);
     return b;
   }
+  // The evidence band: its heading, a stop under each arrow for what is made or checked there, then its cards.
+  const STAGES = { spec: 1, sandbox: 2, checks: 3, production: 4 };
+  function evidenceBand(sec) {
+    const stops = list(sec.thread).map((t) => {
+      const s = el('div', `stop ${t.at}`, el('b', null, t.label), t.text);
+      s.dataset.at = t.at;
+      s.style.gridColumn = String(STAGES[t.at]);
+      return s;
+    });
+    const cards = el('div', 'cards', list(sec.rows).map(card));
+    cards.style.gridTemplateColumns = 'repeat(4, minmax(0, 1fr))';
+    const b = el('div', 'band evidence', el('div', 'bt', el('h2', null, sec.name), el('p', null, sec.tag)), ...stops, cards);
+    b.dataset.section = '2';
+    return b;
+  }
   const KEY_ICON = () => {
     const i = svg('svg', { width: 30, height: 18, viewBox: '0 0 34 20', 'aria-hidden': 'true' });
     i.append(svg('circle', { cx: 9, cy: 10, r: 6.5, fill: 'none', stroke: 'currentColor', 'stroke-width': 3.4 }),
@@ -220,19 +251,22 @@ a { color: inherit; text-decoration: none; }
 
     const factory = el('div', 'factory',
       el('div', 'chev spec', el('div', 'n', spec.name), el('div', 't', doc.windows.before)),
-      ...secs.slice(0, 3).map((s, i) => el('div', `chev c${i}`, el('div', 'n', s.name), el('div', 't', s.tag))),
+      ...secs.slice(0, 2).map((s, i) => el('div', `chev c${i}`, el('div', 'n', s.name), el('div', 't', s.tag))),
       el('div', 'chev prod', el('div', 'n', production.name), el('div', 't', doc.windows.hours)),
       el('div', 'keyline', KEY_ICON(), el('span', 'nm', pipeline.name), pipeline.mark),
       el('div', 'side spec-side', spec.text),
-      ...secs.slice(0, 3).map((s, i) => { const c = el('div', 'col', list(s.rows).map(card)); c.dataset.section = String(i); return c; }),
+      ...secs.slice(0, 2).map((s, i) => { const c = el('div', 'col', list(s.rows).map(card)); c.dataset.section = String(i); return c; }),
       el('div', 'side prod-side', production.text),
+      evidenceBand(secs[2]),
       band(secs[3], 3, 'policy'));
-    // Grid places: chevrons on row 1, the pipeline's key line on row 2, the columns on row 3, policy on row 4.
+    // Grid places: chevrons on row 1, the pipeline's key line on row 2, the columns on row 3, the evidence band across
+    // all four on row 4, policy on row 5.
     const place = (sel, col, row, span = 1) => { const e = factory.querySelector(sel); e.style.gridColumn = `${col} / span ${span}`; e.style.gridRow = String(row); };
-    place('.chev.spec', 1, 1); place('.chev.c0', 2, 1); place('.chev.c1', 3, 1); place('.chev.c2', 4, 1); place('.chev.prod', 5, 1);
-    place('.keyline', 3, 2, 2);
-    place('.spec-side', 1, '2 / span 2'); place('.col[data-section="0"]', 2, 3); place('.col[data-section="1"]', 3, 3); place('.col[data-section="2"]', 4, 3); place('.prod-side', 5, '2 / span 2');
-    place('.policy', 2, 4, 3);
+    place('.chev.spec', 1, 1); place('.chev.c0', 2, 1); place('.chev.c1', 3, 1); place('.chev.prod', 4, 1);
+    place('.keyline', 3, 2);
+    place('.spec-side', 1, '2 / span 2'); place('.col[data-section="0"]', 2, 3); place('.col[data-section="1"]', 3, 3); place('.prod-side', 4, '2 / span 2');
+    place('.band.evidence', 1, 4, 4);
+    place('.policy', 2, 5, 2);
 
     const h = doc.humans;
     const c = doc.close;
