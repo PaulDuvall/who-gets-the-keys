@@ -124,6 +124,8 @@ The batch protects `receipt-proof.mjs`. An unsigned change to any pin then fails
 
 A line whose proof fails prints NOT VERIFIED, and the Receipt check fails.
 
+Each line carries what it can do to a deploy, and the SPEC-001 requirement that makes it so, as the owner asked on 2026-11-14. A gate is a human approval, a check fails the pipeline so nothing deploys, and a record is kept and stops nothing. The printer holds that judgment in code and confirms each requirement is in `specs/` at the commit. APPROVED is a gate (SPEC-001-R12), and APPROVAL is the other: the `sandbox` environment's required reviewer. `github.sh` at the commit sets the owner who runs it as that reviewer, and the deploy job runs in `sandbox`. The Actions API lists the job as queued at 16:45:19Z and started at 16:45:45Z. Who approved is in GitHub's approval record for the run, which this session's GitHub tools cannot read. Until the owner quotes it, "the approval record" stays under "Missing so far". FILES is the only record: it names the artifact, which the SLSA line's check verifies.
+
 The header reads "main · run 42501305077 · 2026-11-08 · assembled afterwards from the run's evidence". On 2026-11-14 the owner asked whether the receipt is an example or reflects reality. Every value on it is real, but the pipeline's receipt job printed only its seven lines; this page was assembled afterwards from the same run's evidence. The header says so, at the owner's request. It does not say "signed", because the run-log values are not.
 
 On 2026-11-14 the owner asked to show the last six characters of each hash and signature, linked. Each long value now prints as `…` and its last six characters, and links to a page that shows it whole: a commit, `approvers.txt` at the spec commit's parent, line 34 of `producer.yml` in the signed tree, the run, the deploy job, or the Rekor entry at search.sigstore.dev. The printer builds every link from a pinned or proved value. The Text check finds each one as a link annotation on page 11, with `pdfinfo -url`. With the links taken out of the template, it fails.
@@ -205,6 +207,10 @@ main run 114 (42501305077), job 128795003787, deploy to sandbox
 Plan: 0 to add, 1 to change, 0 to destroy.
 Saved the plan to: plan.out
 2026-11-08T16:46:39.0695771Z Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
+
+main run 114 (42501305077), job 128795003787, deploy to sandbox, as the Actions API lists it
+created_at: 2026-11-08T16:45:19Z
+started_at: 2026-11-08T16:45:45Z
 ```
 
 ### Which rows it covers

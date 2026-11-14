@@ -125,6 +125,11 @@ a { color: inherit; text-decoration: none; }
 .receipt .ln .v small { display: block; font: 400 calc(14px * var(--k))/1.3 var(--font-mono); color: var(--muted); margin-top: 1px; overflow-wrap: anywhere; }
 .receipt .ln .v .val { white-space: nowrap; }
 .receipt .ln a { color: inherit; text-decoration: underline; text-decoration-color: var(--brass); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.receipt .slip .legend { text-align: center; font: 500 calc(13px * var(--k)) var(--font-mono); color: var(--muted); margin-top: 2px; }
+.receipt .ln .k small { display: block; font: 600 calc(11px * var(--k))/1.25 var(--font-mono); letter-spacing: .04em; color: var(--muted); text-transform: none; }
+.receipt .ln .k small.kind { margin-top: 2px; text-transform: uppercase; letter-spacing: .1em; }
+.receipt .ln .k small.gate { color: var(--brass); }
+.receipt .ln .k small.check { color: var(--w-s); }
 .receipt .gaps { font: 500 calc(14px * var(--k))/1.35 var(--font-mono); color: var(--muted); }
 .receipt .gaps b { color: var(--ink); font-weight: 700; }
 .receipt .tot { display: flex; justify-content: space-between; align-items: baseline; font: 700 calc(22px * var(--k)) var(--font-mono); }
@@ -388,8 +393,9 @@ a { color: inherit; text-decoration: none; }
       el('div', 'slip',
         el('h2', null, r.title),
         el('div', 'src', fill(r.source)),
+        el('div', 'legend', r.legend),
         el('hr'),
-        lines.map((l) => el('div', 'ln', el('span', 'k', l.key), el('span', 'v', el('span', 'val', ...segments(l.value)), el('small', null, ...segments(l.note))))),
+        lines.map((l) => el('div', 'ln', el('span', 'k', l.key, el('small', `kind ${l.kind ?? ''}`, l.kind ?? ''), l.req ? el('small', 'req', l.req) : ''), el('span', 'v', el('span', 'val', ...segments(l.value)), el('small', null, ...segments(l.note))))),
         el('hr'),
         el('div', 'gaps', el('b', null, `${r.gaps_heading}: `), list(printed.gaps).join(' · ')),
         el('hr'),

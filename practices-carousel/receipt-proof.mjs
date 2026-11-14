@@ -83,9 +83,27 @@ const ROWS = {
   SLSA: { shows: ['Build the artifact once and sign its attestations, and deploy verifies them first'], partly: [] },
   RECORD: { shows: [], partly: ['Provenance records the commit, spec ID, agent and model version'] },
   SIGNER: { shows: [], partly: [] },
+  APPROVAL: { shows: [], partly: [] },
   DEPLOY: { shows: ['Deploy with one short-lived identity, federated through OIDC'], partly: ['A human approves irreversible actions, and the pipeline checks the approval'] },
 };
 export const RECEIPT_KEYS = Object.keys(ROWS);
+
+// What each line can do to a deploy, and the SPEC-001 requirement that makes it so. A gate is a human approval; a
+// check fails the pipeline, so nothing deploys; a record is kept and stops nothing. Each ID must be a requirement in
+// specs/ at the commit.
+const KINDS = {
+  SPEC: ['check', 'SPEC-001-R11'],
+  APPROVED: ['gate', 'SPEC-001-R12'],
+  AGENT: ['check', 'SPEC-001-R88'],
+  DIFF: ['check', 'SPEC-001-R208'],
+  COMMIT: ['check', 'SPEC-001-R1'],
+  FILES: ['record'],
+  SLSA: ['check', 'SPEC-001-R17'],
+  RECORD: ['check', 'SPEC-001-R50'],
+  SIGNER: ['check', 'SPEC-001-R50'],
+  APPROVAL: ['gate'],
+  DEPLOY: ['check', 'SPEC-001-R190'],
+};
 export const RECEIPT_ROWS = ROWS;
 
 const sha256 = (b) => crypto.createHash('sha256').update(b).digest();
@@ -386,7 +404,8 @@ function rekorStatement(entryFile, trusted) {
 function quotedJobs() {
   const notes = fs.readFileSync(RECEIPT.notes, 'utf8');
   const block = /### Log lines, quoted[\s\S]*?```text\n([\s\S]*?)\n```/.exec(notes)?.[1] ?? fail('the batch notes quote no log lines');
-  return new Map(block.split(/\n\s*\n/).map((g) => [/job (\d+)/.exec(g.split('\n')[0])?.[1], g.split('\n').slice(1)]));
+  // A group headed "as the Actions API lists it" is the job's API record, kept apart from its log.
+  return new Map(block.split(/\n\s*\n/).map((g) => [`${/job (\d+)/.exec(g.split('\n')[0])?.[1]}${/as the Actions API lists it/.test(g.split('\n')[0]) ? ':api' : ''}`, g.split('\n').slice(1)]));
 }
 
 // A line's value and note are segments: text, or { text, href } for a link. A long value shows its last six
@@ -403,11 +422,11 @@ export function printReceipt() {
   const step = (key, fn) => {
     try {
       const line = fn();
-      if (line) lines.push({ key, ...line, ...ROWS[key] });
+      if (line) lines.push({ key, ...line, ...ROWS[key], kind: KINDS[key]?.[0], req: KINDS[key]?.[1] });
     } catch (e) {
       const why = String(e.message || e).split('\n')[0];
       problems.push(`${key}: ${why}`);
-      if (ROWS[key]) lines.push({ key, value: ['NOT VERIFIED'], note: [why], shows: [], partly: [] });
+      if (ROWS[key]) lines.push({ key, value: ['NOT VERIFIED'], note: [why], shows: [], partly: [], kind: KINDS[key]?.[0], req: KINDS[key]?.[1] });
     }
   };
   let jobs = new Map();
@@ -523,6 +542,25 @@ export function printReceipt() {
       note: ['run ', link(RECEIPT.run, runUrl), ' · Fulcio certs ', link(tail(x.serial), rekorUrl(x.logIndex)), ' and ', link(tail(y.serial), rekorUrl(y.logIndex)), ` · issuer ${new URL(RECEIPT.issuer).host}`],
     };
   });
+  step('kinds', () => {
+    const spec = git('show', `${RECEIPT.commit}:specs/SPEC-001-delivery-pipeline.md`);
+    for (const [key, [, req]] of Object.entries(KINDS)) if (req && !spec.includes(`| ${req} |`)) fail(`${key}'s ${req} is not a requirement in specs/ at the commit`);
+  });
+  step('APPROVAL', () => {
+    const pipeline = git('show', `${RECEIPT.commit}:${RECEIPT.workflow}`);
+    if (!/\n {2}deploy:\n(?: {4}.*\n)*? {4}environment: sandbox\n/.test(pipeline)) fail('the deploy job does not run in environment sandbox');
+    const setup = git('show', `${RECEIPT.commit}:scripts/bootstrap/github.sh`).split('\n');
+    // The line that names the reviewer: the owner who runs the script, by account ID, on a public repository.
+    const reviewers = setup.findIndex((l) => l.trim().startsWith('reviewers=') && l.includes('reviewers') && l.includes('"User') && l.includes('${me_id}'));
+    if (reviewers < 0 || !setup.some((l) => /^for env in sandbox probe producer; do$/.test(l)) || !setup.some((l) => /\[ "\$env" != producer \] \|\| env_reviewers=""/.test(l))) fail('github.sh at the commit sets no required reviewer on sandbox');
+    const queued = log(`${RECEIPT.jobs.deploy}:api`, /^created_at: \d{4}-\d\d-\d\dT(\d\d:\d\d:\d\d)Z$/, 'created_at')[1];
+    const started = log(`${RECEIPT.jobs.deploy}:api`, /^started_at: \d{4}-\d\d-\d\dT(\d\d:\d\d:\d\d)Z$/, 'started_at')[1];
+    proved.approvalRecord = jobs.has(`${RECEIPT.run}:approvals`);
+    return {
+      value: ['required reviewer on sandbox, set by ', link('github.sh', `${repoUrl}/blob/${RECEIPT.commit}/scripts/bootstrap/github.sh#L${reviewers + 1}`)],
+      note: [`its only reviewer is the owner who runs it · Actions API: the deploy job queued at ${queued}Z and started at ${started}Z`],
+    };
+  });
   step('DEPLOY', () => {
     const a = proved.artifact ?? fail('no statement verified');
     const planned = Buffer.from(a.digest, 'hex').toString('base64');
@@ -546,6 +584,7 @@ export function printReceipt() {
   if (!proved[V2]?.statement.predicate?.factory) gaps.push('a hash of every agent input');
   const slsa = proved[SLSA];
   if (!slsa || slsa.signer.startsWith(`${slsa.repoUrl}/`)) gaps.push("a signer the agent can't edit");
+  if (!proved.approvalRecord) gaps.push('the approval record');
   const vars = {
     ref: RECEIPT.ref.replace('refs/heads/', ''),
     run: RECEIPT.run,
