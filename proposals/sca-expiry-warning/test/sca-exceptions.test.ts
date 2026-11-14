@@ -52,7 +52,8 @@ describe("SPEC-001 sca exceptions", () => {
       { id: "GHSA-a", ignoreUntil: "2027-01-13T00:00:00Z", reason: labelled().join("\n") },
       { id: "GHSA-b", ignoreUntil: "2026-12-08T00:00:00Z", reason: labelled().join("\n") },
     ]);
-    expect(scaExceptions(toml(entry("GHSA-a", undefined, oneLine)), evidence("GHSA-a"))).toBe("GHSA-a reason lacks Why not reached");
+    // A one-line reason is read, but its labels after the first do not start a line.
+    expect(scaExceptions(toml(entry("GHSA-a", undefined, oneLine)), evidence("GHSA-a"))).toBe("GHSA-a reason lacks Why not fixed");
     expect(scaExceptions("", "")).toEqual([]);
   });
 
