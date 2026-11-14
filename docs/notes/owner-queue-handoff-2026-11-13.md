@@ -4,7 +4,7 @@ For the next agent session. Read this and `CLAUDE.md` first. It replaces `docs/n
 
 ## Where things stand
 
-Updated on 2026-11-14, after steps H-3 to H-6, W-1 and W-2 below. `main` is at `fc97f75`. SPEC-001-R232 is confirmed on `main`: see "H-3 result". s7e is done: every sca exception expires on 2027-01-13, with its evidence in `specs/sca-exceptions.md`. w8x is done: from 2026-12-30 the sca check warns that they expire (SPEC-001-R233), and it fails an exception without its evidence (SPEC-001-R234). This update and the README's `progress updated` badge are on `candidate/progress-badge-2026-11-14` until the owner moves `main` to them (step W-3).
+Updated on 2026-11-14, after steps H-3 to H-6, W-1, W-2, R-1 and R-2 below. `main` is at `1d623a3`. SPEC-001-R232 is confirmed on `main`: see "H-3 result". s7e and w8x are done: every sca exception expires on 2027-01-13, with its evidence in `specs/sca-exceptions.md`, and from 2026-12-30 the sca check warns. r1k is done: from run 218 every receipt failed, because `gh` v2.103.3 overwrites the newest attestations once a zip has more than 100 of one type; `--limit 100` fixed it, and main's run for `1d623a3` verified its receipt. This update is on `candidate/handoff-2026-11-14c` until the owner moves `main` to it (step H-7).
 
 Landed on 2026-11-12 and 2026-11-13, each verified through the GitHub connector:
 
@@ -25,6 +25,8 @@ Landed on 2026-11-12 and 2026-11-13, each verified through the GitHub connector:
 | `0e2acac` | s7e closed; this note's queue after the renewal (H-6) | s7e |
 | `659aba5` | Backlog f6c (rebuild the factory video when its counts change); w8x staged in `proposals/sca-expiry-warning/` with its notes (W-1) | f6c, w8x |
 | `fc97f75` | SPEC-001-R233 and R234: the sca expiry warning and the exceptions' shape check, signed by the owner (W-2) | w8x, closed |
+| `7816615` | README `progress updated` badge; r1k filed and staged; this note's W steps (R-1, pushed by hand because every receipt failed) | r1k |
+| `1d623a3` | SPEC-001-R50 amended: `gh attestation verify --limit 100`, signed by the owner (R-2). The first receipt to pass since run 217 | r1k, closed |
 
 Every deploy since 2026-11-11 reported Terraform `No changes.`; the deploys for `a6de08a` and `894c313` applied 0 added, 0 changed, 0 destroyed.
 
@@ -44,8 +46,11 @@ Give one step at a time, in the "Owner steps" format, and read each result yours
 | H-6 | Done: `land.sh --to-main 0e2acac… candidate/handoff-2026-11-14b`; main's run 43602038493 | none: skipped |
 | W-1 | Done: `land.sh --to-main 659aba5… candidate/w8x-2026-11-14`; main's run 43608373314 | none: skipped |
 | W-2 | Done: `land.sh proposals/sca-expiry-warning`, signed, `fc97f75`; candidate run 43609229158, main's run 43609511156 | none: skipped |
-| W-3 | `scripts/bootstrap/land.sh --to-main <tip of candidate/progress-badge-2026-11-14> candidate/progress-badge-2026-11-14` | none expected |
-| Any time | `git push origin --delete claude/wizardly-johnson-hfuk4e claude/relaxed-hypatia-hp356k`: both are superseded on `main` (`git cherry` and the sca-mf5v note). Keep `candidate/sandbox-gate` for g4e | none |
+| W-3 | Superseded: the badge landed in R-1 | none |
+| R-1 | Done: `git push origin 7816615…:refs/heads/main` by hand, since `land.sh --to-main` needs a passing receipt; the ruleset counts only `checks`, which passed | none: the receipt failed, nothing deployed |
+| R-2 | Done: `land.sh proposals/receipt-limit`, signed, `1d623a3`; candidate run 43614472354, main's run 43614734023, both receipts passed | none: skipped |
+| H-7 | `scripts/bootstrap/land.sh --to-main <tip of candidate/handoff-2026-11-14c> candidate/handoff-2026-11-14c` | none expected |
+| Any time | `git push origin --delete claude/wizardly-johnson-hfuk4e claude/relaxed-hypatia-hp356k candidate/progress-badge-2026-11-14`: the first two are superseded on `main` (`git cherry` and the sca-mf5v note); the third's tip `7816615` is on `main`. Keep `candidate/sandbox-gate` for g4e | none |
 
 ### H-3 result
 
@@ -76,6 +81,7 @@ A skipped deploy writes no deployment, so `894c313` stays the comparison point. 
 | s7e, sca exceptions | closed, `4e7c522` | All 8 expire on 2027-01-13. Renew before then: re-run every check in `specs/sca-exceptions.md`, "How each claim was checked". Notes: `docs/notes/sca-renewal-2027-01.md` |
 | w8x, warn before an sca exception expires, and check each has its evidence | closed, `fc97f75` | Open questions kept in the item: the reach probes as a committed script, before the next renewal; the warning in `land.sh`'s summary, with o1p. Notes: `docs/notes/sca-expiry-warning.md` |
 | f6c, rebuild the factory video whenever its end card's counts change | open, filed 2026-11-14 | The newest video, built at `8dce7fe`, counts 103 approved requirements; `main` has 111. Changes `factory-video.yml`, so a signed batch. Do it with v5p, which publishes the video: today neither video has a public link |
+| r1k, the receipt failing once a zip has more than 100 attestations | closed, `1d623a3` | A deploy approved more than about five days late could still fall outside the newest 100 and fail closed. A later batch could verify the run's own bundle with `gh attestation verify --bundle` instead (protected: `pipeline.yml`). Notes: `docs/notes/receipt-limit.md` |
 | r3m, alarm on refused break-glass attempts | open | Priority 1; amends R217; needs an owner apply |
 | Not filed yet | from 2026-11-13 | A `land.sh --sca-exception` mode with the touch cue; clear `summary_next` when main's run fails; `openssh-client` in `cloud-session-setup.sh`. Details: `docs/notes/sca-mf5v.md`, "For the backlog" |
 
@@ -100,6 +106,9 @@ Dependabot reported 6 moderate alerts on `main` on 2026-11-13 and 7 on 2026-11-1
 | A preflight worktree linked the checkout's `node_modules`, and the install check's `npm ci` emptied the checkout through the link (2026-11-14) | Never link `node_modules` into a worktree that runs the checks; use a hard-linked copy (`cp -al`) |
 | `GIT_LITERAL_PATHSPECS=1`, exported for `git mv`, made the checks read `specs/*.md` and `*package-lock.json` as literal names, so trace and one test failed | Run the checks in a shell without it |
 | The cloud clone was shallow, 54 commits: the trace check failed on the cut-off commit, and `git log -S` named the wrong first commit | `git fetch --unshallow origin` before any check or history lookup |
+| Every receipt failed from run 218, though no commit touched the receipt: `gh` v2.103.3 decodes each page of attestations into one response, and the reproducible zip had passed 100 attestations | When a check fails for every commit at once, look for data that grows with each run before suspecting the commit; a Go replay of the tool's loop against the real API settled it |
+| The appendix's `simulate-land.sh` reported `requires:` texts missing that were present: it pipes `git show` into `grep -q` under `pipefail`, so a large file's early match kills `git show` with SIGPIPE | Confirm a reported miss with `git show <rev>:<file> \| grep -cF`; `land.sh` reads the file directly and is not affected |
+| Another Claude session worked in this repository at the same time (`claude/gifted-ritchie-7u0ydr`, `candidate/practices-carousel*`, decision 0009) | List remote branches at the start of a session; a push to `main` by either session makes the other's `--to-main` refuse |
 
 ## Owner preferences that apply
 
