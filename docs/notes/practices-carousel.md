@@ -46,6 +46,23 @@ A general-purpose subagent reviewed `0e2acac..71d354e` against the task's requir
 | 11 | The decision names the live deck's file ID | Not changed. The task gave the ID and the date; no file was read |
 | 12 | Page 2's top line is 20 px | Not changed. It is the top line every page shares; the 26 px rule is for the map, which Map measures |
 
+## Second independent review
+
+A second subagent reviewed `059d608..47dc327`, the poster and the first review's fixes, given the files and the requirements. It found nothing wrong in Phrasing's handling of comments and flags, in Schema, Count, Offline or Pages, in the templates, in the poster's fit at scale 1 against scale 2, in the edge label, in `LAND.txt` or the staged files, or in the workflow. Its findings:
+
+| # | Finding | Outcome |
+|---|---|---|
+| 1 | Poster read each card's section from a label the template sets, and only the arrows' order, so columns swapped on the grid passed | Fixed. Each column must sit under its own arrow, which must name its section; policy under the columns; the bands in order down the page |
+| 2 | The poster's margin was its page edge, as it has no padding | Fixed. The poster's margins are 64 px at each side; only the full-width header, legend, body and footer boxes may cross them, and no text may |
+| 3 | A word wider than its own box, such as "Specifications" in the spec's arrow, passed while clipped | Fixed. Every line of text must fit across its own box, on every page and the poster. A word too long for a heading fails; a row's text still wraps |
+| 4 | The poster leaves out part of page 9 and more, which the comment and README did not say | Fixed in the words: the README, the decision and the comment list what it leaves out |
+| 5 | A string repeated on the poster could stand in for one missing | Fixed. Each card must hold its own row's text, lead, reference, tools, where tag and DIY tag |
+| 6 | "Patch" had no Phrasing rule | Fixed |
+| 7 | The Fonts detail listed one PDF's fonts for both, and any name starting `Archivo` or `IBMPlex` passed | Fixed. Each PDF's fonts are listed, and each must be one of the pinned files by the PostScript name in its name table |
+| 8 | `build.sh` and the README's key table did not mention the poster | Fixed |
+
+Each fix was made to fail once on purpose, as decision 0009, "The checks", lists.
+
 ## Not fixed
 
 Findings 6, 11 and 12 above, and the second half of 7, for the reasons given. The ten Vitest failures in the preflight are the container's, and the candidate run's test check covers them.
