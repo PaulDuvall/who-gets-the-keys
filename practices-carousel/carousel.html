@@ -119,12 +119,12 @@ a { color: inherit; text-decoration: none; }
 .receipt .slip h2 { margin: 0; text-align: center; font: 800 calc(36px * var(--k)) var(--font-display); font-stretch: 115%; letter-spacing: .08em; }
 .receipt .slip .src { text-align: center; font: 500 calc(15px * var(--k)) var(--font-mono); color: var(--muted); margin-top: 2px; }
 .receipt .slip hr { border: 0; border-top: 2px dashed var(--perf); margin: calc(8px * var(--k)) 0; }
-.receipt .ln { display: grid; grid-template-columns: calc(94px * var(--k)) minmax(0, 1fr); gap: 10px; align-items: baseline; padding: calc(3px * var(--k)) 0; }
-.receipt .ln .k { font: 700 calc(15px * var(--k)) var(--font-mono); letter-spacing: .04em; color: var(--brass); }
-.receipt .ln .v { font: 600 calc(15px * var(--k))/1.25 var(--font-mono); overflow-wrap: anywhere; }
-.receipt .ln .v small { display: block; font: 400 calc(13px * var(--k))/1.3 var(--font-mono); color: var(--muted); margin-top: 1px; overflow-wrap: anywhere; }
+.receipt .ln { display: grid; grid-template-columns: calc(100px * var(--k)) minmax(0, 1fr); gap: 10px; align-items: baseline; padding: calc(3px * var(--k)) 0; }
+.receipt .ln .k { font: 700 calc(16px * var(--k)) var(--font-mono); letter-spacing: .04em; color: var(--brass); }
+.receipt .ln .v { font: 600 calc(17px * var(--k))/1.25 var(--font-mono); overflow-wrap: anywhere; }
+.receipt .ln .v small { display: block; font: 400 calc(14px * var(--k))/1.3 var(--font-mono); color: var(--muted); margin-top: 1px; overflow-wrap: anywhere; }
 .receipt .ln .v .val { white-space: nowrap; }
-.receipt .ln .v .sig { display: block; font: 500 calc(11px * var(--k))/1.3 var(--font-mono); color: var(--ink); white-space: nowrap; margin-top: 1px; }
+.receipt .ln a { color: inherit; text-decoration: underline; text-decoration-color: var(--brass); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .receipt .gaps { font: 500 calc(14px * var(--k))/1.35 var(--font-mono); color: var(--muted); }
 .receipt .gaps b { color: var(--ink); font-weight: 700; }
 .receipt .tot { display: flex; justify-content: space-between; align-items: baseline; font: 700 calc(22px * var(--k)) var(--font-mono); }
@@ -369,6 +369,15 @@ a { color: inherit; text-decoration: none; }
     const partly = new Set(lines.flatMap((l) => list(l.partly)).filter((t) => !shown.has(t)));
     return { shown: shown.size, partly: partly.size };
   }
+  // A segment is text, or a link: { text, href }. Each long value shows its last six characters and links to the
+  // page that shows it whole.
+  const segments = (xs) => list(xs).map((x) => {
+    if (typeof x === 'string') return x;
+    const a = document.createElement('a');
+    a.href = x.href;
+    a.textContent = x.text;
+    return a;
+  });
   function receiptPage(n) {
     const r = doc.receipt;
     const lines = list(printed.lines);
@@ -380,7 +389,7 @@ a { color: inherit; text-decoration: none; }
         el('h2', null, r.title),
         el('div', 'src', fill(r.source)),
         el('hr'),
-        lines.map((l) => el('div', 'ln', el('span', 'k', l.key), el('span', 'v', el('span', 'val', l.value), l.sig ? el('code', 'sig', l.sig) : '', el('small', null, l.note)))),
+        lines.map((l) => el('div', 'ln', el('span', 'k', l.key), el('span', 'v', el('span', 'val', ...segments(l.value)), el('small', null, ...segments(l.note))))),
         el('hr'),
         el('div', 'gaps', el('b', null, `${r.gaps_heading}: `), list(printed.gaps).join(' · ')),
         el('hr'),

@@ -389,6 +389,12 @@ function quotedJobs() {
   return new Map(block.split(/\n\s*\n/).map((g) => [/job (\d+)/.exec(g.split('\n')[0])?.[1], g.split('\n').slice(1)]));
 }
 
+// A line's value and note are segments: text, or { text, href } for a link. A long value shows its last six
+// characters, and its link opens the page that shows it whole.
+const tail = (v) => `\u2026${String(v).slice(-6)}`;
+const link = (text, href) => ({ text, href });
+export const segmentText = (segments) => segments.map((x) => (typeof x === 'string' ? x : x.text)).join('');
+
 /** Page 11's lines, gaps and header values, printed from verified evidence; and what could not be verified. */
 export function printReceipt() {
   const problems = [];
@@ -401,7 +407,7 @@ export function printReceipt() {
     } catch (e) {
       const why = String(e.message || e).split('\n')[0];
       problems.push(`${key}: ${why}`);
-      if (ROWS[key]) lines.push({ key, value: 'NOT VERIFIED', note: why, shows: [], partly: [] });
+      if (ROWS[key]) lines.push({ key, value: ['NOT VERIFIED'], note: [why], shows: [], partly: [] });
     }
   };
   let jobs = new Map();
@@ -441,6 +447,10 @@ export function printReceipt() {
     proved.record = record[0];
   });
   const iso = (ms) => new Date(ms).toISOString().replace('.000Z', 'Z');
+  const repoUrl = `https://github.com/${RECEIPT.repo}`;
+  const commitUrl = (sha) => `${repoUrl}/commit/${sha}`;
+  const runUrl = `${repoUrl}/actions/runs/${RECEIPT.run}/attempts/${RECEIPT.attempt}`;
+  const rekorUrl = (i) => `https://search.sigstore.dev/?logIndex=${i}`;
   step('SPEC', () => {
     try {
       gitBytes('merge-base', '--is-ancestor', RECEIPT.specCommit, RECEIPT.commit);
@@ -450,11 +460,15 @@ export function printReceipt() {
     const added = git('show', '--format=', RECEIPT.specCommit, '--', 'specs/').split('\n').flatMap((l) => /^\+\| (SPEC-\d{3}-R\d+) \|/.exec(l)?.[1] ?? []);
     const tasks = git('show', '--name-status', '--format=', RECEIPT.specCommit).split('\n').filter((l) => /^[AR]/.test(l)).flatMap((l) => /\ttasks\/(TASK-[A-Z0-9-]+)\.task\.md$/.exec(l)?.[1] ?? []);
     if (added.length !== 1 || tasks.length !== 1) fail('the spec commit does not add exactly one requirement and one task file');
-    return { value: `${added[0]} · ${tasks[0]}`, note: `added by commit ${RECEIPT.specCommit}` };
+    return { value: [`${added[0]} · ${tasks[0]}`], note: ['added by commit ', link(tail(RECEIPT.specCommit), commitUrl(RECEIPT.specCommit))] };
   });
   step('APPROVED', () => {
     const s = sshCommitSignature(RECEIPT.specCommit);
-    return { value: s.fingerprint, sig: s.signature, note: `${s.type} key in approvers.txt · namespace git · flags: ${s.flags} · counter ${s.counter}` };
+    const parent = git('rev-parse', `${RECEIPT.specCommit}^`).trim();
+    return {
+      value: ['key SHA256:', link(tail(s.fingerprint), `${repoUrl}/blob/${parent}/approvers.txt`), ' · sig ', link(tail(s.signature), commitUrl(RECEIPT.specCommit))],
+      note: [`${s.type}, in approvers.txt · namespace git · flags: ${s.flags} · counter ${s.counter}`],
+    };
   });
   step('AGENT', () => {
     const producer = git('show', `${RECEIPT.specCommit}:.github/workflows/producer.yml`);
@@ -465,9 +479,10 @@ export function printReceipt() {
     const mcp = /--strict-mcp-config --mcp-config '(\{[^']*\})'/.exec(producer)?.[1];
     const servers = mcp ? Object.keys(JSON.parse(mcp).mcpServers ?? {}).length : 'not pinned';
     const run = log(RECEIPT.jobs.agent, /^RUN ENDED: success, (\d+) turns, estimated USD ([\d.]+)$/, 'end line');
+    const pinLine = producer.split('\n').findIndex((l) => l.includes(`CLAUDE_CODE_SHA256: ${digest}`)) + 1;
     return {
-      value: `sha256:${digest}`,
-      note: `Claude Code ${version}, pinned in the signed tree · MCP servers allowed: ${servers} · run log: ${run[1]} of ${limits[1]} turns, est. $${Number(run[2]).toFixed(2)} of $${limits[2]}`,
+      value: [`Claude Code ${version} · sha256 `, link(tail(digest), `${repoUrl}/blob/${RECEIPT.specCommit}/.github/workflows/producer.yml#L${pinLine}`)],
+      note: [`pinned in the signed tree · MCP servers allowed: ${servers} · run log: ${run[1]} of ${limits[1]} turns, est. $${Number(run[2]).toFixed(2)} of $${limits[2]}`],
     };
   });
   step('DIFF', () => {
@@ -475,7 +490,8 @@ export function printReceipt() {
     const digest = sha256(bytes).toString('hex');
     if (log(RECEIPT.jobs.publish, /^\s*PATCH_SHA256: ([0-9a-f]{64})$/, 'PATCH_SHA256')[1] !== digest) fail('the publish job checked another diff');
     const tests = (jobs.get(RECEIPT.jobs.agent) ?? []).flatMap((l) => /^TOOL Bash: npm run check:(\w+)/.exec(l)?.[1] ?? []);
-    return { value: `sha256:${digest}`, note: `git diff ${RECEIPT.specCommit.slice(0, 7)} ${RECEIPT.commit.slice(0, 7)}, which the publish job checked · run log: the agent ran ${tests.join(', ') || 'no check'} in its sandbox` };
+    if (git('log', '-1', '--format=%P', RECEIPT.commit).trim() !== RECEIPT.specCommit) fail("the spec commit is not the commit's parent, so the commit page would show another diff");
+    return { value: ['sha256 ', link(tail(digest), commitUrl(RECEIPT.commit))], note: [`the agent's change, which the publish job checked · run log: the agent ran ${tests.join(', ') || 'no check'} in its sandbox`] };
   });
   step('COMMIT', () => {
     const message = git('log', '-1', '--format=%B', RECEIPT.commit).trim().split(/\n\s*\n/);
@@ -484,25 +500,28 @@ export function printReceipt() {
     const agent = trailers.find((t) => t[1] === 'Agent')?.[2].trim();
     const passed = (jobs.get(RECEIPT.jobs.checks) ?? []).flatMap((l) => /^check (\w+) passed$/.exec(l)?.[1] ?? []);
     if (passed.join(' ') !== RECEIPT.checkOrder.join(' ')) fail('the checks job did not pass every check in order');
-    return { value: RECEIPT.commit, note: `Spec: ${spec.join(', ') || 'none'} · Agent: ${agent ?? 'none'}, as the commit reports · run log: ${passed.length} of ${RECEIPT.checkOrder.length} checks passed, ${passed[0]} to ${passed[passed.length - 1]}` };
+    return { value: [link(tail(RECEIPT.commit), commitUrl(RECEIPT.commit))], note: [`Spec: ${spec.join(', ') || 'none'} · Agent: ${agent ?? 'none'}, as the commit reports · run log: ${passed.length} of ${RECEIPT.checkOrder.length} checks passed, ${passed[0]} to ${passed[passed.length - 1]}`] };
   });
   step('FILES', () => {
     const a = proved.artifact ?? fail('no statement verified');
-    return { value: `sha256:${a.digest}`, note: `${a.name}, the subject of both statements below` };
+    return { value: [`${a.name} sha256 `, link(tail(a.digest), runUrl)], note: ['the subject of both signed statements below'] };
   });
   step('SLSA', () => {
     const x = proved[SLSA] ?? fail('no statement verified');
-    return { value: `sha256:${x.payload}`, sig: x.signature, note: `SLSA v1 statement · Rekor ${x.logIndex} · ${iso(x.at)}` };
+    return { value: ['payload sha256 ', link(tail(x.payload), rekorUrl(x.logIndex)), ' · sig ', link(tail(x.signature), rekorUrl(x.logIndex))], note: ['SLSA v1 statement · Rekor ', link(String(x.logIndex), rekorUrl(x.logIndex)), ` · ${iso(x.at)}`] };
   });
   step('RECORD', () => {
     const x = proved[V2] ?? fail('no statement verified');
     const r = proved.record;
-    return { value: `sha256:${x.payload}`, sig: x.signature, note: `provenance/v2: ${r.spec_ids.join(', ')}, agent ${r.agent}, model ${r.model} · Rekor ${x.logIndex} · ${iso(x.at)}` };
+    return { value: ['payload sha256 ', link(tail(x.payload), rekorUrl(x.logIndex)), ' · sig ', link(tail(x.signature), rekorUrl(x.logIndex))], note: [`provenance/v2: ${r.spec_ids.join(', ')}, agent ${r.agent}, model ${r.model} · Rekor `, link(String(x.logIndex), rekorUrl(x.logIndex)), ` · ${iso(x.at)}`] };
   });
   step('SIGNER', () => {
     const x = proved[SLSA] ?? fail('no statement verified');
     const y = proved[V2];
-    return { value: `${RECEIPT.workflow.split('/').pop()}@${RECEIPT.ref} · ${RECEIPT.runner}`, note: `run ${RECEIPT.run} · Fulcio certs ${x.serial} and ${y.serial} · issuer ${new URL(RECEIPT.issuer).host}` };
+    return {
+      value: [link(`${RECEIPT.workflow.split('/').pop()}@${RECEIPT.ref}`, `${repoUrl}/blob/${RECEIPT.commit}/${RECEIPT.workflow}`), ` · ${RECEIPT.runner}`],
+      note: ['run ', link(RECEIPT.run, runUrl), ' · Fulcio certs ', link(tail(x.serial), rekorUrl(x.logIndex)), ' and ', link(tail(y.serial), rekorUrl(y.logIndex)), ` · issuer ${new URL(RECEIPT.issuer).host}`],
+    };
   });
   step('DEPLOY', () => {
     const a = proved.artifact ?? fail('no statement verified');
@@ -513,7 +532,10 @@ export function printReceipt() {
     const pipeline = git('show', `${RECEIPT.commit}:${RECEIPT.workflow}`);
     if (!/id-token: write/.test(pipeline) || !/aws-actions\/configure-aws-credentials@[0-9a-f]{40}/.test(pipeline) || !/role-to-assume:/.test(pipeline) || /aws-access-key-id|aws-secret-access-key/.test(pipeline)) fail('the deploy job does not take an OIDC role alone');
     proved.deployed = applied[1];
-    return { value: `source_code_hash ${planned}`, note: `the FILES digest in base64, as Terraform planned it · OIDC role · run log: ${applied[2]} added, ${applied[3]} changed at ${applied[1]}Z` };
+    return {
+      value: ['source_code_hash ', link(tail(planned), `${repoUrl}/actions/runs/${RECEIPT.run}/job/${RECEIPT.jobs.deploy}`)],
+      note: [`the FILES digest in base64, as Terraform planned it · OIDC role · run log: ${applied[2]} added, ${applied[3]} changed at ${applied[1]}Z`],
+    };
   });
   // What the receipt does not show yet, from what the proofs lack.
   const gaps = [];
