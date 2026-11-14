@@ -460,7 +460,7 @@ function measure() {
   const p = document.querySelector('.poster');
   if (p) {
     const zone = (sel) => p.querySelector(sel);
-    const chevs = ['.chev.spec', '.chev.c0', '.chev.c1', '.chev.c2', '.chev.prod'].map((c) => rect(zone(c)).left);
+    const chevs = ['.chev.spec', '.chev.c0', '.chev.c1', '.chev.prod'].map((c) => rect(zone(c)).left);
     out.poster = {
       cards: [...p.querySelectorAll('.card')].map((c) => ({ row: c.dataset.row, section: Number(c.closest('[data-section]')?.dataset.section ?? -1) })),
       framed: [...p.querySelectorAll('.band, .col, .side, .chev')].filter((b) => getComputedStyle(b).outlineStyle === 'dashed').map((b) => b.dataset.section ?? b.className),
@@ -474,14 +474,28 @@ function measure() {
     const names = (window.__CAROUSEL__?.doc?.sections || []).map((x) => x.name);
     const under = (a, b) => { const A = rect(zone(a)); const B = rect(zone(b)); const cx = (A.left + A.right) / 2; return cx > B.left && cx < B.right; };
     const misplaced = [];
-    [0, 1, 2].forEach((i) => {
+    [0, 1].forEach((i) => {
       if (!under(`.col[data-section="${i}"]`, `.chev.c${i}`)) misplaced.push(`column ${i + 1} is not under its arrow`);
       if (zone(`.chev.c${i} .n`)?.textContent !== names[i]) misplaced.push(`arrow ${i + 2} does not name section ${i + 1}`);
     });
     if (!under('.spec-side', '.chev.spec')) misplaced.push('the spec text is not under its arrow');
     if (!under('.prod-side', '.chev.prod')) misplaced.push('the production text is not under its arrow');
-    const colBottom = Math.max(...[0, 1, 2].map((i) => rect(zone(`.col[data-section="${i}"]`)).bottom));
-    if (rect(zone('.band[data-section="3"]')).top < colBottom) misplaced.push('factory policy is not under the columns');
+    const colBottom = Math.max(...[0, 1].map((i) => rect(zone(`.col[data-section="${i}"]`)).bottom));
+    // Evidence: a band under the columns, across the whole flow, with a stop under each arrow; policy under it.
+    const ev = zone('.band.evidence[data-section="2"]');
+    if (!ev) misplaced.push('the evidence band is missing');
+    else {
+      const E = rect(ev);
+      if (E.top < colBottom) misplaced.push('the evidence band is not under the columns');
+      if (E.left > rect(zone('.chev.spec')).left + 1 || E.right < rect(zone('.chev.prod')).right - 1) misplaced.push('the evidence band does not span the flow');
+      if (zone('.band.evidence .bt h2')?.textContent !== names[2]) misplaced.push('the evidence band does not name section 3');
+      const arrows = { spec: '.chev.spec', sandbox: '.chev.c0', checks: '.chev.c1', production: '.chev.prod' };
+      for (const [at, arrow] of Object.entries(arrows)) {
+        if (!zone(`.band.evidence .stop[data-at="${at}"]`)) misplaced.push(`the evidence thread has no stop under ${at}`);
+        else if (!under(`.band.evidence .stop[data-at="${at}"]`, arrow)) misplaced.push(`the evidence stop for ${at} is not under its arrow`);
+      }
+      if (rect(zone('.band[data-section="3"]')).top < E.bottom) misplaced.push('factory policy is not under the evidence band');
+    }
     const order = ['.factory', '.band[data-section="4"]', '.band[data-section="5"]', '.after', '.pf'].map((q) => rect(zone(q)));
     order.forEach((b, i) => {
       if (i && order[i - 1].bottom > b.top + 0.5) misplaced.push(`${['factory', 'inspector', 'routing humans', 'pages 9 and 10', 'footer'][i]} is not below what comes before it`);
@@ -602,7 +616,7 @@ function posterCheck(pm) {
   const want = ROWS.map(({ row, section }) => `${section}\u0000${row.text}`).sort();
   const got = P.cards.map((c) => `${c.section}\u0000${c.row}`).sort();
   if (want.join('\n') !== got.join('\n')) bad.push(`cards differ from the rows: ${want.length} rows, ${got.length} cards, ${got.filter((g, i) => g !== want[i]).length} out of place`);
-  if (!P.flowRight) bad.push('the flow does not run spec, sandbox, checks, evidence, production from left to right');
+  if (!P.flowRight) bad.push('the flow does not run spec, sandbox, checks, production from left to right');
   if (P.framed.join() !== '4') bad.push(`framed as the security account: ${P.framed.join(', ') || 'nothing'}; want the inspector's band alone`);
   if (P.account !== doc.factory.account) bad.push("the inspector's frame does not carry its label");
   if (!P.keyline.includes(String(doc.factory.flow[2]?.mark))) bad.push('the pipeline is not marked with its mark');
@@ -661,13 +675,13 @@ function textCheck() {
   const r = doc.receipt;
   const pr = printedReceipt();
   const fill = (t) => String(t).replace(/\{(ref|run|date|deployed)\}/g, (_, k) => pr.vars[k]);
-  expect[PAGES] = [r.title, fill(r.source), r.legend, ...pr.lines.filter(Boolean).flatMap((l) => [l.key, l.kind, l.req, segmentText(l.value), segmentText(l.note)].filter(Boolean)), `${r.gaps_heading}: ${pr.gaps.join(' · ')}`, r.total, fill(r.result), r.stub.text, r.stub.line, r.stub.result, r.motto, r.under];
+  expect[PAGES] = [r.title, fill(r.source), r.legend, ...pr.lines.filter(Boolean).flatMap((l) => [l.key, l.kind, l.req, segmentText(l.value), segmentText(l.note), l.at?.time, l.at?.source].filter(Boolean)), `${r.gaps_heading}: ${pr.gaps.join(' · ')}`, r.total, fill(r.result), r.stub.text, r.stub.line, r.stub.result, r.motto, r.under];
   // The poster holds every row, the title, thesis and windows of page 1, the headings and lines of pages 9 and 10, and
   // the spec, pipeline and production boxes of page 2. It leaves out the cover's subtitle, each section's blurb, page
   // 9's notes, the other boxes' text on page 2 and the seconds and minutes window labels.
   const poster = [m.title, doc.poster.view, `${m.thesis_key} ${m.thesis_rest}`, String(doc.poster.count).replace('{count}', String(ROWS.length)), m.byline,
     doc.legend.windows, doc.windows.always, doc.legend.untagged, doc.legend.diy, doc.legend.tools, doc.legend.owasp, f.account, f.flow[0].name, f.flow[0].text, f.flow[2].name, f.flow[2].mark, f.flow[3].name, f.flow[3].text,
-    ...doc.sections.flatMap((s) => [s.name, s.tag, ...s.rows.flatMap((r) => [r.text, r.lead, r.ref, ...list(r.tools).map((t) => t.name), doc.where[r.where]].filter(Boolean))]),
+    ...doc.sections.flatMap((s) => [s.name, s.tag, ...list(s.thread).flatMap((t) => [t.label, t.text]), ...s.rows.flatMap((r) => [r.text, r.lead, r.ref, ...list(r.tools).map((t) => t.name), doc.where[r.where]].filter(Boolean))]),
     h.heading, ...h.rows.flatMap((r) => [r.label, r.text]), h.day_one.heading, ...h.day_one.items, h.day_one.end,
     c.heading, ...c.items.flatMap((i) => [i.verb, i.what, i.how]), `${m.close_line_plain} ${m.close_line_key}`, ...m.sites];
   const missing = [];

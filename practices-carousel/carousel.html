@@ -119,7 +119,7 @@ a { color: inherit; text-decoration: none; }
 .receipt .slip h2 { margin: 0; text-align: center; font: 800 calc(36px * var(--k)) var(--font-display); font-stretch: 115%; letter-spacing: .08em; }
 .receipt .slip .src { text-align: center; font: 500 calc(15px * var(--k)) var(--font-mono); color: var(--muted); margin-top: 2px; }
 .receipt .slip hr { border: 0; border-top: 2px dashed var(--perf); margin: calc(8px * var(--k)) 0; }
-.receipt .ln { display: grid; grid-template-columns: calc(100px * var(--k)) minmax(0, 1fr); gap: 10px; align-items: baseline; padding: calc(3px * var(--k)) 0; }
+.receipt .ln { display: grid; grid-template-columns: calc(100px * var(--k)) minmax(0, 1fr) calc(78px * var(--k)); gap: 10px; align-items: baseline; padding: calc(3px * var(--k)) 0; }
 .receipt .ln .k { font: 700 calc(16px * var(--k)) var(--font-mono); letter-spacing: .04em; color: var(--brass); }
 .receipt .ln .v { font: 600 calc(17px * var(--k))/1.25 var(--font-mono); overflow-wrap: anywhere; }
 .receipt .ln .v small { display: block; font: 400 calc(14px * var(--k))/1.3 var(--font-mono); color: var(--muted); margin-top: 1px; overflow-wrap: anywhere; }
@@ -130,6 +130,8 @@ a { color: inherit; text-decoration: none; }
 .receipt .ln .k small.kind { margin-top: 2px; text-transform: uppercase; letter-spacing: .1em; }
 .receipt .ln .k small.gate { color: var(--brass); }
 .receipt .ln .k small.check { color: var(--w-s); }
+.receipt .ln .t { text-align: right; font: 600 calc(14px * var(--k))/1.25 var(--font-mono); color: var(--ink); }
+.receipt .ln .t small { display: block; font: 500 calc(11px * var(--k)) var(--font-mono); color: var(--muted); letter-spacing: .04em; }
 .receipt .gaps { font: 500 calc(14px * var(--k))/1.35 var(--font-mono); color: var(--muted); }
 .receipt .gaps b { color: var(--ink); font-weight: 700; }
 .receipt .tot { display: flex; justify-content: space-between; align-items: baseline; font: 700 calc(22px * var(--k)) var(--font-mono); }
@@ -395,7 +397,7 @@ a { color: inherit; text-decoration: none; }
         el('div', 'src', fill(r.source)),
         el('div', 'legend', r.legend),
         el('hr'),
-        lines.map((l) => el('div', 'ln', el('span', 'k', l.key, el('small', `kind ${l.kind ?? ''}`, l.kind ?? ''), l.req ? el('small', 'req', l.req) : ''), el('span', 'v', el('span', 'val', ...segments(l.value)), el('small', null, ...segments(l.note))))),
+        lines.map((l) => el('div', 'ln', el('span', 'k', l.key, el('small', `kind ${l.kind ?? ''}`, l.kind ?? ''), l.req ? el('small', 'req', l.req) : ''), el('span', 'v', el('span', 'val', ...segments(l.value)), el('small', null, ...segments(l.note))), el('span', 't', l.at?.time ?? '', el('small', null, l.at?.source ?? '')))),
         el('hr'),
         el('div', 'gaps', el('b', null, `${r.gaps_heading}: `), list(printed.gaps).join(' · ')),
         el('hr'),

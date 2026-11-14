@@ -209,9 +209,15 @@ sections:
           - { name: Locust, url: "https://docs.locust.io/" }
           - { name: AWS FIS, url: "https://docs.aws.amazon.com/fis/latest/userguide/what-is.html" }
 
-  - name: Pipeline evidence
-    tag: Evidence authorizes the deploy
-    blurb: Evidence does the job a human used to skim on a change request, and it covers intent as well as behavior.
+  - name: Evidence
+    tag: Made along the way, checked at every gate
+    blurb: Made where each fact happens, from signed intent to the build, and checked before main moves and again at deploy.
+    # The poster draws this section as a band across the flow; each stop of its thread sits under one arrow.
+    thread:
+      - { at: spec, label: Made, text: "Intent, signed before code exists" }
+      - { at: sandbox, label: Made, text: "The agent's inputs pinned, its change hashed" }
+      - { at: checks, label: Made and checked, text: "Trace, provenance and attestations; all checked before main moves" }
+      - { at: production, label: Checked, text: "Again at deploy, then watched in production" }
     rows:
       - text: The customer confirms acceptance criteria before code exists
         when: [before]
@@ -454,7 +460,7 @@ humans:
 receipt:
   title: RECEIPT
   source: "{ref} · run {run} · {date} · assembled afterwards from the run's evidence"
-  legend: "gate: a human approval · check: fails the pipeline, so nothing deploys · record: kept, stops nothing"
+  legend: "gate: a human approval · check: fails the pipeline, so nothing deploys · record: kept, stops nothing · times: UTC, when each was made or checked"
   gaps_heading: Missing so far
   total: DEPLOYED
   result: "sandbox · {deployed} UTC"
