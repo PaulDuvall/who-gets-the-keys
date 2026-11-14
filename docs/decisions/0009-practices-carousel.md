@@ -5,7 +5,7 @@
 - Requirements: none of its own. Like the factory video kit (decision 0008), the carousel is talk material outside the export service. Each of its rows cites the `practices.yaml` IDs it shows
 - Moves: the 10-page LinkedIn carousel of 36 practices, built outside this repository until now, a one-page poster of the same content, and a workflow that builds both
 - Needs an approver's signature for: the batch `proposals/practices-carousel/`, landed with `scripts/bootstrap/land.sh proposals/practices-carousel`
-- Staged on: `main` at `fc97f75`, first drafted on `0e2acac`. On 2026-11-14 no unlanded branch changes `specs/protected-paths.txt` or adds a workflow. If one lands first, this batch restages its copy on top of that one
+- Staged on: `main` at `fa38bed`, first drafted on `0e2acac`. On 2026-11-14 no unlanded branch changes `specs/protected-paths.txt` or adds a workflow. If one lands first, this batch restages its copy on top of that one
 
 ## Context
 
