@@ -359,7 +359,7 @@ function textCheck() {
     2: [f.heading, f.lede, f.edge, ...[...f.flow, ...f.around].flatMap((b) => [b.name, b.text, b.mark].filter(Boolean))],
   };
   doc.sections.forEach((s, i) => {
-    expect[i + 3] = [s.name, s.tag, s.blurb, doc.legend.windows, doc.legend.untagged, doc.legend.diy, ...s.rows.flatMap((r) => [r.text, r.lead, r.ref, ...list(r.tools).map((t) => t.name), doc.where[r.where]].filter(Boolean))];
+    expect[i + 3] = [s.name, s.tag, s.blurb, doc.legend.windows, doc.windows.always, doc.legend.untagged, doc.legend.diy, ...s.rows.flatMap((r) => [r.text, r.lead, r.ref, ...list(r.tools).map((t) => t.name), doc.where[r.where]].filter(Boolean))];
   });
   const h = doc.humans;
   expect[PAGES - 1] = [h.heading, ...h.rows.flatMap((r) => [r.label, r.text, r.note]), h.day_one.heading, ...h.day_one.items, h.day_one.end];
