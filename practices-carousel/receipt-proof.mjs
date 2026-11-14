@@ -57,7 +57,7 @@ export const RECEIPT = {
   },
   // The batch notes quote these jobs' log lines; a "run log:" value is read from there.
   notes: path.join(ROOT, 'docs/notes/practices-carousel.md'),
-  jobs: { agent: '128788563404', publish: '128788887004', checks: '128794438881', deploy: '128795003787' },
+  jobs: { agent: '128788563404', publish: '128788887004', checks: '128794438881', build: '128794797719', receipt: '128794922989', deploy: '128795003787' },
   checkOrder: ['secrets', 'allowlist', 'workflows', 'install', 'lint', 'typecheck', 'iac', 'sast', 'sca', 'trace', 'ratchet', 'signatures', 'slides', 'test', 'mutation'],
 };
 const SLSA = 'https://slsa.dev/provenance/v1';
@@ -422,17 +422,32 @@ export function printReceipt() {
   const step = (key, fn) => {
     try {
       const line = fn();
-      if (line) lines.push({ key, ...line, ...ROWS[key], kind: KINDS[key]?.[0], req: KINDS[key]?.[1] });
+      if (line) lines.push({ key, ...line, ...ROWS[key], kind: KINDS[key]?.[0], req: KINDS[key]?.[1], at: when(key) });
     } catch (e) {
       const why = String(e.message || e).split('\n')[0];
       problems.push(`${key}: ${why}`);
-      if (ROWS[key]) lines.push({ key, value: ['NOT VERIFIED'], note: [why], shows: [], partly: [], kind: KINDS[key]?.[0], req: KINDS[key]?.[1] });
+      if (ROWS[key]) lines.push({ key, value: ['NOT VERIFIED'], note: [why], shows: [], partly: [], kind: KINDS[key]?.[0], req: KINDS[key]?.[1], at: null });
     }
   };
   let jobs = new Map();
+  // When each line's evidence was made or checked, and where that time comes from: git, Rekor, the Actions API's
+  // record of a job's step, or a run log. A time no source gives is left blank.
+  const times = {};
+  const when = (key) => times[key] ?? null;
+  const gitTime = (sha) => new Date(git('log', '-1', '--format=%cI', sha).trim()).toISOString().replace('.000Z', 'Z');
+  const stepTime = (job, step) => {
+    for (const l of jobs.get(`${job}:api`) ?? []) {
+      const m = /^step (.+): completed_at (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)$/.exec(l);
+      if (m && m[1] === step) return m[2];
+    }
+    return null;
+  };
+  const stamp = (key, iso, source) => {
+    if (iso) times[key] = { iso, time: iso.slice(11, 19), source };
+  };
   step('logs', () => {
     jobs = quotedJobs();
-    for (const id of Object.values(RECEIPT.jobs)) if (!jobs.has(id)) fail(`the notes quote no lines of job ${id}`);
+    for (const id of Object.values(RECEIPT.jobs)) if (!jobs.has(id) && !jobs.has(`${id}:api`)) fail(`the notes quote no lines of job ${id}`);
   });
   const log = (job, re, what) => {
     for (const l of jobs.get(job) ?? []) {
@@ -470,6 +485,15 @@ export function printReceipt() {
   const commitUrl = (sha) => `${repoUrl}/commit/${sha}`;
   const runUrl = `${repoUrl}/actions/runs/${RECEIPT.run}/attempts/${RECEIPT.attempt}`;
   const rekorUrl = (i) => `https://search.sigstore.dev/?logIndex=${i}`;
+  step('times', () => {
+    stamp('SPEC', gitTime(RECEIPT.specCommit), 'git');
+    stamp('APPROVED', gitTime(RECEIPT.specCommit), 'git');
+    stamp('AGENT', stepTime(RECEIPT.jobs.agent, 'Run Claude Code headless in its sandbox, from an empty environment with model access only (SPEC-001-R85, R88)'), 'API');
+    stamp('DIFF', gitTime(RECEIPT.commit), 'git');
+    stamp('COMMIT', stepTime(RECEIPT.jobs.checks, 'Run every check'), 'API');
+    stamp('FILES', stepTime(RECEIPT.jobs.build, 'Build the Lambda artifact'), 'API');
+    stamp('SIGNER', stepTime(RECEIPT.jobs.receipt, 'Verify the receipt and show it to the reviewer (SPEC-001-R50, R55)'), 'API');
+  });
   step('SPEC', () => {
     try {
       gitBytes('merge-base', '--is-ancestor', RECEIPT.specCommit, RECEIPT.commit);
@@ -527,12 +551,14 @@ export function printReceipt() {
   });
   step('SLSA', () => {
     const x = proved[SLSA] ?? fail('no statement verified');
-    return { value: ['payload sha256 ', link(tail(x.payload), rekorUrl(x.logIndex)), ' · sig ', link(tail(x.signature), rekorUrl(x.logIndex))], note: ['SLSA v1 statement · Rekor ', link(String(x.logIndex), rekorUrl(x.logIndex)), ` · ${iso(x.at)}`] };
+    stamp('SLSA', iso(x.at), 'Rekor');
+    return { value: ['payload sha256 ', link(tail(x.payload), rekorUrl(x.logIndex)), ' · sig ', link(tail(x.signature), rekorUrl(x.logIndex))], note: ['SLSA v1 statement · Rekor ', link(String(x.logIndex), rekorUrl(x.logIndex))] };
   });
   step('RECORD', () => {
     const x = proved[V2] ?? fail('no statement verified');
     const r = proved.record;
-    return { value: ['payload sha256 ', link(tail(x.payload), rekorUrl(x.logIndex)), ' · sig ', link(tail(x.signature), rekorUrl(x.logIndex))], note: [`provenance/v2: ${r.spec_ids.join(', ')}, agent ${r.agent}, model ${r.model} · Rekor `, link(String(x.logIndex), rekorUrl(x.logIndex)), ` · ${iso(x.at)}`] };
+    stamp('RECORD', iso(x.at), 'Rekor');
+    return { value: ['payload sha256 ', link(tail(x.payload), rekorUrl(x.logIndex)), ' · sig ', link(tail(x.signature), rekorUrl(x.logIndex))], note: [`provenance/v2: ${r.spec_ids.join(', ')}, agent ${r.agent}, model ${r.model} · Rekor `, link(String(x.logIndex), rekorUrl(x.logIndex))] };
   });
   step('SIGNER', () => {
     const x = proved[SLSA] ?? fail('no statement verified');
@@ -554,11 +580,11 @@ export function printReceipt() {
     const reviewers = setup.findIndex((l) => l.trim().startsWith('reviewers=') && l.includes('reviewers') && l.includes('"User') && l.includes('${me_id}'));
     if (reviewers < 0 || !setup.some((l) => /^for env in sandbox probe producer; do$/.test(l)) || !setup.some((l) => /\[ "\$env" != producer \] \|\| env_reviewers=""/.test(l))) fail('github.sh at the commit sets no required reviewer on sandbox');
     const queued = log(`${RECEIPT.jobs.deploy}:api`, /^created_at: \d{4}-\d\d-\d\dT(\d\d:\d\d:\d\d)Z$/, 'created_at')[1];
-    const started = log(`${RECEIPT.jobs.deploy}:api`, /^started_at: \d{4}-\d\d-\d\dT(\d\d:\d\d:\d\d)Z$/, 'started_at')[1];
     proved.approvalRecord = jobs.has(`${RECEIPT.run}:approvals`);
+    stamp('APPROVAL', log(`${RECEIPT.jobs.deploy}:api`, /^started_at: (\S+)$/, 'started_at')[1], 'API');
     return {
       value: ['required reviewer on sandbox, set by ', link('github.sh', `${repoUrl}/blob/${RECEIPT.commit}/scripts/bootstrap/github.sh#L${reviewers + 1}`)],
-      note: [`its only reviewer is the owner who runs it · Actions API: the deploy job queued at ${queued}Z and started at ${started}Z`],
+      note: [`its only reviewer is the owner who runs it · Actions API: the deploy job queued at ${queued}Z, then started`],
     };
   });
   step('DEPLOY', () => {
@@ -570,9 +596,10 @@ export function printReceipt() {
     const pipeline = git('show', `${RECEIPT.commit}:${RECEIPT.workflow}`);
     if (!/id-token: write/.test(pipeline) || !/aws-actions\/configure-aws-credentials@[0-9a-f]{40}/.test(pipeline) || !/role-to-assume:/.test(pipeline) || /aws-access-key-id|aws-secret-access-key/.test(pipeline)) fail('the deploy job does not take an OIDC role alone');
     proved.deployed = applied[1];
+    stamp('DEPLOY', `${applied[1]}Z`, 'log');
     return {
       value: ['source_code_hash ', link(tail(planned), `${repoUrl}/actions/runs/${RECEIPT.run}/job/${RECEIPT.jobs.deploy}`)],
-      note: [`the FILES digest in base64, as Terraform planned it · OIDC role · run log: ${applied[2]} added, ${applied[3]} changed at ${applied[1]}Z`],
+      note: [`the FILES digest in base64, as Terraform planned it · OIDC role · run log: ${applied[2]} added, ${applied[3]} changed`],
     };
   });
   // What the receipt does not show yet, from what the proofs lack.
@@ -591,5 +618,13 @@ export function printReceipt() {
     date: slsa ? new Date(slsa.at).toISOString().slice(0, 10) : 'NOT VERIFIED',
     deployed: proved.deployed ? proved.deployed.slice(11, 16) : 'NOT VERIFIED',
   };
-  return { lines: RECEIPT_KEYS.map((k) => lines.find((l) => l.key === k)), gaps, vars, problems };
+  // Every line has a time, all on the header's date, in the order the lines run.
+  const printedLines = RECEIPT_KEYS.map((k) => lines.find((l) => l.key === k));
+  for (const l of printedLines) {
+    if (l && !l.at && l.value[0] !== 'NOT VERIFIED') problems.push(`${l.key}: no time from any source`);
+    if (l?.at && l.at.iso.slice(0, 10) !== vars.date) problems.push(`${l.key}: its time is not on ${vars.date}`);
+  }
+  const stamped = printedLines.map((l) => l?.at?.iso).filter(Boolean);
+  if (stamped.some((t, i) => i && t < stamped[i - 1])) problems.push('the lines are not in time order');
+  return { lines: printedLines, gaps, vars, problems };
 }
