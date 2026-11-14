@@ -1,9 +1,9 @@
 # Builds the practices carousel in practices-carousel/ (decision 0009): carousel.yaml rendered to a 10-page PDF, a
-# PNG per page and a contact sheet, with verify.mjs's checks and report. It runs on a push to main that changes the
-# kit, practices.yaml (every row cites its IDs) or this workflow, and on demand. The build job uploads out/ as one
-# artifact, practices-carousel-<short SHA>-<UTC time>. The prune job then deletes every earlier one, so only the
-# newest build is kept. No job reads a secret, uses AWS or a cache. Nothing is committed and no release is made, so
-# no job needs contents: write.
+# PNG per page, a contact sheet and the one-page poster, with verify.mjs's checks and report. It runs on a push to
+# main that changes the kit, practices.yaml (every row cites its IDs) or this workflow, and on demand. The build job
+# uploads out/ as one artifact, practices-carousel-<short SHA>-<UTC time>. The prune job then deletes every earlier
+# one, so only the newest build is kept. No job reads a secret, uses AWS or a cache. Nothing is committed and no
+# release is made, so no job needs contents: write.
 name: practices-carousel
 
 on:
@@ -70,7 +70,7 @@ jobs:
       - name: Name the artifact practices-carousel-<short SHA>-<UTC build time>
         id: stamp
         run: echo "name=practices-carousel-${GITHUB_SHA::7}-$(date -u +%Y%m%dT%H%MZ)" >> "$GITHUB_OUTPUT"
-      - name: Upload the PDF, page images, contact sheet and report
+      - name: Upload the PDFs, page images, contact sheet, poster and report
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.stamp.outputs.name }}
