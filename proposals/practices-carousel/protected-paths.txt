@@ -25,6 +25,8 @@ factory-video/package.json
 factory-video/package-lock.json
 # The carousel's font pins: Chromium parses each font file, so the pins decide what runs (decision 0009)
 practices-carousel/fonts.json
+# The Sigstore trusted root that page 11's Receipt check verifies the receipt's signatures against (decision 0009)
+practices-carousel/evidence/sigstore-trusted-root.json
 # npm settings for each directory npm runs in. npm reads the project's .npmrc on every command: its node-options
 # reaches every Node.js process npm starts, and its script-shell runs npm run and npm exec (SPEC-001-R215, B81)
 .npmrc
