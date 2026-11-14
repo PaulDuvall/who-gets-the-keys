@@ -10,7 +10,7 @@ reason = """
 What: zod 3.25.76 in package-lock.json. Validating a large array keeps one issue per failing element with no cap, so hostile input can exhaust memory. Fixed only in zod 4.6.6; no zod 3 release has the fix.
 Why not fixed: only @anthropic-ai/sandbox-runtime needs zod 3, and 0.0.83, the latest on npm on 2026-11-14, still requires ^3.25.0 and imports zod/v3. Forcing zod 4 would hide the advisory, not remove the code: zod 4 still ships zod/v3.
 Why not reached: sandbox-runtime runs only as srt in the B9 replay job of scenarios.yml, and parses only the settings that job builds from the approver-signed .github/egress/allowlist.json. On 2026-11-14 those settings held 3 array elements and validated with 0 issues.
-Evidence: specs/sca-exceptions.md, section GHSA-mrhx-c7xc-m3w5. Not in the Lambda artifact, which holds only the compiled src/*.js.
+Evidence: specs/sca-exceptions.md, section GHSA-mrhx-c7xc-m3w5. Not in the Lambda artifact, which holds only the compiled src/*.js and a one-line package.json.
 Expires: 2027-01-13, 60 days after the 2026-11-14 re-check, as the owner chose on 2026-11-14.
 """
 
@@ -20,7 +20,7 @@ ignoreUntil = 2027-01-13T00:00:00Z
 reason = """
 What: mcp 1.29.0 in scripts/ci/requirements.txt. A Streamable HTTP MCP server in stateful mode never reclaims sessions, so any client can grow its memory without bound. Fixed in mcp 1.30.0.
 Why not fixed: semgrep, which the sast check runs, requires exactly mcp==1.29.0 from 1.181.0, our pin, through 1.185.0, the latest on PyPI on 2026-11-14.
-Why not reached: the flaw needs a running MCP server. The sast check runs semgrep scan, which starts none. In a full sast run on 2026-11-14, no function of mcp's server, client, transport or auth code ran.
+Why not reached: the flaw needs a running MCP server. The sast check runs semgrep scan, which starts none. In a full sast run on 2026-11-14, no mcp function ran after import; during import, only a logger lookup ran.
 Evidence: specs/sca-exceptions.md, section GHSA-84m7-p3x7-pcfv. CI toolchain only; not in the Lambda artifact.
 Expires: 2027-01-13, 60 days after the 2026-11-14 re-check, as the owner chose on 2026-11-14.
 """
@@ -40,9 +40,9 @@ Expires: 2027-01-13, 60 days after the 2026-11-14 re-check, as the owner chose o
 id = "GHSA-g3hv-75wg-m249"
 ignoreUntil = 2027-01-13T00:00:00Z
 reason = """
-What: minimatch 10.2.6 in package-lock.json. A crafted glob pattern makes firstPhasePreProcess multiply pattern parts, then compare them pairwise, using CPU and memory. Fixed only in minimatch 11.0.1; 10.2.6 is the last 10.x.
+What: minimatch 10.2.6 in package-lock.json. With optimizationLevel 2 or more, a crafted glob pattern makes firstPhasePreProcess multiply pattern parts, which secondPhasePreProcess then compares pairwise, using CPU and memory. Fixed only in minimatch 11.0.1; 10.2.6 is the last 10.x.
 Why not fixed: @stryker-mutator/core 10.1.1 and @typescript-eslint/typescript-estree 8.72.2, the latest on npm on 2026-11-14, require minimatch 10.x, so 10.2.6 stays in the lockfile even though eslint 10.15.0 moved to 11.
-Why not reached: the flaw runs only when a caller sets optimizationLevel 2 or more, and needs an attacker's pattern. No installed package sets optimizationLevel, and every pattern is fixed text from ESLint's and Stryker's defaults or this repository's configuration. On 2026-11-14 the lint and mutation checks created 431 matchers, all at level 1, and firstPhasePreProcess never ran.
+Why not reached: the flaw runs only when a caller sets optimizationLevel 2 or more, and needs an attacker's pattern. No installed package sets optimizationLevel, and every pattern is fixed text from ESLint's and Stryker's defaults or this repository's configuration. On 2026-11-14, in full lint and mutation runs, every matcher in every process was at level 1, and firstPhasePreProcess never ran.
 Evidence: specs/sca-exceptions.md, section GHSA-g3hv-75wg-m249. Dev tooling only; not in the Lambda artifact.
 Expires: 2027-01-13, 60 days after the 2026-11-14 re-check, as the owner chose on 2026-11-14.
 """
@@ -53,7 +53,7 @@ ignoreUntil = 2027-01-13T00:00:00Z
 reason = """
 What: mcp 1.29.0 in scripts/ci/requirements.txt. An MCP server using the SDK's bearer-token authentication accepts a token issued for a different service. Fixed in mcp 1.30.0, with a setting turned on.
 Why not fixed: semgrep, which the sast check runs, requires exactly mcp==1.29.0 from 1.181.0, our pin, through 1.185.0, the latest on PyPI on 2026-11-14.
-Why not reached: the flaw needs an HTTP MCP server with bearer authentication. The sast check runs semgrep scan, which starts no server. In a full sast run on 2026-11-14, no function of mcp's server or auth code ran.
+Why not reached: the flaw needs an HTTP MCP server with bearer authentication. The sast check runs semgrep scan, which starts no server. In a full sast run on 2026-11-14, no mcp function ran after import; during import, only a logger lookup ran.
 Evidence: specs/sca-exceptions.md, section GHSA-w4fh-qvv9-3v23. CI toolchain only; not in the Lambda artifact.
 Expires: 2027-01-13, 60 days after the 2026-11-14 re-check, as the owner chose on 2026-11-14.
 """
@@ -64,7 +64,7 @@ ignoreUntil = 2027-01-13T00:00:00Z
 reason = """
 What: mcp 1.29.0 in scripts/ci/requirements.txt. An MCP client validating a tool's result fetches any $ref URL or local file the server names in the tool's output schema. Fixed in mcp 1.30.0.
 Why not fixed: semgrep, which the sast check runs, requires exactly mcp==1.29.0 from 1.181.0, our pin, through 1.185.0, the latest on PyPI on 2026-11-14.
-Why not reached: the flaw needs an MCP client calling a server's tools. The sast check runs semgrep scan, which opens no MCP session. In a full sast run on 2026-11-14, no function of mcp's client code ran.
+Why not reached: the flaw needs an MCP client calling a server's tools. The sast check runs semgrep scan, which opens no MCP session. In a full sast run on 2026-11-14, no mcp function ran after import, and none of mcp's client code ran at all.
 Evidence: specs/sca-exceptions.md, section GHSA-rwrf-2pqf-9j8j. CI toolchain only; not in the Lambda artifact.
 Expires: 2027-01-13, 60 days after the 2026-11-14 re-check, as the owner chose on 2026-11-14.
 """
@@ -75,7 +75,7 @@ ignoreUntil = 2027-01-13T00:00:00Z
 reason = """
 What: mcp 1.29.0 in scripts/ci/requirements.txt. An MCP client over HTTP follows a redirect to another host and sends it the client's custom headers, and on 307 or 308 its request body. Fixed in mcp 1.30.0.
 Why not fixed: semgrep, which the sast check runs, requires exactly mcp==1.29.0 from 1.181.0, our pin, through 1.185.0, the latest on PyPI on 2026-11-14.
-Why not reached: the flaw needs an MCP client connecting over HTTP. The sast check runs semgrep scan, which opens no MCP connection. In a full sast run on 2026-11-14, no function of mcp's client or transport code ran.
+Why not reached: the flaw needs an MCP client connecting over HTTP. The sast check runs semgrep scan, which opens no MCP connection. In a full sast run on 2026-11-14, no mcp function ran after import, and none of mcp's client or transport code ran at all.
 Evidence: specs/sca-exceptions.md, section GHSA-5h93-6whr-6q8j. CI toolchain only; not in the Lambda artifact.
 Expires: 2027-01-13, 60 days after the 2026-11-14 re-check, as the owner chose on 2026-11-14.
 """

@@ -26,11 +26,13 @@ Both files change together, in one approver-signed commit. A renewal re-runs eve
 
 CVSS is the highest base score OSV-Scanner 2.7.0 reported for the advisory. None of the eight packages is in the Lambda artifact: on 2026-11-14 the build job's steps, run locally, made a `function.zip` of three files, `export.js`, `handler.js` and `package.json`. Inference, not measured: the worst case if a "No" above is wrong is a CI or developer tool that hangs, sends a request, or reads a file on a runner, never the export service's customers. Each section's "If this is wrong" row is inference in the same way.
 
-The 60-day expiry is the owner's decision of 2026-11-14: no reason here depends on time, only on which releases exist. Dependabot does not read `specs/sca-exceptions.toml`, so it keeps alerting on all eight, and a newly reachable fix stays visible between renewals.
+The 60-day expiry is the owner's decision of 2026-11-14: no reason here depends on time, only on which releases exist. Nothing watches for a newly reachable fix between renewals; the renewal's registry check is the only one. Dependabot does not read this file, and its alerts are not that check: on 2026-11-14 GitHub reported 7 moderate Dependabot alerts on `main`, not compared with these eight, and backlog item `who-gets-the-keys-0v4` is open to explain the difference.
+
+Why not force the fixed versions: npm `overrides` or a uv override could install each fixed release anyway. That would run semgrep, ESLint, Stryker or `srt` on a dependency version its authors never tested, so a check could pass or fail for reasons of its own. For zod it would also hide the advisory without removing the flawed code, as its section shows. The owner chose renewal over forcing on 2026-11-14.
 
 ## How each claim was checked, 2026-11-14
 
-Environment: `main` at `12693a8`, OSV-Scanner 2.7.0, semgrep 1.181.0 with mcp 1.29.0 and opentelemetry-api 1.37.0 on Python 3.13, Node.js 24.22.2.
+Environment: `main` at `12693a8`, with this batch's branch checked out for the reach probes, OSV-Scanner 2.7.0, semgrep 1.181.0 with mcp 1.29.0 and opentelemetry-api 1.37.0 on Python 3.13, Node.js 24.22.2.
 
 ### OSV-Scanner
 
@@ -64,13 +66,13 @@ The advisory texts and fixed versions are OSV's records, `https://api.osv.dev/v1
 
 ### Reach probes
 
-Each probe watches one of our own checks run as the pipeline runs it, and records whether the advisory's code runs. The probes are below, in "Probe code"; the commands run from the repository root with `REACH_ROOT` set to it.
+Each probe loads into the tool's own processes while one of our checks runs, and records whether the advisory's code runs. The Python probe logs each mcp or opentelemetry function the first time it runs during an import and the first time it runs otherwise. The minimatch probe logs each matcher and each run of `firstPhasePreProcess` as it happens, in every Node.js process and worker thread that inherits `NODE_OPTIONS`. In `package-lock.json`, only eslint, @eslint/config-array, Stryker and @typescript-eslint/typescript-estree depend on minimatch. The probes are below, in "Probe code", and "Commands" shows how to run them.
 
 | Probe | Check watched | Result |
 |---|---|---|
-| Python import and call probe | sast: `semgrep scan --config p/default --error --metrics=off --json --quiet` | `semgrep` hands the scan to `pysemgrep` in the same process, which imports mcp and opentelemetry. After import, 0 mcp functions ran. During import, one ran: `mcp/server/fastmcp/utilities/logging.py:get_logger`. 27 opentelemetry functions ran after import: the no-op tracer, context lookups and resource detection. `TraceState.from_header` and `TraceContextTextMapPropagator.extract` never ran |
+| Python import and call probe | sast: `semgrep scan --config p/default --error --metrics=off --json --quiet` | `semgrep` hands the scan to `pysemgrep` in the same process, which imports mcp and opentelemetry. No mcp function ran after import, including any that had run during import. During import, one ran: `mcp/server/fastmcp/utilities/logging.py:get_logger`. 32 opentelemetry functions ran after import: the no-op tracer and its spans, attribute handling, context lookups and resource detection. `TraceState.from_header` and `TraceContextTextMapPropagator.extract` never ran |
 | minimatch probe | lint: `node scripts/checks.ts lint` | ESLint created 17 matchers, all at the default optimization level 1. `firstPhasePreProcess` ran 0 times |
-| minimatch probe | mutation: `node scripts/checks.ts mutation` | Stryker created 414 matchers, all at level 1. `firstPhasePreProcess` ran 0 times |
+| minimatch probe | mutation: `node scripts/checks.ts mutation`, a full run with the gitignored `reports/stryker-incremental.json` moved aside, as on a fresh CI runner | 7 processes and their worker threads loaded the probe. Stryker's main process created 422 matchers, all at level 1, and the others none. `firstPhasePreProcess` ran 0 times. The count varies with the files in the tree: 412 to 422 across this batch's runs and its review |
 | zod settings probe | the B9 replay's settings, built with the `jq` of `.github/workflows/scenarios.yml` from `.github/egress/allowlist.json` | 3 array elements in all, valid, 0 issues |
 
 `grep -rl optimizationLevel` over every `.js`, `.cjs` and `.mjs` file in `node_modules`, outside minimatch itself, found no file: no installed package sets the option.
@@ -85,7 +87,7 @@ Each probe watches one of our own checks run as the pipeline runs it, and record
 | Why not reached | sandbox-runtime runs only as `srt`, in the B9 replay job of `.github/workflows/scenarios.yml` (`npx --no-install srt --settings "$RUNNER_TEMP/srt.json"`), and no other file in the repository starts it. It validates one input: the settings that job builds with `jq` from `.github/egress/allowlist.json`, a protected path that changes only in an approver-signed commit. The zod settings probe found 3 array elements and 0 issues, so the issue collection the flaw needs never grows |
 | If this is wrong | An oversized allowlist could exhaust the B9 replay runner's memory. The replay fails closed |
 | Ends when | sandbox-runtime moves to zod 4's own API, or zod publishes a fixed 3.x |
-| Log | 2026-11-08: listed when the public history starts (`b396be7`); renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
+| Log | 2026-10-23: first listed, until 2026-11-22 (`8c31332`). 2026-11-08: re-checked and renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
 
 ## GHSA-84m7-p3x7-pcfv: mcp 1.29.0
 
@@ -97,7 +99,7 @@ Each probe watches one of our own checks run as the pipeline runs it, and record
 | Why not reached | The sast check runs `semgrep scan`, which starts no MCP server. The Python probe found no mcp function run after import |
 | If this is wrong | A runner's memory could grow until the checks job fails, which fails closed |
 | Ends when | A semgrep release allows mcp 1.30.0 or later |
-| Log | 2026-11-08: listed (`b396be7`); renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
+| Log | 2026-10-23: first listed, until 2026-11-22 (`8c31332`). 2026-11-02: reason reworded, "gate" to "check" (`0cd57a7`). 2026-11-08: re-checked and renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
 
 ## GHSA-g3hv-75wg-m249: minimatch 10.2.6
 
@@ -106,10 +108,10 @@ Each probe watches one of our own checks run as the pipeline runs it, and record
 | What | minimatch 10.2.6 in `package-lock.json`. "minimatch has potential denial of service via globparts amplification": with `optimizationLevel` 2 or more, `firstPhasePreProcess` lets a crafted pattern multiply its parts, which are then compared pairwise, using CPU and memory. Fixed only in 11.0.1 |
 | Needs | A caller that sets `optimizationLevel` to 2 or more, and a glob pattern an attacker chooses |
 | Why not fixed | Every 10.x is affected and 10.2.6 is the last. @stryker-mutator/core (`~10.2.4`) and @typescript-eslint/typescript-estree (`^10.2.2`) require 10.x in their latest releases. eslint 10.15.0 moved to 11 on 2026-11-13, but 10.2.6 stays in the lockfile while the other two need it |
-| Why not reached | minimatch runs `firstPhasePreProcess` only at level 2 or more (`dist/esm/index.js`, the `optimizationLevel >= 2` branch); the default is 1. No installed package sets the option. Every pattern is fixed text from ESLint's and Stryker's defaults or from `eslint.config.js` and `stryker.config.json`, protected files. The minimatch probe found 431 matchers in the lint and mutation checks, all at level 1, and 0 runs of `firstPhasePreProcess` |
+| Why not reached | minimatch runs `firstPhasePreProcess` only at level 2 or more (`dist/esm/index.js`, the `optimizationLevel >= 2` branch); the default is 1. No installed package sets the option. Every pattern is fixed text from ESLint's and Stryker's defaults or from `eslint.config.js` and `stryker.config.json`, protected files. In full lint and mutation runs, the minimatch probe found every matcher, in every process, at level 1, and 0 runs of `firstPhasePreProcess` |
 | If this is wrong | A lint or mutation run could slow down until its job times out. That fails closed |
 | Ends when | Stryker and typescript-eslint accept minimatch 11. Then update eslint, Stryker and typescript-eslint together |
-| Log | 2026-11-08: listed (`b396be7`); renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above, with the eslint 10.15.0 change noted; renewed to 2027-01-13 |
+| Log | 2026-10-31: first listed, until 2026-11-30 (`d6f9b92`). 2026-11-08: re-checked and renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above, with the eslint 10.15.0 change noted; renewed to 2027-01-13 |
 
 ## GHSA-w4fh-qvv9-3v23: mcp 1.29.0
 
@@ -121,7 +123,7 @@ Each probe watches one of our own checks run as the pipeline runs it, and record
 | Why not reached | `semgrep scan` starts no MCP server. The Python probe found no mcp server or auth function run after import |
 | If this is wrong | An MCP server semgrep started could accept a token meant for another service. The sast check gives semgrep no authorization server or token |
 | Ends when | As GHSA-84m7-p3x7-pcfv |
-| Log | 2026-11-08: listed (`b396be7`); renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
+| Log | 2026-10-31: first listed, until 2026-11-30 (`d6f9b92`). 2026-11-02: reason reworded, "gate" to "check" (`0cd57a7`). 2026-11-08: re-checked and renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
 
 ## GHSA-rwrf-2pqf-9j8j: mcp 1.29.0
 
@@ -133,7 +135,7 @@ Each probe watches one of our own checks run as the pipeline runs it, and record
 | Why not reached | `semgrep scan` opens no MCP session. The Python probe found no mcp client function run after import |
 | If this is wrong | A runner could fetch a URL, or read a file the checks job can already read. That job holds only `contents: read`, persists no Git credentials and references no secret (`.github/workflows/pipeline.yml`) |
 | Ends when | As GHSA-84m7-p3x7-pcfv |
-| Log | 2026-11-08: listed (`b396be7`); renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
+| Log | 2026-10-31: first listed, until 2026-11-30 (`d6f9b92`). 2026-11-08: re-checked and renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
 
 ## GHSA-5h93-6whr-6q8j: mcp 1.29.0
 
@@ -145,7 +147,7 @@ Each probe watches one of our own checks run as the pipeline runs it, and record
 | Why not reached | `semgrep scan` opens no MCP connection. The Python probe found no mcp client or transport function run after import |
 | If this is wrong | Headers of an MCP request could reach another host. The sast check configures no MCP endpoint, header or credential |
 | Ends when | As GHSA-84m7-p3x7-pcfv |
-| Log | 2026-11-08: listed (`b396be7`); renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
+| Log | 2026-10-31: first listed, until 2026-11-30 (`d6f9b92`). 2026-11-08: re-checked and renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
 
 ## GHSA-xcq7-p3pf-p88h: opentelemetry-api 1.37.0
 
@@ -157,7 +159,7 @@ Each probe watches one of our own checks run as the pipeline runs it, and record
 | Why not reached | semgrep uses opentelemetry only to trace itself. `semgrep scan` serves no HTTP. semgrep 1.181.0 calls `propagate.extract` only in `Telemetry.extract()` (`semgrep/telemetry.py`), which runs only when `--trace` is on, and the sast check never passes it. The Python probe found that `from_header` never ran |
 | If this is wrong | A sast run could slow down until its job times out. That fails closed |
 | Ends when | A semgrep release allows opentelemetry 1.45.1 or later |
-| Log | 2026-11-08: listed (`b396be7`); renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
+| Log | 2026-10-23: first listed, until 2026-11-22 (`8c31332`). 2026-11-08: re-checked and renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
 
 ## GHSA-mf5v-w3w3-f6cg: opentelemetry-api 1.37.0
 
@@ -169,7 +171,7 @@ Each probe watches one of our own checks run as the pipeline runs it, and record
 | Why not reached | semgrep's only call is in `Telemetry.extract()`, which runs only with `--trace`, and then builds the `traceparent` from two of its own environment variables, `SEMGREP_TRACE_PARENT_TRACE_ID` and `SEMGREP_TRACE_PARENT_SPAN_ID`, never from a scanned file. The Python probe found that `TraceContextTextMapPropagator.extract` never ran |
 | If this is wrong | As GHSA-xcq7-p3pf-p88h |
 | Ends when | A semgrep release allows opentelemetry 1.45.2 or later |
-| Log | 2026-11-13: published 16:43 UTC, after the candidate run of `79f0f06`, and failed `main`'s sca; listed by the owner's hand-signed `a6de08a` until 2026-12-08 (`docs/notes/sca-mf5v.md`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
+| Log | 2026-11-13: GitHub published it at 16:43 UTC and OSV had it by 17:00, after the candidate run of `79f0f06` passed sca at about 16:53. It failed `main`'s sca at 19:10. Listed by the owner's hand-signed `a6de08a` until 2026-12-08 (`docs/notes/sca-mf5v.md`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
 
 ## Probe code
 
@@ -178,13 +180,14 @@ Each probe watches one of our own checks run as the pipeline runs it, and record
 Put this file in a directory of its own, and run the sast command with that directory on `PYTHONPATH`. Python loads `sitecustomize` at start, so it also loads in the `pysemgrep` process the `semgrep` command hands over to.
 
 ```python
-# Reach probe for the sca exceptions (backlog s7e). With REACH_LOG set, it logs every Python process start, and the
-# first run of every function in the mcp and opentelemetry packages, marked IMPORT when it ran while a module was
-# being imported and CALL otherwise.
+# Reach probe for the sca exceptions (backlog s7e). With REACH_LOG set, it logs every Python process start, and every
+# function in the mcp and opentelemetry packages that runs, once while a module is being imported (IMPORT) and once
+# otherwise (CALL), so a function that ran during import and again later is logged both times.
 import os, sys
 _log = os.environ.get("REACH_LOG")
 if _log:
     _roots = tuple(os.sep + p + os.sep for p in ("mcp", "opentelemetry"))
+    _seen = set()
     def _w(line):
         with open(_log, "a", encoding="utf-8") as f:
             f.write(f"{os.getpid()} {line}\n")
@@ -194,51 +197,51 @@ if _log:
     _mon.use_tool_id(_tool, "reach-probe")
     def _start(code, offset):
         f = code.co_filename
-        if "site-packages" in f and any(r in f for r in _roots) and code.co_flags & 0x1:
-            frame, in_import = sys._getframe(1), False
-            while frame is not None:
-                if frame.f_code.co_filename.startswith("<frozen importlib"):
-                    in_import = True
-                    break
-                frame = frame.f_back
+        if not ("site-packages" in f and any(r in f for r in _roots) and code.co_flags & 0x1):
+            return _mon.DISABLE
+        frame, in_import = sys._getframe(1), False
+        while frame is not None:
+            if frame.f_code.co_filename.startswith("<frozen importlib"):
+                in_import = True
+                break
+            frame = frame.f_back
+        key = (code, in_import)
+        if key not in _seen:
+            _seen.add(key)
             mod = f.split("site-packages" + os.sep, 1)[1]
             _w(("IMPORT " if in_import else "CALL ") + mod + ":" + code.co_qualname)
-        return _mon.DISABLE
     _mon.register_callback(_tool, _mon.events.PY_START, _start)
     _mon.set_events(_tool, _mon.events.PY_START)
 ```
 
-The filter also matches semgrep's own `semgrep/mcp/` helpers; read only lines that start with `mcp/` or `opentelemetry/`.
+The filter also matches semgrep's own `semgrep/mcp/` helpers; read only lines whose module starts with `mcp/` or `opentelemetry/`.
 
 ### minimatch probe: `minimatch-probe.mjs`
 
 ```js
-// Reach probe for GHSA-g3hv-75wg-m249: counts Minimatch objects by optimizationLevel, and runs of firstPhasePreProcess,
-// the advisory's function, in minimatch's ESM and CommonJS builds. Appends one line per Node.js process at exit.
+// Reach probe for GHSA-g3hv-75wg-m249: logs, at the moment each happens and with the process ID, every Minimatch
+// object made with its optimizationLevel and pattern, and every run of firstPhasePreProcess, the advisory's function,
+// in minimatch's ESM and CommonJS builds. It loads into every Node.js process that inherits NODE_OPTIONS.
 import { appendFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 const root = process.env.REACH_ROOT;
+const log = (line) => appendFileSync(process.env.REACH_LOG, `${process.pid} ${line}\n`);
 const esm = await import(pathToFileURL(`${root}/node_modules/minimatch/dist/esm/index.js`).href);
 const cjs = createRequire(import.meta.url)(`${root}/node_modules/minimatch/dist/commonjs/index.js`);
-const seen = { objects: 0, levels: {}, firstPhase: 0, patterns: new Set() };
+log(`START ${process.argv.slice(1, 3).join(" ")}`);
 for (const M of [esm.Minimatch, cjs.Minimatch]) {
   const make = M.prototype.make;
   const first = M.prototype.firstPhasePreProcess;
   M.prototype.make = function (...args) {
-    seen.objects++;
-    const level = String(this.options?.optimizationLevel ?? "default (1)");
-    seen.levels[level] = (seen.levels[level] ?? 0) + 1;
-    seen.patterns.add(this.pattern);
+    log(`MATCHER level=${this.options?.optimizationLevel ?? "default(1)"} pattern=${JSON.stringify(this.pattern)}`);
     return make.apply(this, args);
   };
   M.prototype.firstPhasePreProcess = function (...args) {
-    seen.firstPhase++;
+    log("FIRSTPHASE");
     return first.apply(this, args);
   };
 }
-process.on("exit", () => appendFileSync(process.env.REACH_LOG, `${process.argv[1]} objects=${seen.objects} ` +
-  `levels=${JSON.stringify(seen.levels)} firstPhasePreProcess=${seen.firstPhase} patterns=${JSON.stringify([...seen.patterns])}\n`));
 ```
 
 ### zod settings probe: `zod-probe.mjs`
@@ -259,29 +262,47 @@ console.log(`array elements=${count(settings)} valid=${r.success} issues=${r.suc
 
 ### Commands
 
-From the repository root, with the three probes in a directory `$PROBES`, outside the checkout, and `py/sitecustomize.py` under it:
+Save the three probes in a directory outside the checkout, `sitecustomize.py` in a `py` directory under it, and run these from the repository root. The mutation run is a full run only if Stryker's cache, `reports/stryker-incremental.json`, is moved aside first, as on a fresh CI runner.
 
 ```bash
-export REACH_ROOT="$PWD"
+export REACH_ROOT="$PWD" PROBES=/tmp/sca-probes
 ```
 
 ```bash
-REACH_LOG="$PROBES/sast.log" PYTHONPATH="$PROBES/py" semgrep scan --config p/default --error --metrics=off --json --quiet > /dev/null
+REACH_LOG="$PROBES/sast.log" PYTHONPATH="$PROBES/py" \
+  semgrep scan --config p/default --error --metrics=off --json --quiet > /dev/null
 ```
 
 ```bash
-REACH_LOG="$PROBES/lint.log" NODE_OPTIONS="--import $PROBES/minimatch-probe.mjs" node scripts/checks.ts lint
+REACH_LOG="$PROBES/lint.log" NODE_OPTIONS="--import $PROBES/minimatch-probe.mjs" \
+  node scripts/checks.ts lint
 ```
 
 ```bash
-REACH_LOG="$PROBES/mutation.log" NODE_OPTIONS="--import $PROBES/minimatch-probe.mjs" node scripts/checks.ts mutation
+mv reports/stryker-incremental.json "$PROBES/"
 ```
 
 ```bash
-jq '{network: {allowedDomains: .allowedDomains, deniedDomains: []}, filesystem: {denyRead: [], allowWrite: ["/tmp"], denyWrite: []}}' \
+REACH_LOG="$PROBES/mutation.log" NODE_OPTIONS="--import $PROBES/minimatch-probe.mjs" \
+  node scripts/checks.ts mutation
+```
+
+```bash
+jq '{network: {allowedDomains: .allowedDomains, deniedDomains: []},
+  filesystem: {denyRead: [], allowWrite: ["/tmp"], denyWrite: []}}' \
   .github/egress/allowlist.json > "$PROBES/srt.json"
 ```
 
 ```bash
 node "$PROBES/zod-probe.mjs" "$PROBES/srt.json"
+```
+
+What each log should show: no line with ` CALL mcp/` and none with `from_header` or `TraceContextTextMapPropagator` in `sast.log`, and no `FIRSTPHASE` and no `level=` other than `level=default(1)` in `lint.log` and `mutation.log`:
+
+```bash
+grep -cE ' CALL mcp/|from_header|TraceContextTextMapPropagator' "$PROBES/sast.log"
+```
+
+```bash
+grep -h -oE 'FIRSTPHASE|level=[^ ]+' "$PROBES/lint.log" "$PROBES/mutation.log" | sort | uniq -c
 ```
