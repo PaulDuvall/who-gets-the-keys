@@ -1,0 +1,14 @@
+# Decision 0009: the practices carousel's workflow, and its font pins as a protected path.
+# The kit itself, practices-carousel/, lands first by land.sh --to-main: it holds no protected path until this batch
+# adds practices-carousel/fonts.json to specs/protected-paths.txt. land.sh starts from origin/main, so the requires line
+# refuses this batch until the kit is there.
+# Staged on main at 0e2acac. No unlanded branch on 2026-11-14 changes specs/protected-paths.txt or adds a workflow; if
+# one lands first, restage protected-paths.txt on top of its copy.
+# Landing this commit starts the workflow's first build, because it adds the workflow.
+message: practices-carousel: add the build workflow and protect the font pins (decision 0009)
+spec: SPEC-001-R12
+spec: SPEC-001-R4
+requires: practices-carousel/fonts.json "sha256"
+requires: practices-carousel/build.sh node verify.mjs
+move: github-workflows/practices-carousel.yml .github/workflows/practices-carousel.yml
+move: protected-paths.txt specs/protected-paths.txt
