@@ -436,13 +436,14 @@ const ONE_LINE = /^[^\p{Cc}\p{Cf}\p{Zl}\p{Zp}]{1,200}$/u, SPEC_ID = /^SPEC-\d{3}
 /** Predicate types every receipt needs; gh verifies one per call. A later slice reads them from the policy. @requirement SPEC-001-R50 */
 export const RECEIPT_TYPES = ["https://slsa.dev/provenance/v1", "https://github.com/PaulDuvall/who-gets-the-keys/provenance/v2"] as const;
 
-/**
- * gh attestation verify for one type, pinned exactly: pipeline.yml at `ref` as signer and source ref, a hosted runner, and
- * `sha` as source and signer digest. The store lists newest first; 1000 is gh's largest window. @requirement SPEC-001-R17 @requirement SPEC-001-R50
- */
-/** The most attestations `gh` may fetch: one page of 100, newest first. @requirement SPEC-001-R50 */
+/** The most attestations `gh` may fetch: one page of 100, newest first as observed. @requirement SPEC-001-R50 */
 export const RECEIPT_LIMIT = 100;
 
+/**
+ * gh attestation verify for one type, pinned exactly: pipeline.yml at `ref` as signer and source ref, a hosted runner, and
+ * `sha` as source and signer digest. The store lists newest first, as observed; gh reads one page of RECEIPT_LIMIT.
+ * @requirement SPEC-001-R17 @requirement SPEC-001-R50
+ */
 export function pinArgs(artifact: string, repo: string, ref: string, sha: string | undefined, type: string = RECEIPT_TYPES[0]): string[] {
   return [
     "gh", "attestation", "verify", artifact, "--repo", repo,
