@@ -74,7 +74,7 @@ function schemaCheck() {
   if (isObj(doc.meta) && !(Array.isArray(doc.meta.sites) && doc.meta.sites.every(isText))) bad.push('meta.sites is not a list of names');
   need(doc.windows, ['before', 'seconds', 'minutes', 'hours', 'always'], 'windows');
   if (!isObj(doc.where) || !Object.values(doc.where).every((v) => typeof v === 'string')) bad.push('where is not a map of labels');
-  need(doc.legend, ['windows', 'untagged', 'diy', 'tools'], 'legend');
+  need(doc.legend, ['windows', 'untagged', 'diy', 'tools', 'owasp'], 'legend');
   need(doc.labels, ['diy', 'ref', 'page', 'pages'], 'labels');
   need(doc.poster, ['view', 'count', 'back', 'back_count'], 'poster');
   if (isObj(doc.poster) && !String(doc.poster.count || '').includes('{count}')) bad.push('poster.count has no {count}');
@@ -574,7 +574,7 @@ function textCheck() {
   const m = doc.meta;
   const f = doc.factory;
   const expect = {
-    1: [m.title, `${m.thesis_key} ${m.thesis_rest}`, String(m.subtitle).replace('{count}', String(ROWS.length)), m.byline, ...['before', 'seconds', 'minutes', 'hours'].map((k) => doc.windows[k])],
+    1: [m.title, `${m.thesis_key} ${m.thesis_rest}`, String(m.subtitle).replace('{count}', String(ROWS.length)), doc.legend.owasp, m.byline, ...['before', 'seconds', 'minutes', 'hours'].map((k) => doc.windows[k])],
     2: [f.heading, f.lede, f.edge, ...[...f.flow, ...f.around].flatMap((b) => [b.name, b.text, b.mark].filter(Boolean))],
   };
   doc.sections.forEach((s, i) => {
@@ -588,7 +588,7 @@ function textCheck() {
   // the spec, pipeline and production boxes of page 2. It leaves out the cover's subtitle, each section's blurb, page
   // 9's notes, the other boxes' text on page 2 and the seconds and minutes window labels.
   const poster = [m.title, doc.poster.view, `${m.thesis_key} ${m.thesis_rest}`, String(doc.poster.count).replace('{count}', String(ROWS.length)), m.byline,
-    doc.legend.windows, doc.windows.always, doc.legend.untagged, doc.legend.diy, doc.legend.tools, f.edge, f.flow[0].name, f.flow[0].text, f.flow[2].name, f.flow[2].mark, f.flow[3].name, f.flow[3].text,
+    doc.legend.windows, doc.windows.always, doc.legend.untagged, doc.legend.diy, doc.legend.tools, doc.legend.owasp, f.edge, f.flow[0].name, f.flow[0].text, f.flow[2].name, f.flow[2].mark, f.flow[3].name, f.flow[3].text,
     ...doc.sections.flatMap((s) => [s.name, s.tag, ...s.rows.flatMap((r) => [r.text, r.lead, r.ref, ...list(r.tools).map((t) => t.name), doc.where[r.where]].filter(Boolean))]),
     h.heading, ...h.rows.flatMap((r) => [r.label, r.text]), h.day_one.heading, ...h.day_one.items, h.day_one.end,
     c.heading, ...c.items.flatMap((i) => [i.verb, i.what, i.how]), `${m.close_line_plain} ${m.close_line_key}`, ...m.sites];
@@ -602,7 +602,7 @@ function textCheck() {
     }
   };
   for (const [page, strings] of Object.entries(expect)) look(PDF, page, strings, `page ${page}`);
-  const back = [m.title, doc.poster.back, String(doc.poster.back_count).replace('{count}', String(ROWS.length)), doc.legend.windows, doc.windows.always,
+  const back = [m.title, doc.poster.back, String(doc.poster.back_count).replace('{count}', String(ROWS.length)), doc.legend.windows, doc.windows.always, doc.legend.owasp,
     ...doc.sections.flatMap((x) => [x.name, x.tag, ...x.rows.flatMap((r) => [r.text, r.lead].filter(Boolean))]), `${m.close_line_plain} ${m.close_line_key}`, ...m.sites];
   if (fs.existsSync(POSTER_PDF)) {
     look(POSTER_PDF, 1, poster, 'poster front');

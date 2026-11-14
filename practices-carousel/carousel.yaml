@@ -43,6 +43,7 @@ legend:
   untagged: "Untagged: runs in the pipeline"
   diy: rules you write
   tools: Tools are examples
+  owasp: "OWASP IDs: Top 10 for LLM Applications 2026"
 
 # Short labels the pages put beside the content: the DIY tag, the prefix of an OWASP LLM Top 10 ID, and the words
 # before the page numbers on the factory map.
@@ -131,12 +132,14 @@ sections:
         tools:
           - { name: --max-turns, url: "https://code.claude.com/docs/en/cli-reference" }
           - { name: --max-budget-usd, url: "https://code.claude.com/docs/en/cli-reference" }
-      - text: Flag agent tests that assert nothing before the change leaves the sandbox
-        when: [seconds]
+      - text: Run unit tests and code-quality checks in the sandbox and again in the pipeline
+        when: [seconds, minutes]
         where: sandbox
         practices: [P11]
         tools:
-          - { name: vitest/expect-expect, url: "https://github.com/vitest-dev/eslint-plugin-vitest" }
+          - { name: Jest, url: "https://jestjs.io/" }
+          - { name: pytest, url: "https://docs.pytest.org/" }
+          - { name: ESLint, url: "https://eslint.org/" }
       - text: Scan for secrets in the sandbox and again in the pipeline
         when: [seconds, minutes]
         where: sandbox
@@ -186,15 +189,6 @@ sections:
         tools:
           - { name: Hypothesis, url: "https://hypothesis.readthedocs.io/" }
           - { name: fast-check, url: "https://fast-check.dev/" }
-      - text: Unit tests and code-quality checks on every change
-        when: [seconds, minutes]
-        where: pipeline
-        source: dpra
-        practices: []
-        tools:
-          - { name: Jest, url: "https://jestjs.io/" }
-          - { name: pytest, url: "https://docs.pytest.org/" }
-          - { name: ESLint, url: "https://eslint.org/" }
       - text: Scan infrastructure code and publish an SBOM
         when: [minutes]
         where: pipeline
