@@ -131,8 +131,9 @@ a { color: inherit; text-decoration: none; }
 .fb-humans .name { color: var(--brass); }
 .fb-inspector { grid-area: inspector; border-color: var(--w-h); }
 .fb-inspector .name { color: var(--w-h); }
-.edge { position: absolute; z-index: 0; border: 3px dashed var(--band-muted); border-radius: 22px; }
-.edge .label { position: absolute; right: 26px; top: -19px; padding: 0 10px; background: var(--paper); font: 600 26px/32px var(--font-mono);
+.fb-inspector { outline: 3px dashed var(--band-muted); outline-offset: 10px; }
+/* The inspector runs in a security account the pipeline cannot reach. Its box is framed, and the frame is labelled. */
+.fb-inspector .acct { position: absolute; right: 16px; top: -30px; padding: 0 10px; background: var(--paper); font: 600 26px/32px var(--font-mono);
   letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 .wires { position: absolute; inset: 0; z-index: 2; overflow: visible; pointer-events: none; }
 </style>
@@ -190,7 +191,7 @@ a { color: inherit; text-decoration: none; }
     return s;
   }
 
-  // Page 2: the factory map. Boxes sit on a grid; the factory's edge and the wires are drawn after layout.
+  // Page 2: the factory map. Boxes sit on a grid; the wires are drawn after layout.
   const pagesLabel = (p) => { const ps = list(p); return `${ps.length > 1 ? doc.labels.pages : doc.labels.page} ${ps.join(', ')}`; };
   const KEY_ICON = () => {
     const i = svg('svg', { width: 34, height: 20, viewBox: '0 0 34 20', 'aria-hidden': 'true' });
@@ -214,14 +215,12 @@ a { color: inherit; text-decoration: none; }
     const map = el('div', 'fmap',
       fbox('spec', spec), fbox('sandbox', sandbox), fbox('pipeline', pipeline), fbox('production', production),
       fbox('policy', policy), fbox('inspector', inspector), fbox('humans', humans));
-    const edge = el('div', 'edge', el('span', 'label', f.edge));
-    map.prepend(edge);
+    map.querySelector('.fb-inspector').append(el('span', 'acct', f.account));
     s.append(top(doc.meta.title, 2), el('h2', 'big-h', f.heading), el('p', 'lede', f.lede), map);
     return s;
   }
-  // The edge encloses the agent sandbox, the pipeline and factory policy; the spec, production, humans and the
-  // inspector sit outside it. Wires: the flow downwards, humans to the spec and the pipeline, the inspector to the
-  // pipeline and production.
+  // The wires: the flow downwards, humans to the spec and the pipeline, the inspector to the pipeline and production.
+  // Everything on the page is the factory; the inspector's frame marks the account the pipeline cannot reach.
   function drawFactory(s) {
     const map = s.querySelector('.fmap');
     const m = map.getBoundingClientRect();
@@ -231,11 +230,6 @@ a { color: inherit; text-decoration: none; }
     };
     const [spec, sandbox, pipeline, production, policy, inspector, humans] =
       ['spec', 'sandbox', 'pipeline', 'production', 'policy', 'inspector', 'humans'].map(r);
-    const pad = 18;
-    const edge = map.querySelector('.edge');
-    const eTop = sandbox.t - pad;
-    const eBottom = Math.max(pipeline.b, policy.b) + pad;
-    Object.assign(edge.style, { left: `${-pad}px`, top: `${eTop}px`, width: `${m.width + 2 * pad}px`, height: `${eBottom - eTop}px` });
 
     const w = svg('svg', { class: 'wires', width: m.width, height: m.height, viewBox: `0 0 ${m.width} ${m.height}` });
     const defs = svg('defs');

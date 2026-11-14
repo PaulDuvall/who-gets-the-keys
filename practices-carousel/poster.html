@@ -7,9 +7,9 @@
   The poster of the practices carousel: the same carousel.yaml, the same tokens and fonts, on two 2400 x 2200 pages,
   the front and the back. It holds no content. render.mjs injects carousel.yaml as window.__CAROUSEL__ before this page's script runs.
   The factory runs left to right: the signed spec, the first three sections as columns (the agent sandbox, then the
-  pipeline's checks and evidence), production. A dashed line marks the factory's edge around the columns and the
-  fourth section, factory policy. The fifth, the inspector, sits outside it, then the sixth, routing humans, then
-  pages 9 and 10 and the closing line. The back is a checklist: every practice, section by section, with a box to tick.
+  pipeline's checks and evidence), production; the fourth section, factory policy, under the columns. The fifth, the
+  inspector, is framed by the security account the pipeline cannot reach; then the sixth, routing humans, then pages
+  9 and 10 and the closing line. All of it is the factory. The back is a checklist: every practice, section by section, with a box to tick.
   Nothing is fetched over the network.
 -->
 <style>
@@ -47,7 +47,7 @@ a { color: inherit; text-decoration: none; }
 
 .body { flex: 1; display: flex; flex-direction: column; gap: calc(18px * var(--pk)); padding: calc(26px * var(--pk)) 64px calc(22px * var(--pk)); min-height: 0; }
 
-/* The factory: the flow across the top, the columns under it, factory policy under them, the edge around it. */
+/* The factory: the flow across the top, the columns under it, factory policy under them. */
 .factory { position: relative; margin-bottom: 16px; display: grid; grid-template-columns: 220px repeat(3, minmax(0, 1fr)) 220px; column-gap: 22px; row-gap: calc(12px * var(--pk)); }
 .chev { position: relative; z-index: 1; min-height: 78px; padding: 12px 34px 12px 22px; color: #fff; clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 0 100%, 16px 50%); }
 .chev:first-child { clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 0 100%); }
@@ -61,8 +61,10 @@ a { color: inherit; text-decoration: none; }
 .side b { display: block; margin-bottom: 6px; font: 600 15px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
 .col { position: relative; z-index: 1; display: flex; flex-direction: column; gap: calc(10px * var(--pk)); }
 .policy { grid-column: 2 / 5; }
-.edge { position: absolute; z-index: 0; border: 3px dashed var(--band-muted); border-radius: 22px; }
-.edge .label { position: absolute; right: 30px; bottom: -16px; padding: 0 10px; background: var(--paper); font: 600 18px/28px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+/* The inspector's band is framed: the security account the pipeline cannot reach. */
+.band.inspector { outline: 3px dashed var(--band-muted); outline-offset: 8px; }
+.band .acct { position: absolute; right: 30px; top: -24px; padding: 0 10px; background: var(--paper); font: 600 18px/28px var(--font-mono);
+  letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 
 /* Cards: one carousel row each. --pk scales them so the poster fills its page. */
 .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: calc(11px * var(--pk)) calc(14px * var(--pk)) calc(10px * var(--pk)); }
@@ -191,6 +193,7 @@ a { color: inherit; text-decoration: none; }
     const n = list(sec.rows).length;
     cards.style.gridTemplateColumns = `repeat(${n <= 6 ? n : Math.ceil(n / 2)}, minmax(0, 1fr))`;
     const b = el('div', `band ${cls}`, el('div', 'bt', el('h2', null, sec.name), el('p', null, sec.tag)), cards);
+    if (String(cls).includes('inspector')) b.append(el('span', 'acct', doc.factory.account));
     b.dataset.section = String(i);
     return b;
   }
@@ -223,8 +226,7 @@ a { color: inherit; text-decoration: none; }
       el('div', 'side spec-side', spec.text),
       ...secs.slice(0, 3).map((s, i) => { const c = el('div', 'col', list(s.rows).map(card)); c.dataset.section = String(i); return c; }),
       el('div', 'side prod-side', production.text),
-      band(secs[3], 3, 'policy'),
-      el('div', 'edge', el('span', 'label', f.edge)));
+      band(secs[3], 3, 'policy'));
     // Grid places: chevrons on row 1, the pipeline's key line on row 2, the columns on row 3, policy on row 4.
     const place = (sel, col, row, span = 1) => { const e = factory.querySelector(sel); e.style.gridColumn = `${col} / span ${span}`; e.style.gridRow = String(row); };
     place('.chev.spec', 1, 1); place('.chev.c0', 2, 1); place('.chev.c1', 3, 1); place('.chev.c2', 4, 1); place('.chev.prod', 5, 1);
@@ -281,19 +283,6 @@ a { color: inherit; text-decoration: none; }
     return back;
   }
 
-  // The factory's edge: around the agent sandbox and pipeline columns, their chevrons and factory policy.
-  function drawEdge(poster) {
-    const fac = poster.querySelector('.factory');
-    const r0 = fac.getBoundingClientRect();
-    const rects = ['.chev.c0', '.chev.c2', '.col[data-section="0"]', '.col[data-section="2"]', '.policy'].map((s) => fac.querySelector(s).getBoundingClientRect());
-    const pad = 12;
-    const l = Math.min(...rects.map((r) => r.left)) - r0.left - pad;
-    const t = Math.min(...rects.map((r) => r.top)) - r0.top - pad;
-    const rr = Math.max(...rects.map((r) => r.right)) - r0.left + pad;
-    const b = Math.max(...rects.map((r) => r.bottom)) - r0.top + pad;
-    Object.assign(fac.querySelector('.edge').style, { left: `${l}px`, top: `${t}px`, width: `${rr - l}px`, height: `${b - t}px` });
-  }
-
   // Raise --pk (front) or --bk (back) from 0.8 in steps of 0.02 while the page still fits, as the carousel's section
   // pages do with --k.
   function fits(poster) {
@@ -329,7 +318,6 @@ a { color: inherit; text-decoration: none; }
       const back = buildBack();
       const loaded = await loadFonts();
       const pk = fit(poster);
-      drawEdge(poster);
       const bk = fit(back, '--bk', 150);
       done({ ok: true, pk, bk, fonts: loaded });
     } catch (e) {

@@ -79,7 +79,7 @@ function schemaCheck() {
   need(doc.poster, ['view', 'count', 'back', 'back_count'], 'poster');
   if (isObj(doc.poster) && !String(doc.poster.count || '').includes('{count}')) bad.push('poster.count has no {count}');
   if (isObj(doc.poster) && !String(doc.poster.back_count || '').includes('{count}')) bad.push('poster.back_count has no {count}');
-  need(doc.factory, ['heading', 'lede', 'edge'], 'factory');
+  need(doc.factory, ['heading', 'lede', 'account'], 'factory');
   const boxes = [
     ...list(doc.factory?.flow).map((b, i) => [`factory.flow[${i}]`, b]),
     ...list(doc.factory?.around).map((b, i) => [`factory.around[${i}]`, b]),
@@ -312,9 +312,9 @@ function measure() {
     const content = poster
       ? { left: r.left + 64, right: r.right - 64, top: r.top, bottom: r.bottom }
       : { left: r.left + parseFloat(cs.paddingLeft), right: r.right - parseFloat(cs.paddingRight), top: r.top + parseFloat(cs.paddingTop), bottom: r.bottom - parseFloat(cs.paddingBottom) };
-    const bleed = (e) => e.closest('.edge, .wires') || (poster && e.matches('.ph, .legend, .body, .pf'));
+    const bleed = (e) => e.closest('.wires') || (poster && e.matches('.ph, .legend, .body, .pf'));
     const outside = [];
-    // The factory's edge and the wires may reach into the margins, never past the page. A marker's shape has no
+    // The wires may reach into the margins, never past the page. A marker's shape has no
     // box of its own (0 x 0 at the document's origin), so empty boxes are skipped.
     const name = (e) => `${e.tagName.toLowerCase()}${typeof e.className === 'string' && e.className ? `.${e.className}` : ''} "${(e.textContent || '').trim().slice(0, 30)}"`;
     for (const e of s.querySelectorAll('*')) {
@@ -329,7 +329,7 @@ function measure() {
       if (!n.textContent.trim()) continue;
       const range = document.createRange();
       range.selectNodeContents(n);
-      const bound = n.parentElement.closest('.edge, .wires') ? r : content;
+      const bound = n.parentElement.closest('.wires') ? r : content;
       const lines = [...range.getClientRects()];
       if (lines.some((b) => !inside(b, bound, 2))) outside.push(`text "${n.textContent.trim().slice(0, 30)}"`);
       // And inside its own box, across: a word wider than a heading or an arrow's box runs out of it, or is clipped.
@@ -363,14 +363,12 @@ function measure() {
   const map = document.querySelector('.fmap');
   if (map) {
     const boxes = Object.fromEntries([...map.querySelectorAll('.fbox')].map((b) => [b.dataset.box, { r: rect(b), on: b.querySelector('.on')?.textContent, mark: b.querySelector('.mark')?.textContent || null }]));
-    const edge = rect(map.querySelector('.edge'));
     const sizes = [];
     const walker = document.createTreeWalker(map, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) {
       const n = walker.currentNode;
       if (n.textContent.trim()) sizes.push([parseFloat(getComputedStyle(n.parentElement).fontSize), n.textContent.trim().slice(0, 24)]);
     }
-    for (const n of [map.querySelector('.edge .label')]) if (n) sizes.push([parseFloat(getComputedStyle(n).fontSize), n.textContent]);
     const names = Object.keys(boxes);
     const overlaps = [];
     for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) if (meet(boxes[names[i]].r, boxes[names[j]].r)) overlaps.push(`${names[i]} x ${names[j]}`);
@@ -381,8 +379,9 @@ function measure() {
       mark: boxes.pipeline?.mark,
       minSize: sizes.reduce((m, [s]) => Math.min(m, s), Infinity),
       smallest: sizes.filter(([s]) => s < 26).map(([s, t]) => `${s}px "${t}"`).slice(0, 3),
-      inEdge: ['sandbox', 'pipeline', 'policy'].filter((n) => boxes[n] && inside(boxes[n].r, edge, 0)),
-      outEdge: ['spec', 'production', 'humans', 'inspector'].filter((n) => boxes[n] && !meet(boxes[n].r, edge, 0)),
+      // The security account's frame: a dashed outline on the inspector's box alone, with its label.
+      framed: [...map.querySelectorAll('.fbox')].filter((b) => getComputedStyle(b).outlineStyle === 'dashed').map((b) => b.dataset.box),
+      account: map.querySelector('.fb-inspector .acct')?.textContent ?? null,
       overlaps,
       wires: map.querySelectorAll('.wires > path').length,
       // The flow runs top to bottom; policy sits beside the pipeline and humans beside the spec.
@@ -394,13 +393,12 @@ function measure() {
   out.count = document.querySelector('.cover .count, .poster .count')?.textContent ?? null;
   const p = document.querySelector('.poster');
   if (p) {
-    const edge = rect(p.querySelector('.edge'));
     const zone = (sel) => p.querySelector(sel);
     const chevs = ['.chev.spec', '.chev.c0', '.chev.c1', '.chev.c2', '.chev.prod'].map((c) => rect(zone(c)).left);
     out.poster = {
       cards: [...p.querySelectorAll('.card')].map((c) => ({ row: c.dataset.row, section: Number(c.closest('[data-section]')?.dataset.section ?? -1) })),
-      inEdge: ['.col[data-section="0"]', '.col[data-section="1"]', '.col[data-section="2"]', '.band[data-section="3"]'].filter((q) => zone(q) && inside(rect(zone(q)), edge, 0)),
-      outEdge: ['.spec-side', '.prod-side', '.chev.spec', '.chev.prod', '.band[data-section="4"]', '.band[data-section="5"]'].filter((q) => zone(q) && !meet(rect(zone(q)), edge, 0)),
+      framed: [...p.querySelectorAll('.band, .col, .side, .chev')].filter((b) => getComputedStyle(b).outlineStyle === 'dashed').map((b) => b.dataset.section ?? b.className),
+      account: zone('.band[data-section="4"] .acct')?.textContent ?? null,
       flowRight: chevs.every((x, i) => !i || chevs[i - 1] < x),
       keyline: zone('.keyline')?.textContent || '',
       cardText: [...p.querySelectorAll('.card')].map((c) => c.textContent),
@@ -477,14 +475,14 @@ function mapCheck(m) {
   if (biggest !== 'pipeline') bad.push(`the largest box is ${biggest}, not the pipeline`);
   if (map.mark !== doc.factory.flow[2]?.mark) bad.push('the pipeline is not marked with its mark');
   if (map.minSize < 26) bad.push(`text below 26 px: ${map.smallest.join(', ')}`);
-  if (map.inEdge.length !== 3) bad.push(`inside the factory's edge: ${map.inEdge.join(', ')}; want sandbox, pipeline, policy`);
-  if (map.outEdge.length !== 4) bad.push(`outside the factory's edge: ${map.outEdge.join(', ')}; want spec, production, humans, inspector`);
+  if (map.framed.join() !== 'inspector') bad.push(`framed as the security account: ${map.framed.join(', ') || 'nothing'}; want the inspector alone`);
+  if (map.account !== doc.factory.account) bad.push('the frame does not carry its label');
   if (map.overlaps.length) bad.push(`boxes overlap: ${map.overlaps.join(', ')}`);
   if (map.wires !== 7) bad.push(`${map.wires} wires drawn, not 7`);
   if (!map.flowDown) bad.push('the flow does not run spec, sandbox, pipeline, production from top to bottom');
   if (!map.besidePipeline) bad.push('factory policy is not beside the pipeline');
   if (!map.besideSpec) bad.push('humans are not beside the spec');
-  record('Map', !bad.length, bad.length ? bad.join('; ') : `7 boxes, none overlapping; spec, sandbox, pipeline and production top to bottom; the pipeline is the largest (${map.area.pipeline} px²) and marked; policy beside it, humans beside the spec and wired to the pipeline; sandbox, pipeline and policy inside the edge, spec, production, humans and inspector outside; smallest map text ${map.minSize} px`);
+  record('Map', !bad.length, bad.length ? bad.join('; ') : `7 boxes, none overlapping; spec, sandbox, pipeline and production top to bottom; the pipeline is the largest (${map.area.pipeline} px²) and marked; policy beside it, humans beside the spec and wired to the pipeline; the inspector alone framed as the security account; smallest map text ${map.minSize} px`);
 }
 
 function offlineCheck(logs) {
@@ -519,7 +517,7 @@ function countCheck(m, pm) {
 }
 
 // Poster: one page; every row exactly once, in its section's column or band; the factory flows left to right; the
-// edge holds the sandbox, the pipeline's checks and evidence and factory policy, and leaves out the spec, production,
+// inspector's band alone is framed as the security account, with its label; nor the spec, production,
 // the inspector and routing humans.
 function posterCheck(pm) {
   const bad = [];
@@ -529,8 +527,8 @@ function posterCheck(pm) {
   const got = P.cards.map((c) => `${c.section}\u0000${c.row}`).sort();
   if (want.join('\n') !== got.join('\n')) bad.push(`cards differ from the rows: ${want.length} rows, ${got.length} cards, ${got.filter((g, i) => g !== want[i]).length} out of place`);
   if (!P.flowRight) bad.push('the flow does not run spec, sandbox, checks, evidence, production from left to right');
-  if (P.inEdge.length !== 4) bad.push(`inside the factory's edge: ${P.inEdge.length} of the 3 columns and the policy band`);
-  if (P.outEdge.length !== 6) bad.push(`outside the factory's edge: ${P.outEdge.length} of 6 (spec, production, inspector, humans)`);
+  if (P.framed.join() !== '4') bad.push(`framed as the security account: ${P.framed.join(', ') || 'nothing'}; want the inspector's band alone`);
+  if (P.account !== doc.factory.account) bad.push("the inspector's frame does not carry its label");
   if (!P.keyline.includes(String(doc.factory.flow[2]?.mark))) bad.push('the pipeline is not marked with its mark');
   bad.push(...P.misplaced);
   // Each card holds its own row's words, so a word shown on another card cannot stand in for it.
@@ -565,7 +563,7 @@ function posterCheck(pm) {
     if (missingWords.length) bad.push(`${missingWords.length} item(s) on the back lack their row's words`);
     if (B.sections.join('\n') !== doc.sections.map((x) => x.name).join('\n')) bad.push("the back's section headings differ from the sections");
   }
-  record('Poster', !bad.length, bad.length ? bad.join('; ') : `2 pages of ${size} pt. Front: all ${got.length} rows once each, each card with its row's words, in their sections' places; each column under its arrow, the bands in order; flow left to right; columns and policy inside the factory's edge, spec, production, inspector and humans outside. Back: a box to tick for each of the ${B.items.length} rows, in order, under its section`);
+  record('Poster', !bad.length, bad.length ? bad.join('; ') : `2 pages of ${size} pt. Front: all ${got.length} rows once each, each card with its row's words, in their sections' places; each column under its arrow, the bands in order; flow left to right; the inspector's band alone framed as the security account. Back: a box to tick for each of the ${B.items.length} rows, in order, under its section`);
 }
 
 // Text: every string carousel.yaml puts on a page is in that page of the PDF, as pdftotext reads it.
@@ -575,7 +573,7 @@ function textCheck() {
   const f = doc.factory;
   const expect = {
     1: [m.title, `${m.thesis_key} ${m.thesis_rest}`, String(m.subtitle).replace('{count}', String(ROWS.length)), doc.legend.owasp, m.byline, ...['before', 'seconds', 'minutes', 'hours'].map((k) => doc.windows[k])],
-    2: [f.heading, f.lede, f.edge, ...[...f.flow, ...f.around].flatMap((b) => [b.name, b.text, b.mark].filter(Boolean))],
+    2: [f.heading, f.lede, f.account, ...[...f.flow, ...f.around].flatMap((b) => [b.name, b.text, b.mark].filter(Boolean))],
   };
   doc.sections.forEach((s, i) => {
     expect[i + 3] = [s.name, s.tag, s.blurb, doc.legend.windows, doc.windows.always, doc.legend.untagged, doc.legend.diy, doc.legend.tools, ...s.rows.flatMap((r) => [r.text, r.lead, r.ref, ...list(r.tools).map((t) => t.name), doc.where[r.where]].filter(Boolean))];
@@ -588,7 +586,7 @@ function textCheck() {
   // the spec, pipeline and production boxes of page 2. It leaves out the cover's subtitle, each section's blurb, page
   // 9's notes, the other boxes' text on page 2 and the seconds and minutes window labels.
   const poster = [m.title, doc.poster.view, `${m.thesis_key} ${m.thesis_rest}`, String(doc.poster.count).replace('{count}', String(ROWS.length)), m.byline,
-    doc.legend.windows, doc.windows.always, doc.legend.untagged, doc.legend.diy, doc.legend.tools, doc.legend.owasp, f.edge, f.flow[0].name, f.flow[0].text, f.flow[2].name, f.flow[2].mark, f.flow[3].name, f.flow[3].text,
+    doc.legend.windows, doc.windows.always, doc.legend.untagged, doc.legend.diy, doc.legend.tools, doc.legend.owasp, f.account, f.flow[0].name, f.flow[0].text, f.flow[2].name, f.flow[2].mark, f.flow[3].name, f.flow[3].text,
     ...doc.sections.flatMap((s) => [s.name, s.tag, ...s.rows.flatMap((r) => [r.text, r.lead, r.ref, ...list(r.tools).map((t) => t.name), doc.where[r.where]].filter(Boolean))]),
     h.heading, ...h.rows.flatMap((r) => [r.label, r.text]), h.day_one.heading, ...h.day_one.items, h.day_one.end,
     c.heading, ...c.items.flatMap((i) => [i.verb, i.what, i.how]), `${m.close_line_plain} ${m.close_line_key}`, ...m.sites];

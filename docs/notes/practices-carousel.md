@@ -73,6 +73,10 @@ On 2026-11-14 the owner shared the earlier "Pipeline view" poster, 43 practices,
 
 Fitting 43 rows took three steps, each checked by Fit: the staging-tests row moved to page 4; the section summaries widened from 42 to 52 characters; and the legend's tools line became "Tools are examples", which fits on the second line (239 px free, measured) where "Tools: examples of the kind of tool to use" needed 366 px.
 
+## Everything is the factory
+
+On 2026-11-14 the owner said the whole picture is the factory: the inspector watches the pipeline from outside the pipeline, not from outside the factory. The inspector's tag now reads "Watch the pipeline from a separate account", its map box "Runs in a security account the pipeline can't reach", and page 2's lede "Everything that turns a signed spec into a deployed change, and watches it". The dashed "factory's edge" around the sandbox, pipeline and policy is gone; a dashed frame labelled "Security account" surrounds the inspector alone, on page 2 and on the poster. Map and Poster check that only the inspector is framed and that the frame carries its label.
+
 ## Not fixed
 
 Findings 6, 11 and 12 of the first review, for the reasons given. The ten Vitest failures in the preflight are the container's, and the candidate run's test check covers them.
