@@ -166,6 +166,8 @@ const PHRASING = [
   ['comma then "not"', /,\s*not\b/i],
   ['sentence starting "Not"', /(^|[.!?]["')\]]?\s+)Not\b/],
   ['"never"', /\bnever\b/i],
+  // A reader outside git takes "patch" for a bug fix; the carousel says "proposed change" (owner, 2026-11-14).
+  ['"patch"', /\bpatch(es)?\b/i],
   ['"Here\'s"', /\bhere['’]s\b/i],
   ['stock word', /\b(delve|unlock|harness|robust|crucial|pivotal|landscape|ecosystem|transformative|cutting-edge|game-changer|seamless)\b/i],
 ];
@@ -221,6 +223,26 @@ function pagesCheck() {
   record('Pages', ok, `${pages} pages${pages === 10 ? '' : ', not 10'}; ${wrong.length ? wrong.join(', ') : `each 810 x 1013.04 pt, which is ${WIDTH} x ${HEIGHT} px as Chromium rounds it`}`);
 }
 
+// The PostScript name (name ID 6) of a TrueType file, as a PDF names an embedded font.
+function postscriptName(buf) {
+  const tables = buf.readUInt16BE(4);
+  for (let i = 0; i < tables; i++) {
+    const at = 12 + 16 * i;
+    if (buf.toString('latin1', at, at + 4) !== 'name') continue;
+    const base = buf.readUInt32BE(at + 8);
+    const count = buf.readUInt16BE(base + 2);
+    const strings = base + buf.readUInt16BE(base + 4);
+    for (let j = 0; j < count; j++) {
+      const rec = base + 6 + 12 * j;
+      const [platform, , , id, len, off] = [0, 2, 4, 6, 8, 10].map((o) => buf.readUInt16BE(rec + o));
+      if (id !== 6) continue;
+      const bytes = buf.subarray(strings + off, strings + off + len);
+      return platform === 3 || platform === 0 ? Buffer.from(bytes).swap16().toString('utf16le') : bytes.toString('latin1');
+    }
+  }
+  return null;
+}
+
 function fontsCheck(readies) {
   const bad = [];
   let pins;
@@ -230,19 +252,23 @@ function fontsCheck(readies) {
     return record('Fonts', false, `fonts.json does not parse: ${e.message}`);
   }
   for (const s of list(pins.sources)) if (!/^https:\/\//.test(String(s.licence_url)) || !/Open Font License/.test(String(s.licence))) bad.push(`source ${s.name} names no OFL licence URL`);
+  const pinned = new Set();
   for (const f of list(pins.fonts)) {
     if (!/^https:\/\/.*\/[0-9a-f]{40}\//.test(String(f.url))) bad.push(`${f.file}: url is not pinned to a commit`);
     if (!/^[0-9a-f]{64}$/.test(String(f.sha256))) bad.push(`${f.file}: sha256 is not 64 hex digits`);
     const file = path.join(FONT_DIR, String(f.file));
     if (!fs.existsSync(file)) bad.push(`${f.file}: not downloaded`);
-    else if (sha256(fs.readFileSync(file)) !== f.sha256) bad.push(`${f.file}: SHA-256 differs from fonts.json`);
+    else {
+      const buf = fs.readFileSync(file);
+      if (sha256(buf) !== f.sha256) bad.push(`${f.file}: SHA-256 differs from fonts.json`);
+      else pinned.add(postscriptName(buf));
+    }
   }
   for (const ready of readies) {
     const notLoaded = list(ready?.fonts).filter((s) => !/: loaded$/.test(s));
     if (notLoaded.length || !list(ready?.fonts).length) bad.push(`not loaded in the page: ${notLoaded.join(', ') || 'none reported'}`);
   }
   const counts = [];
-  let names = [];
   for (const file of [PDF, POSTER_PDF]) {
     const label = path.basename(file);
     if (!fs.existsSync(file)) {
@@ -254,16 +280,16 @@ function fontsCheck(readies) {
       break;
     }
     const rows = execFileSync('pdffonts', [file], { encoding: 'utf8' }).trim().split('\n').slice(2);
-    names = rows.map((l) => l.split(/\s+/)[0].replace(/^[A-Z]{6}\+/, ''));
+    const names = rows.map((l) => l.split(/\s+/)[0].replace(/^[A-Z]{6}\+/, ''));
     rows.forEach((l, i) => {
       if (!/\s+yes\s+(yes|no)\s+(yes|no)\s+\d+\s+\d+\s*$/.test(l)) bad.push(`${label}: ${names[i]} is not embedded`);
     });
     for (const fam of ['Archivo', 'IBMPlexSans', 'IBMPlexMono']) if (!names.some((n) => n.startsWith(fam))) bad.push(`${label}: ${fam} is missing`);
-    const stray = names.filter((n) => !/^(Archivo|IBMPlex)/.test(n));
+    const stray = names.filter((n) => !pinned.has(n));
     if (stray.length) bad.push(`${label}: fonts that fonts.json does not pin: ${stray.join(', ')}`);
-    counts.push(`${rows.length} in ${label}`);
+    counts.push(`${label}: ${names.length} (${names.join(', ')})`);
   }
-  record('Fonts', !bad.length, bad.length ? bad.slice(0, 5).join('; ') : `${list(pins.fonts).length} files match fonts.json; fonts all embedded and pinned, ${counts.join(', ')}: ${names.join(', ')}`);
+  record('Fonts', !bad.length, bad.length ? bad.slice(0, 5).join('; ') : `${list(pins.fonts).length} files match fonts.json; every font in both PDFs embedded and one of the pinned files by its PostScript name. ${counts.join('; ')}`);
 }
 
 // ------------------------------------------------------------------ browser
@@ -276,7 +302,13 @@ function measure() {
   for (const s of document.querySelectorAll('.slide, .poster')) {
     const r = rect(s);
     const cs = getComputedStyle(s);
-    const content = { left: r.left + parseFloat(cs.paddingLeft), right: r.right - parseFloat(cs.paddingRight), top: r.top + parseFloat(cs.paddingTop), bottom: r.bottom - parseFloat(cs.paddingBottom) };
+    const poster = s.classList.contains('poster');
+    // The poster has no padding of its own. Its margin is 64 px at each side, which only the full-width boxes of the
+    // header, legend, body and footer may cross; their text may not.
+    const content = poster
+      ? { left: r.left + 64, right: r.right - 64, top: r.top, bottom: r.bottom }
+      : { left: r.left + parseFloat(cs.paddingLeft), right: r.right - parseFloat(cs.paddingRight), top: r.top + parseFloat(cs.paddingTop), bottom: r.bottom - parseFloat(cs.paddingBottom) };
+    const bleed = (e) => e.closest('.edge, .wires') || (poster && e.matches('.ph, .legend, .body, .pf'));
     const outside = [];
     // The factory's edge and the wires may reach into the margins, never past the page. A marker's shape has no
     // box of its own (0 x 0 at the document's origin), so empty boxes are skipped.
@@ -284,7 +316,7 @@ function measure() {
     for (const e of s.querySelectorAll('*')) {
       const b = rect(e);
       if (b.width === 0 && b.height === 0) continue;
-      if (!inside(b, e.closest('.edge, .wires') ? r : content)) outside.push(name(e));
+      if (!inside(b, bleed(e) ? r : content)) outside.push(name(e));
     }
     // Text too: a word too long for its line runs out of its box, and the box alone does not show it.
     const walker = document.createTreeWalker(s, NodeFilter.SHOW_TEXT);
@@ -294,9 +326,14 @@ function measure() {
       const range = document.createRange();
       range.selectNodeContents(n);
       const bound = n.parentElement.closest('.edge, .wires') ? r : content;
-      if ([...range.getClientRects()].some((b) => !inside(b, bound, 2))) outside.push(`text "${n.textContent.trim().slice(0, 30)}"`);
+      const lines = [...range.getClientRects()];
+      if (lines.some((b) => !inside(b, bound, 2))) outside.push(`text "${n.textContent.trim().slice(0, 30)}"`);
+      // And inside its own box, across: a word wider than a heading or an arrow's box runs out of it, or is clipped.
+      let box = n.parentElement;
+      while (box && /^(inline|contents)$/.test(getComputedStyle(box).display)) box = box.parentElement;
+      const own = box ? rect(box) : r;
+      if (lines.some((b) => b.left < own.left - 1.5 || b.right > own.right + 1.5)) outside.push(`text "${n.textContent.trim().slice(0, 30)}" runs out of its box`);
     }
-    const poster = s.classList.contains('poster');
     const page = { n: poster ? 'poster' : Number(s.dataset.page), kind: poster ? 'poster' : s.dataset.kind, k: s.style.getPropertyValue(poster ? '--pk' : '--k') || null, scroll: s.scrollHeight > s.clientHeight || s.scrollWidth > s.clientWidth, outside: [...new Set(outside)].slice(0, 3), rowsAboveLegend: true };
     if (poster) {
       const body = s.querySelector('.body');
@@ -361,7 +398,26 @@ function measure() {
       outEdge: ['.spec-side', '.prod-side', '.chev.spec', '.chev.prod', '.band[data-section="4"]', '.band[data-section="5"]'].filter((q) => zone(q) && !meet(rect(zone(q)), edge, 0)),
       flowRight: chevs.every((x, i) => !i || chevs[i - 1] < x),
       keyline: zone('.keyline')?.textContent || '',
+      cardText: [...p.querySelectorAll('.card')].map((c) => c.textContent),
     };
+    // Each column sits under its own section's arrow; spec and production text under theirs; policy under the
+    // columns; then the inspector, routing humans, pages 9 and 10 and the footer, top to bottom.
+    const names = (window.__CAROUSEL__?.doc?.sections || []).map((x) => x.name);
+    const under = (a, b) => { const A = rect(zone(a)); const B = rect(zone(b)); const cx = (A.left + A.right) / 2; return cx > B.left && cx < B.right; };
+    const misplaced = [];
+    [0, 1, 2].forEach((i) => {
+      if (!under(`.col[data-section="${i}"]`, `.chev.c${i}`)) misplaced.push(`column ${i + 1} is not under its arrow`);
+      if (zone(`.chev.c${i} .n`)?.textContent !== names[i]) misplaced.push(`arrow ${i + 2} does not name section ${i + 1}`);
+    });
+    if (!under('.spec-side', '.chev.spec')) misplaced.push('the spec text is not under its arrow');
+    if (!under('.prod-side', '.chev.prod')) misplaced.push('the production text is not under its arrow');
+    const colBottom = Math.max(...[0, 1, 2].map((i) => rect(zone(`.col[data-section="${i}"]`)).bottom));
+    if (rect(zone('.band[data-section="3"]')).top < colBottom) misplaced.push('factory policy is not under the columns');
+    const order = ['.factory', '.band[data-section="4"]', '.band[data-section="5"]', '.after', '.pf'].map((q) => rect(zone(q)));
+    order.forEach((b, i) => {
+      if (i && order[i - 1].bottom > b.top + 0.5) misplaced.push(`${['factory', 'inspector', 'routing humans', 'pages 9 and 10', 'footer'][i]} is not below what comes before it`);
+    });
+    out.poster.misplaced = misplaced;
   }
   return out;
 }
@@ -453,6 +509,15 @@ function posterCheck(pm) {
   if (P.inEdge.length !== 4) bad.push(`inside the factory's edge: ${P.inEdge.length} of the 3 columns and the policy band`);
   if (P.outEdge.length !== 6) bad.push(`outside the factory's edge: ${P.outEdge.length} of 6 (spec, production, inspector, humans)`);
   if (!P.keyline.includes(String(doc.factory.flow[2]?.mark))) bad.push('the pipeline is not marked with its mark');
+  bad.push(...P.misplaced);
+  // Each card holds its own row's words, so a word shown on another card cannot stand in for it.
+  const cardByRow = new Map(P.cards.map((c, i) => [c.row, norm(P.cardText[i])]));
+  const thin = ROWS.filter(({ row }) => {
+    const t = cardByRow.get(row.text) || '';
+    const words = [row.text, row.lead, row.ref && `${doc.labels.ref} ${row.ref}`, ...list(row.tools).map((x) => x.name), doc.where[row.where], row.diy && doc.labels.diy].filter(Boolean);
+    return words.some((w) => !t.includes(norm(w)));
+  });
+  if (thin.length) bad.push(`${thin.length} card(s) lack their row's words: "${short(thin[0].row.text, 40)}"`);
   let pages = 0;
   let size = '';
   if (!fs.existsSync(POSTER_PDF)) bad.push('missing out/poster.pdf');
@@ -465,7 +530,7 @@ function posterCheck(pm) {
     if (Math.abs(w - POSTER.width * 0.75) > 1 || Math.abs(h - POSTER.height * 0.75) > 1) bad.push(`poster.pdf is ${size} pt`);
   }
   if (!fs.existsSync(path.join(OUT, 'poster.png'))) bad.push('missing out/poster.png');
-  record('Poster', !bad.length, bad.length ? bad.join('; ') : `1 page of ${size} pt; all ${got.length} rows once each, in their sections' places; flow left to right; columns and policy inside the factory's edge, spec, production, inspector and humans outside`);
+  record('Poster', !bad.length, bad.length ? bad.join('; ') : `1 page of ${size} pt; all ${got.length} rows once each, each card with its row's words, in their sections' places; each column under its arrow, the bands in order; flow left to right; columns and policy inside the factory's edge, spec, production, inspector and humans outside`);
 }
 
 // Text: every string carousel.yaml puts on a page is in that page of the PDF, as pdftotext reads it.
@@ -484,7 +549,9 @@ function textCheck() {
   expect[PAGES - 1] = [h.heading, ...h.rows.flatMap((r) => [r.label, r.text, r.note]), h.day_one.heading, ...h.day_one.items, h.day_one.end];
   const c = doc.close;
   expect[PAGES] = [c.heading, ...c.items.flatMap((i) => [i.verb, i.what, i.how]), `${m.close_line_plain} ${m.close_line_key}`, m.byline, ...m.sites];
-  // The poster holds every row and the words of pages 1, 9 and 10, but not each page's blurb or page 2's map text.
+  // The poster holds every row, the title, thesis and windows of page 1, the headings and lines of pages 9 and 10, and
+  // the spec, pipeline and production boxes of page 2. It leaves out the cover's subtitle, each section's blurb, page
+  // 9's notes, the other boxes' text on page 2 and the seconds and minutes window labels.
   const poster = [m.title, doc.poster.view, `${m.thesis_key} ${m.thesis_rest}`, String(doc.poster.count).replace('{count}', String(ROWS.length)), m.byline,
     doc.legend.windows, doc.windows.always, doc.legend.untagged, doc.legend.diy, doc.legend.tools, f.edge, f.flow[0].name, f.flow[0].text, f.flow[2].name, f.flow[2].mark, f.flow[3].name, f.flow[3].text,
     ...doc.sections.flatMap((s) => [s.name, s.tag, ...s.rows.flatMap((r) => [r.text, r.lead, r.ref, ...list(r.tools).map((t) => t.name), doc.where[r.where]].filter(Boolean))]),
