@@ -83,31 +83,110 @@ On 2026-11-14 the owner said the whole picture is the factory: the inspector wat
 
 ## Page 11: a real receipt
 
-On 2026-11-14 the owner asked for a sample receipt that shows "No evidence, no deploy" and many of the 42 practices, then made it page 11. The first version invented its values: `TASK-0042`, commit `7f5c682`, a PASS beside each line, marked "illustrative". The owner said it showed no real evidence, such as provenance, hash pins or attestations, and read as marketing, and pointed at this repository's own receipt. That was right: SPEC-001-R45 to R56 define a receipt, and `main` run 114 printed one for a real delivery.
+On 2026-11-14 the owner asked for a sample receipt that shows "No evidence, no deploy" and many of the 42 practices, then made it page 11. The first version invented its values: `TASK-0042`, commit `7f5c682`, and a PASS on every line, marked "illustrative". The owner said it showed no real evidence, such as provenance, hash pins or attestations, and read as marketing. The owner also pointed at this repository's own receipt. That was right. SPEC-001-R45, R48, R50, R55 and R56 define a receipt, and `main` run 114 printed one for a real delivery.
 
-Page 11 now shows that receipt: the seven lines `main` run 114 printed for the runner producer's delivery `9f959a3` (TASK-T4-DUP-COLUMNS, SPEC-014-R7), as `docs/notes/tracer-2-t4.md` records them. Under them, "What backs it" gives the evidence behind each line, from the logs of the producer run that wrote the patch and the pipeline run that shipped it. Then come four things the receipt does not show yet, under "Missing so far", and scenario B10's failure line. Nothing on the page is invented. The Receipt check in `verify.mjs` compares the printed lines with that record and with the commit's own trailers. It checks that the spec commit is an ancestor with a security-key signature that adds the task file, and that every digest and run ID on the page appears in the record or in the table below.
+Page 11 now shows that receipt: the seven lines `main` run 114 printed for the runner producer's delivery `9f959a3` (TASK-T4-DUP-COLUMNS, SPEC-014-R7). They match the copy that `docs/notes/tracer-2-t4.md` has held on `main` since `1c56a5a`, on 2026-11-08. Under them, "Behind it" is evidence a reviewer collected by hand from git and two runs' logs. One run wrote the change; the other shipped it. The pipeline itself verified only the seven lines. Then come five things the receipt does not show yet, under "Missing so far", and scenario B10's failure line.
 
-### The evidence, read on 2026-11-14 through the GitHub API
+### What the Receipt check holds the page to
 
-| Line on page 11 | What the log says | Where |
+| Part of page 11 | Must match |
+|---|---|
+| The seven printed lines | The block in `docs/notes/tracer-2-t4.md` at `1c56a5a`, and the commit's own hash and last-paragraph trailers for COMMIT, AGENT and SPEC |
+| The spec commit, `c7c6b4d` | An ancestor of `9f959a3` that adds SPEC-014-R7 under `specs/` and adds `tasks/TASK-T4-DUP-COLUMNS.task.md`. It has one `gpgsig` header with an SSH signature. That signature's key is a security key listed in `approvers.txt` at its parent, with namespace `git` and the touch flag. The check reads the key. The pipeline's signatures check verifies the signature itself (SPEC-001-R12), and run 114's did |
+| Each line under "Behind it", the header and the stub | Its own quotes. A `git` quote must be in a file, or a commit message, at a pinned full SHA. A `log` quote must be in the block below, under the line that names its job. Every number and digest the page line shows must be in that line's quotes, whole, as a digest prefix, or as a quoted decimal rounded. A base64 SHA-256 in a quote also counts as its hex |
+
+The log quotes are this session's copy of GitHub's logs, made on 2026-11-14. The check cannot fetch the logs, which expire under GitHub's retention period. While they exist, anyone can compare each line below with the job it names.
+
+### Log lines, quoted
+
+Copied from the GitHub API's job logs on 2026-11-14. ANSI colour codes are removed, and timestamps too, except on the last line, whose time page 11 shows. The script that made this block refused any line holding the account ID, which two of these logs print.
+
+```text
+producer run 42499336951, job 128788563404, produce a patch with Claude Code
+TOOL Bash: npm run check:lint 2>&1
+TOOL Bash: npm run check:typecheck 2>&1
+TOOL Bash: npm run check:trace 2>&1
+TOOL Bash: npm run check:test 2>&1
+RUN ENDED: success, 10 turns, estimated USD 0.2377491
+Permission mode: default.
+
+producer run 42499336951, job 128788887004, publish the candidate branch
+  PATCH_SHA256: 0c1051d044e7b3f02d7000cfd4fb806a99232266b70865cd49326ddf5d5c3e97
+Pushed 9f959a350e541d1aa52654e4ace7d7fdd4fa52a6 to candidate/TASK-T4-DUP-COLUMNS. That push starts no run. To land it (SPEC-001-R210):
+
+main run 114 (42501305077), job 128794438881, checks
+check secrets passed
+check allowlist passed
+check workflows passed
+check install passed
+check lint passed
+check typecheck passed
+check iac passed
+check sast passed
+check sca passed
+check trace passed
+check ratchet passed
+check signatures passed
+check slides passed
+check test passed
+check mutation passed
+
+main run 114 (42501305077), job 128794922989, receipt
+receipt: verified https://slsa.dev/provenance/v1: {"certificateIssuer":"CN=sigstore-intermediate,O=sigstore.dev","subjectAlternativeName":"https://github.com/PaulDuvall/who-gets-the-keys/.github/workflows/pipeline.yml@refs/heads/main","issuer":"https://token.actions.githubusercontent.com","githubWorkflowTrigger":"push","githubWorkflowSHA":"9f959a350e541d1aa52654e4ace7d7fdd4fa52a6","githubWorkflowName":"pipeline","githubWorkflowRepository":"PaulDuvall/who-gets-the-keys","githubWorkflowRef":"refs/heads/main","buildSignerURI":"https://github.com/PaulDuvall/who-gets-the-keys/.github/workflows/pipeline.yml@refs/heads/main","buildSignerDigest":"9f959a350e541d1aa52654e4ace7d7fdd4fa52a6","runnerEnvironment":"github-hosted","sourceRepositoryURI":"https://github.com/PaulDuvall/who-gets-the-keys","sourceRepositoryDigest":"9f959a350e541d1aa52654e4ace7d7fdd4fa52a6","sourceRepositoryRef":"refs/heads/main","sourceRepositoryIdentifier":"1443586681","sourceRepositoryOwnerURI":"https://github.com/PaulDuvall","sourceRepositoryOwnerIdentifier":"1619259","buildConfigURI":"https://github.com/PaulDuvall/who-gets-the-keys/.github/workflows/pipeline.yml@refs/heads/main","buildConfigDigest":"9f959a350e541d1aa52654e4ace7d7fdd4fa52a6","buildTrigger":"push","runInvocationURI":"https://github.com/PaulDuvall/who-gets-the-keys/actions/runs/42501305077/attempts/1","sourceRepositoryVisibilityAtSigning":"public"}
+receipt: verified https://github.com/PaulDuvall/who-gets-the-keys/provenance/v2: {"certificateIssuer":"CN=sigstore-intermediate,O=sigstore.dev","subjectAlternativeName":"https://github.com/PaulDuvall/who-gets-the-keys/.github/workflows/pipeline.yml@refs/heads/main","issuer":"https://token.actions.githubusercontent.com","githubWorkflowTrigger":"push","githubWorkflowSHA":"9f959a350e541d1aa52654e4ace7d7fdd4fa52a6","githubWorkflowName":"pipeline","githubWorkflowRepository":"PaulDuvall/who-gets-the-keys","githubWorkflowRef":"refs/heads/main","buildSignerURI":"https://github.com/PaulDuvall/who-gets-the-keys/.github/workflows/pipeline.yml@refs/heads/main","buildSignerDigest":"9f959a350e541d1aa52654e4ace7d7fdd4fa52a6","runnerEnvironment":"github-hosted","sourceRepositoryURI":"https://github.com/PaulDuvall/who-gets-the-keys","sourceRepositoryDigest":"9f959a350e541d1aa52654e4ace7d7fdd4fa52a6","sourceRepositoryRef":"refs/heads/main","sourceRepositoryIdentifier":"1443586681","sourceRepositoryOwnerURI":"https://github.com/PaulDuvall","sourceRepositoryOwnerIdentifier":"1619259","buildConfigURI":"https://github.com/PaulDuvall/who-gets-the-keys/.github/workflows/pipeline.yml@refs/heads/main","buildConfigDigest":"9f959a350e541d1aa52654e4ace7d7fdd4fa52a6","buildTrigger":"push","runInvocationURI":"https://github.com/PaulDuvall/who-gets-the-keys/actions/runs/42501305077/attempts/1","sourceRepositoryVisibilityAtSigning":"public"}
+COMMIT   9f959a350e54
+FILES    dist/function.zip sha256:722ac6715a0d
+AGENT    Claude Code (as reported by the commit)
+MODEL    not recorded
+SPEC     SPEC-014-R7
+SIGNED   pipeline.yml@refs/heads/main (editable by the agent)
+VERIFIED 2/2 predicate types
+
+main run 114 (42501305077), job 128795003787, deploy to sandbox
+      ~ source_code_hash               = "jmV3T5ehFBKJBIb+A0wyaeDcMaW2AO2pRTQYhpqqj5Y=" -> "cirGcVoNEagYllHWjviAKNAav4EOSi564+nsdKTnZsw="
+Plan: 0 to add, 1 to change, 0 to destroy.
+Saved the plan to: plan.out
+2026-11-08T16:46:39.0695771Z Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
+```
+
+### What each line shows, and what it does not
+
+| Line on page 11 | Source | What it does not show |
 |---|---|---|
-| SPEC | `c7c6b4d` carries an SSH signature whose public key type is `sk-ecdsa-sha2-nistp256@openssh.com`, a security key. It changes `specs/SPEC-014-export-latency.md` and adds `tasks/TASK-T4-DUP-COLUMNS.task.md` | `git cat-file commit c7c6b4d`; the SSHSIG blob's public key |
-| AGENT | `RUN ENDED: success, 10 turns, estimated USD 0.2377491`. The command line holds `--max-turns 40 --max-budget-usd 5`. `CLAUDE_CODE_SHA256: 1eda4ee54631c2e313df7bd9c2b7d3ca22815e09c6145774309214f06a8acd15`, checked with `sha256sum -c` before unpacking, as is the `node_modules` archive, `b3c9c2d1a5ee6f22048679ca27669fbfaeb38940a3ab33cd0bc76aaac7b3ef92`. The settings hold `"allowedDomains": []`. `--strict-mcp-config` with a config that names no server (SPEC-001-R88). `Permission mode: default.` | producer run 42499336951, job 128788563404, "produce a patch with Claude Code" |
-| DIFF | The agent's tool calls: two reads, three edits of `src/handler.ts` and `test/export.acceptance.test.ts`, then `npm run check:lint`, `check:typecheck`, `check:trace` and `check:test`. The publish job, which runs no agent, checked `PATCH_SHA256: 0c1051d044e7b3f02d7000cfd4fb806a99232266b70865cd49326ddf5d5c3e97` before applying it, and could commit only after its scope command printed `scope ok`. It printed `Pushed 9f959a350e541d1aa52654e4ace7d7fdd4fa52a6 to candidate/TASK-T4-DUP-COLUMNS` | the same run, jobs 128788563404 and 128788887004 |
-| CHECKS | Fifteen lines, `check secrets passed` to `check mutation passed`, in SPEC-001-R1's order. On `main` the task and scope checks cover an empty range (SPEC-001-R68) | `main` run 114 (42501305077), job 128794438881 |
-| BUILD, VERIFY | Two lines, `receipt: verified https://slsa.dev/provenance/v1` and `receipt: verified https://github.com/PaulDuvall/who-gets-the-keys/provenance/v2`. Each certificate has `certificateIssuer` `CN=sigstore-intermediate,O=sigstore.dev`, `issuer` `https://token.actions.githubusercontent.com`, `subjectAlternativeName` `https://github.com/PaulDuvall/who-gets-the-keys/.github/workflows/pipeline.yml@refs/heads/main`, `runnerEnvironment` `github-hosted`, and `buildSignerDigest` and `sourceRepositoryDigest` both `9f959a350e541d1aa52654e4ace7d7fdd4fa52a6`. Then the seven lines | run 114, job 128794922989, "receipt" |
-| DEPLOY | The deploy-tip, attestation and receipt checks ran, in that order, before `configure-aws-credentials`. The saved plan changed `aws_lambda_function.export`'s `source_code_hash` to `cirGcVoNEagYllHWjviAKNAav4EOSi564+nsdKTnZsw=`, which is base64 for `722ac6715a0d11a8189651d68ef88028d01abf810e4a2e7ae3e9ec74a4e766cc`, the attested zip's digest. `Apply complete! Resources: 0 added, 1 changed, 0 destroyed.` at 16:46:39 UTC | run 114, job 128795003787, "deploy to sandbox" |
-| B10 stub | `CHECK attestation FAILED: dist/function.zip`: SPEC-001-R29's scenario, an unattested artifact at deploy. `docs/verification.md` records it from the E2E-R1 run on 2026-11-07 | `scenarios/scenarios.yaml`, B10 |
+| SPEC | `c7c6b4d`, signed by the approver's security key | It does not trace this delivery to the task: the receipt has no TASK line yet |
+| AGENT | Producer run 42499336951, named by the commit's `Producer-Run` trailer. Claude Code's version, SHA-256, turn and budget limits come from `producer.yml` at `c7c6b4d`, the commit that run checked out. The turns and estimated cost come from the run's last line | "Model access only" describes the job's credentials. The job also fetched packages before the agent started. The agent's own commands had an empty egress allowlist (SPEC-001-R87). The cost is Claude Code's estimate |
+| DIFF | The agent's tool calls, and the publish job, which runs no agent | The allow rules were not enforced as written. Claude Code forced `default` mode (`Permission mode: default.`), and read-only commands run without approval in every mode (SPEC-001-R88). The task's paths were enforced, by the scope command |
+| CHECKS | Fifteen pass lines, secrets to mutation | Mutation runs over all of `src/` with no incremental file, as CI keeps no cache, and fails below a fixed `break` of 95. The changed code and a drop in the score are not what it checks. On `main` the task and scope checks cover an empty range (SPEC-001-R68) |
+| BUILD, VERIFY | The receipt job's two verified attestations and their Sigstore certificates | MODEL reads `not recorded` (deviation D05) |
+| DEPLOY | The deploy job's step order in `pipeline.yml` at `9f959a3`, and its plan and apply lines | The hash is the one Terraform planned from the downloaded zip. Nothing read the deployed function's hash back, because the agent runs no `aws` command |
+| B10 stub | `docs/verification.md` at `96eb92c`, the E2E-R1 run of 2026-11-07 | It ran in the scenario harness, which runs the deploy job's attestation check on a zip with no attestation. No deploy job ran |
 
 ### Which rows it covers
 
 | Covers | Rows |
 |---|---|
-| In full, 15 | Allow list of commands and paths; cap turns and spend; tests and code quality in the sandbox and the pipeline; SAST; SCA; mutation score; property tests; approver-signed specs; trace; build once and verify attestations at deploy; pin by SHA and hash; no shared cache; one OIDC identity; allowlist MCP servers (none); approvers sign factory changes |
-| In part, 6 | Secrets (the pipeline scanned, the agent did not); IaC scan and SBOM (lint and validate, no SBOM); dependency allowlist and mirror (the allowlist check, no mirror); provenance with the model (MODEL reads `not recorded`); a hash of every agent input (Claude Code and `node_modules` only); human approval of irreversible actions (the check ran and found none to approve) |
-| Not on this receipt | The other 21: DAST, staging tests, the customer's acceptance, the validator, IAM proofs, every watch and every routing practice |
+| In full, 10 | Approver-signed specs; approvers sign factory changes; cap turns and spend; tests and code quality in the sandbox and the pipeline; SAST; SCA; property tests; no shared cache; build once and verify attestations at deploy; one OIDC identity |
+| In part, 12 | Trace (the trace check needs a `Spec:` trailer only on changes to `src/` and `test/`). A hash of every agent input (Claude Code and `node_modules` only). Pinning (actions and Claude Code are pinned; the runner image and the sandbox's apt packages are not). MCP allowlist (an empty list, with no server allowed by command or URL). Integrity of what it retrieves (digests checked before unpacking, for two downloads). The allow list of commands and paths (paths only). Mutation (all of `src/`, against a fixed bar). Secrets (the pipeline scanned and the agent did not). IaC scan and SBOM (lint and validate, with no SBOM). Dependency allowlist and mirror (the allowlist, with no mirror). Provenance with the model (`not recorded`). Human approval of irreversible actions (the check ran and found nothing to approve) |
+| Not on this receipt, 20 | DAST, staging tests, the customer's acceptance, the validator, IAM proofs, every watch practice and every routing practice, among others |
 
-The page's four gaps are the decision 0002 lines not built yet: the model (deviation D05), the INTENT and TASK lines (T3b), the factory fingerprint over every agent input, and a signer outside the agent's reach (Phase 3). "No agent runs in the jobs that verify and deploy" is true of run 114: the agent ran only in producer run 42499336951's agent job, which had model access only. The SIGNED line says what that sentence leaves out: the agent can edit `pipeline.yml`.
+The review of the first real version moved five rows from "in full" to "in part": trace, pinning, the MCP allowlist, the allow list of commands and mutation. It also added "integrity of what it retrieves". The page said 15 and 6; it now says 10 and 12.
+
+The five gaps come from decision 0002 and tracer 2, and none is built yet. They are the model (deviation D05) and the INTENT and TASK lines (T3b). Then a link from the receipt to the producer run, the factory fingerprint over every agent input, and a signer outside the agent's reach (Phase 3). "No agent runs in the jobs that verify and deploy" is true of run 114: the agent ran only in the producer run's agent job. The SIGNED line says what that sentence leaves out: the agent can edit `pipeline.yml`.
+
+### Second independent review
+
+A subagent reviewed `8504e11` against the raw logs, git and the specs. Every value on the page matched. Its findings, and what happened to each:
+
+| # | Finding | Outcome |
+|---|---|---|
+| 1 | The Receipt check read only hex digests and long run IDs, anywhere in the notes. Eleven false values passed at once | Fixed. Each line cites its own quotes, at pinned commits or under a job's ID, and every number and digest on it must be in them |
+| 2 | The signature check read the whole commit object, message included, and matched no key | Fixed. It reads the one signature header git verifies, and requires an `approvers.txt` key, namespace `git` and the touch flag |
+| 3 | Five rows were counted in full that the logs cover in part | Fixed, as the table above says |
+| 4 | "No network", "a line that fails stops the deploy", "copied from the pipeline's log", the DEPLOY note, "$0.24" and the B10 stub overstated the evidence | Fixed. The page says "model access only", "if an attestation fails to verify, nothing deploys", "printed by its receipt job", "collected by hand", "est." and "planned". The stub names the scenario and its date |
+| 5 | "Integrity of what it retrieves" was left out | Added, in part |
+| 6 | Trailers were read from the whole message, and the Spec match was a substring | Fixed: the last paragraph only, and exact IDs |
+| 7 | The workflow: sound, but it runs only on `main` | Unchanged. Decision 0009 runs the build on `main` and on demand |
+| 8, 9 | Docs that disagreed, and six sentences over 30 words | Fixed |
 
 ## Not fixed
 
