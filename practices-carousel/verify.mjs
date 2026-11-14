@@ -7,7 +7,8 @@
  *   node verify.mjs --only schema,practices,phrasing
  *
  * Schema, Practices and Phrasing read only carousel.yaml and practices.yaml, so they need no browser. The others need
- * Chromium (Playwright from factory-video/playwright.mjs), pdfinfo, pdffonts and pdftotext.
+ * Chromium (Playwright from factory-video/playwright.mjs), pdfinfo, pdffonts and pdftotext. Fonts, Offline, Count and
+ * Text cover the poster too, and Poster checks its layout. A check that throws is reported as a FAIL.
  *
  * The report also lists the coverage practices.yaml records for each row's IDs. Like the factory video, the carousel
  * is the target: a practice the repository does not demonstrate yet is a gap to report, and the check still passes.
@@ -16,7 +17,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
-import { DIR, FONT_DIR, HEIGHT, OUT, PDF, ROOT, WIDTH, loadCarousel, loadFonts, offlineProblems, openCarousel, pageCount, rowsOf, sha256 } from './lib.mjs';
+import { DIR, FONT_DIR, HEIGHT, OUT, PDF, POSTER, POSTER_PDF, ROOT, WIDTH, loadCarousel, loadFonts, offlineProblems, openCarousel, pageCount, rowsOf, sha256 } from './lib.mjs';
 
 const results = [];
 function record(name, pass, detail) {
@@ -26,8 +27,22 @@ const report = [];
 
 const args = process.argv.slice(2);
 const onlyAt = args.indexOf('--only');
-const ONLY = onlyAt >= 0 ? new Set(String(args[onlyAt + 1] || '').split(',')) : null;
+const CHECKS = ['schema', 'practices', 'phrasing', 'fit', 'map', 'poster', 'fonts', 'offline', 'count', 'pages', 'text'];
+const ONLY = onlyAt >= 0 ? new Set(String(args[onlyAt + 1] || '').split(',').filter(Boolean)) : null;
+if (ONLY && (!ONLY.size || [...ONLY].some((k) => !CHECKS.includes(k)))) {
+  console.error(`--only takes a comma-separated list of: ${CHECKS.join(', ')}`);
+  process.exit(2);
+}
 const want = (k) => !ONLY || ONLY.has(k);
+// A check that throws is a failure with the error as its detail, so the table always prints.
+function safely(name, fn) {
+  try {
+    return fn();
+  } catch (e) {
+    record(name, false, `the check itself failed: ${String(e.message || e).split('\n')[0]}`);
+    return undefined;
+  }
+}
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isText = (v) => typeof v === 'string' && v.trim() !== '';
@@ -59,7 +74,10 @@ function schemaCheck() {
   if (isObj(doc.meta) && !(Array.isArray(doc.meta.sites) && doc.meta.sites.every(isText))) bad.push('meta.sites is not a list of names');
   need(doc.windows, ['before', 'seconds', 'minutes', 'hours', 'always'], 'windows');
   if (!isObj(doc.where) || !Object.values(doc.where).every((v) => typeof v === 'string')) bad.push('where is not a map of labels');
-  need(doc.legend, ['windows', 'untagged', 'diy'], 'legend');
+  need(doc.legend, ['windows', 'untagged', 'diy', 'tools'], 'legend');
+  need(doc.labels, ['diy', 'ref', 'page', 'pages'], 'labels');
+  need(doc.poster, ['view', 'count'], 'poster');
+  if (isObj(doc.poster) && !String(doc.poster.count || '').includes('{count}')) bad.push('poster.count has no {count}');
   need(doc.factory, ['heading', 'lede', 'edge'], 'factory');
   const boxes = [
     ...list(doc.factory?.flow).map((b, i) => [`factory.flow[${i}]`, b]),
@@ -73,7 +91,8 @@ function schemaCheck() {
     if (!pages.length) bad.push(`${where}.page is missing`);
     for (const p of pages) if (!Number.isInteger(p) || p < 1 || p > PAGES) bad.push(`${where}.page ${p} is not a page from 1 to ${PAGES}`);
   }
-  if (!Array.isArray(doc.sections) || !doc.sections.length) bad.push('sections is missing');
+  // Ten pages and the poster's layout both place sections by position: three columns, then three bands.
+  if (!Array.isArray(doc.sections) || doc.sections.length !== 6) bad.push(`sections needs six entries, not ${list(doc.sections).length}`);
   for (const [i, s] of list(doc.sections).entries()) {
     need(s, ['name', 'tag', 'blurb'], `sections[${i}]`);
     if (!list(s?.rows).length) bad.push(`sections[${i}] has no rows`);
@@ -141,7 +160,7 @@ function practicesCheck() {
 // Phrasing: the patterns the owner rejects, in every string and comment of carousel.yaml except tool URLs.
 const PHRASING = [
   ['em dash', /—/],
-  // "--" used as a dash. A command-line flag, such as the tool name "pip --require-hashes", is not one.
+  // "--" anywhere, except a command-line flag in a tool's name, such as "pip --require-hashes".
   ['double hyphen', /--(?![a-z])|(?<=\S)--/],
   ['"not just"', /\bnot just\b/i],
   ['comma then "not"', /,\s*not\b/i],
@@ -155,24 +174,32 @@ function phrasingCheck() {
   const texts = [];
   const pdoc = YAML.parseDocument(parsed.text);
   for (const c of [pdoc.commentBefore, pdoc.comment]) if (c) texts.push(['comment', c]);
+  // A tool's url is skipped and its name may hold a command-line flag; only under a row's tools list.
+  const underTools = (pathTo) => pathTo.some((n) => YAML.isPair(n) && n.key?.value === 'tools');
   YAML.visit(pdoc, (_, node, pathTo) => {
     for (const c of [node?.commentBefore, node?.comment]) if (c) texts.push(['comment', c]);
     if (YAML.isPair(node)) {
       const key = node.key?.value;
+      const tool = underTools(pathTo);
       if (typeof key === 'string') texts.push(['key', key]);
-      if (YAML.isScalar(node.value) && typeof node.value.value === 'string' && key !== 'url') texts.push([key, node.value.value]);
+      if (YAML.isScalar(node.value) && typeof node.value.value === 'string' && !(tool && key === 'url')) texts.push([tool && key === 'name' ? 'tool name' : key, node.value.value]);
     }
     if (YAML.isScalar(node) && YAML.isSeq(pathTo[pathTo.length - 1]) && typeof node.value === 'string') texts.push(['item', node.value]);
   });
   const hits = [];
-  for (const [where, t] of texts) for (const [label, re] of PHRASING) if (re.test(t)) hits.push(`${label} in ${where}: "${short(t, 50)}"`);
+  for (const [where, t] of texts) {
+    for (const [label, re] of PHRASING) {
+      const strict = label === 'double hyphen' && where !== 'tool name' ? /--/ : re;
+      if (strict.test(t)) hits.push(`${label} in ${where}: "${short(t, 50)}"`);
+    }
+  }
   const unique = [...new Set(hits)];
   record('Phrasing', !unique.length, unique.length ? unique.slice(0, 5).join('; ') : `${texts.length} strings, keys and comments read; none matches the ${PHRASING.length} rejected patterns`);
 }
 
 // ------------------------------------------------------------------ PDF
-function pdfText(page) {
-  return execFileSync('pdftotext', ['-f', String(page), '-l', String(page), '-raw', '-enc', 'UTF-8', PDF, '-'], { encoding: 'utf8' });
+function pdfText(page, file = PDF) {
+  return execFileSync('pdftotext', ['-f', String(page), '-l', String(page), '-raw', '-enc', 'UTF-8', file, '-'], { encoding: 'utf8' });
 }
 const norm = (s) =>
   String(s)
@@ -194,7 +221,7 @@ function pagesCheck() {
   record('Pages', ok, `${pages} pages${pages === 10 ? '' : ', not 10'}; ${wrong.length ? wrong.join(', ') : `each 810 x 1013.04 pt, which is ${WIDTH} x ${HEIGHT} px as Chromium rounds it`}`);
 }
 
-function fontsCheck(ready) {
+function fontsCheck(readies) {
   const bad = [];
   let pins;
   try {
@@ -210,22 +237,33 @@ function fontsCheck(ready) {
     if (!fs.existsSync(file)) bad.push(`${f.file}: not downloaded`);
     else if (sha256(fs.readFileSync(file)) !== f.sha256) bad.push(`${f.file}: SHA-256 differs from fonts.json`);
   }
-  const notLoaded = list(ready?.fonts).filter((s) => !/: loaded$/.test(s));
-  if (notLoaded.length || !list(ready?.fonts).length) bad.push(`not loaded in the page: ${notLoaded.join(', ') || 'none reported'}`);
+  for (const ready of readies) {
+    const notLoaded = list(ready?.fonts).filter((s) => !/: loaded$/.test(s));
+    if (notLoaded.length || !list(ready?.fonts).length) bad.push(`not loaded in the page: ${notLoaded.join(', ') || 'none reported'}`);
+  }
+  const counts = [];
   let names = [];
-  if (!fs.existsSync(PDF)) bad.push('no PDF');
-  else if (!hasTool('pdffonts')) bad.push('pdffonts not installed (poppler-utils)');
-  else {
-    const rows = execFileSync('pdffonts', [PDF], { encoding: 'utf8' }).trim().split('\n').slice(2);
+  for (const file of [PDF, POSTER_PDF]) {
+    const label = path.basename(file);
+    if (!fs.existsSync(file)) {
+      bad.push(`no ${label}`);
+      continue;
+    }
+    if (!hasTool('pdffonts')) {
+      bad.push('pdffonts not installed (poppler-utils)');
+      break;
+    }
+    const rows = execFileSync('pdffonts', [file], { encoding: 'utf8' }).trim().split('\n').slice(2);
     names = rows.map((l) => l.split(/\s+/)[0].replace(/^[A-Z]{6}\+/, ''));
     rows.forEach((l, i) => {
-      if (!/\s+yes\s+(yes|no)\s+(yes|no)\s+\d+\s+\d+\s*$/.test(l)) bad.push(`${names[i]} is not embedded`);
+      if (!/\s+yes\s+(yes|no)\s+(yes|no)\s+\d+\s+\d+\s*$/.test(l)) bad.push(`${label}: ${names[i]} is not embedded`);
     });
-    for (const fam of ['Archivo', 'IBMPlexSans', 'IBMPlexMono']) if (!names.some((n) => n.startsWith(fam))) bad.push(`${fam} is missing from the PDF`);
+    for (const fam of ['Archivo', 'IBMPlexSans', 'IBMPlexMono']) if (!names.some((n) => n.startsWith(fam))) bad.push(`${label}: ${fam} is missing`);
     const stray = names.filter((n) => !/^(Archivo|IBMPlex)/.test(n));
-    if (stray.length) bad.push(`fonts that fonts.json does not pin: ${stray.join(', ')}`);
+    if (stray.length) bad.push(`${label}: fonts that fonts.json does not pin: ${stray.join(', ')}`);
+    counts.push(`${rows.length} in ${label}`);
   }
-  record('Fonts', !bad.length, bad.length ? bad.slice(0, 5).join('; ') : `${list(pins.fonts).length} files match fonts.json; ${names.length} fonts in the PDF, all embedded: ${names.join(', ')}`);
+  record('Fonts', !bad.length, bad.length ? bad.slice(0, 5).join('; ') : `${list(pins.fonts).length} files match fonts.json; fonts all embedded and pinned, ${counts.join(', ')}: ${names.join(', ')}`);
 }
 
 // ------------------------------------------------------------------ browser
@@ -234,8 +272,8 @@ function measure() {
   const rect = (e) => e.getBoundingClientRect();
   const meet = (a, b, eps = 0.5) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > eps && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > eps;
   const inside = (a, b, eps = 1) => a.left >= b.left - eps && a.right <= b.right + eps && a.top >= b.top - eps && a.bottom <= b.bottom + eps;
-  const out = { pages: [], meta: [], map: null, count: null };
-  for (const s of document.querySelectorAll('.slide')) {
+  const out = { pages: [], meta: [], map: null, count: null, rowsShown: 0, poster: null };
+  for (const s of document.querySelectorAll('.slide, .poster')) {
     const r = rect(s);
     const cs = getComputedStyle(s);
     const content = { left: r.left + parseFloat(cs.paddingLeft), right: r.right - parseFloat(cs.paddingRight), top: r.top + parseFloat(cs.paddingTop), bottom: r.bottom - parseFloat(cs.paddingBottom) };
@@ -248,7 +286,23 @@ function measure() {
       if (b.width === 0 && b.height === 0) continue;
       if (!inside(b, e.closest('.edge, .wires') ? r : content)) outside.push(name(e));
     }
-    const page = { n: Number(s.dataset.page), kind: s.dataset.kind, k: s.style.getPropertyValue('--k') || null, scroll: s.scrollHeight > s.clientHeight || s.scrollWidth > s.clientWidth, outside: outside.slice(0, 3), rowsAboveLegend: true };
+    // Text too: a word too long for its line runs out of its box, and the box alone does not show it.
+    const walker = document.createTreeWalker(s, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const n = walker.currentNode;
+      if (!n.textContent.trim()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      const bound = n.parentElement.closest('.edge, .wires') ? r : content;
+      if ([...range.getClientRects()].some((b) => !inside(b, bound, 2))) outside.push(`text "${n.textContent.trim().slice(0, 30)}"`);
+    }
+    const poster = s.classList.contains('poster');
+    const page = { n: poster ? 'poster' : Number(s.dataset.page), kind: poster ? 'poster' : s.dataset.kind, k: s.style.getPropertyValue(poster ? '--pk' : '--k') || null, scroll: s.scrollHeight > s.clientHeight || s.scrollWidth > s.clientWidth, outside: [...new Set(outside)].slice(0, 3), rowsAboveLegend: true };
+    if (poster) {
+      const body = s.querySelector('.body');
+      const last = rect(body.lastElementChild);
+      page.rowsAboveLegend = body.scrollHeight <= body.clientHeight && last.bottom <= rect(body).bottom - parseFloat(getComputedStyle(body).paddingBottom) + 0.5;
+    }
     const rows = s.querySelector('.rows');
     const legend = s.querySelector('.legend');
     if (rows && legend) page.rowsAboveLegend = rect(rows).bottom <= rect(legend).top - 6;
@@ -263,6 +317,7 @@ function measure() {
       out.meta.push({ page: page.n, row: (m.parentElement.querySelector('.p')?.textContent || '').slice(0, 40), wide: t.scrollWidth > t.clientWidth + 1, under });
     }
   }
+  out.rowsShown = document.querySelectorAll('.sectionpage .rows > li').length;
   const map = document.querySelector('.fmap');
   if (map) {
     const boxes = Object.fromEntries([...map.querySelectorAll('.fbox')].map((b) => [b.dataset.box, { r: rect(b), on: b.querySelector('.on')?.textContent, mark: b.querySelector('.mark')?.textContent || null }]));
@@ -288,15 +343,32 @@ function measure() {
       outEdge: ['spec', 'production', 'humans', 'inspector'].filter((n) => boxes[n] && !meet(boxes[n].r, edge, 0)),
       overlaps,
       wires: map.querySelectorAll('.wires > path').length,
+      // The flow runs top to bottom; policy sits beside the pipeline and humans beside the spec.
+      flowDown: ['spec', 'sandbox', 'pipeline', 'production'].every((n, i, a) => !i || (boxes[a[i - 1]] && boxes[n] && boxes[a[i - 1]].r.bottom <= boxes[n].r.top)),
+      besidePipeline: !!(boxes.policy && boxes.pipeline) && Math.min(boxes.policy.r.bottom, boxes.pipeline.r.bottom) - Math.max(boxes.policy.r.top, boxes.pipeline.r.top) > 0 && boxes.policy.r.left >= boxes.pipeline.r.right,
+      besideSpec: !!(boxes.humans && boxes.spec) && Math.min(boxes.humans.r.bottom, boxes.spec.r.bottom) - Math.max(boxes.humans.r.top, boxes.spec.r.top) > 0 && boxes.humans.r.left >= boxes.spec.r.right,
     };
   }
-  out.count = document.querySelector('.cover .count')?.textContent ?? null;
+  out.count = document.querySelector('.cover .count, .poster .count')?.textContent ?? null;
+  const p = document.querySelector('.poster');
+  if (p) {
+    const edge = rect(p.querySelector('.edge'));
+    const zone = (sel) => p.querySelector(sel);
+    const chevs = ['.chev.spec', '.chev.c0', '.chev.c1', '.chev.c2', '.chev.prod'].map((c) => rect(zone(c)).left);
+    out.poster = {
+      cards: [...p.querySelectorAll('.card')].map((c) => ({ row: c.dataset.row, section: Number(c.closest('[data-section]')?.dataset.section ?? -1) })),
+      inEdge: ['.col[data-section="0"]', '.col[data-section="1"]', '.col[data-section="2"]', '.band[data-section="3"]'].filter((q) => zone(q) && inside(rect(zone(q)), edge, 0)),
+      outEdge: ['.spec-side', '.prod-side', '.chev.spec', '.chev.prod', '.band[data-section="4"]', '.band[data-section="5"]'].filter((q) => zone(q) && !meet(rect(zone(q)), edge, 0)),
+      flowRight: chevs.every((x, i) => !i || chevs[i - 1] < x),
+      keyline: zone('.keyline')?.textContent || '',
+    };
+  }
   return out;
 }
 
-function fitCheck(m) {
+function fitCheck(m, pm) {
   const bad = [];
-  for (const p of m.pages) {
+  for (const p of [...m.pages, ...(pm?.pages ?? [])]) {
     if (p.scroll) bad.push(`page ${p.n} overflows`);
     if (p.outside.length) bad.push(`page ${p.n} has content outside its margins: ${p.outside.join(', ')}`);
     if (!p.rowsAboveLegend) bad.push(`page ${p.n}: rows run into the legend`);
@@ -304,11 +376,17 @@ function fitCheck(m) {
       const k = Number(p.k);
       if (!(k >= 0.8 && k <= 1.5)) bad.push(`page ${p.n}: --k ${p.k} is outside 0.8 to 1.5`);
     }
+    if (p.kind === 'poster') {
+      const k = Number(p.k);
+      if (!(k >= 0.8 && k <= 1.3)) bad.push(`poster: --pk ${p.k} is outside 0.8 to 1.3`);
+    }
   }
-  for (const r of m.meta) if (r.wide || r.under) bad.push(`page ${r.page}: tools run under the tags on "${r.row}"`);
+  if (!pm?.pages?.length) bad.push('the poster was not measured');
+  for (const r of [...m.meta, ...(pm?.meta ?? [])]) if (r.wide || r.under) bad.push(`page ${r.page}: tools run under the tags on "${r.row}"`);
   const ks = m.pages.filter((p) => p.kind === 'section');
-  report.push('## Fit', '', '| Page | Section | --k |', '|---|---|---|', ...ks.map((p, i) => `| ${p.n} | ${doc.sections[i]?.name} | ${p.k} |`), '');
-  record('Fit', !bad.length, `${bad.length ? `${bad.slice(0, 4).join('; ')}. ` : ''}--k: ${ks.map((p) => `p${p.n} ${p.k}`).join(', ')}`);
+  const pk = pm?.pages?.[0]?.k;
+  report.push('## Fit', '', '| Page | Section | --k |', '|---|---|---|', ...ks.map((p, i) => `| ${p.n} | ${doc.sections[i]?.name} | ${p.k} |`), `| poster | all | ${pk} (--pk) |`, '');
+  record('Fit', !bad.length, `${bad.length ? `${bad.slice(0, 4).join('; ')}. ` : ''}--k: ${ks.map((p) => `p${p.n} ${p.k}`).join(', ')}; poster --pk ${pk}`);
 }
 
 function mapCheck(m) {
@@ -316,7 +394,7 @@ function mapCheck(m) {
   if (!map) return record('Map', false, 'page 2 has no factory map');
   const bad = [];
   const flowAt = { spec: 0, sandbox: 1, pipeline: 2, production: 3 };
-  const label = (p) => `${list(p).length > 1 ? 'pp.' : 'p.'} ${list(p).join(', ')}`;
+  const label = (p) => `${list(p).length > 1 ? doc.labels.pages : doc.labels.page} ${list(p).join(', ')}`;
   const boxes = { ...Object.fromEntries(Object.entries(flowAt).map(([k, i]) => [k, doc.factory.flow[i]])), policy: doc.factory.around[0], inspector: doc.factory.around[1], humans: doc.factory.around[2] };
   for (const [k, b] of Object.entries(boxes)) if (map.on[k] !== label(b?.page)) bad.push(`${k} shows "${map.on[k]}", not "${label(b?.page)}"`);
   const biggest = Object.entries(map.area).sort((a, b) => b[1] - a[1])[0]?.[0];
@@ -327,26 +405,67 @@ function mapCheck(m) {
   if (map.outEdge.length !== 4) bad.push(`outside the factory's edge: ${map.outEdge.join(', ')}; want spec, production, humans, inspector`);
   if (map.overlaps.length) bad.push(`boxes overlap: ${map.overlaps.join(', ')}`);
   if (map.wires !== 7) bad.push(`${map.wires} wires drawn, not 7`);
-  record('Map', !bad.length, bad.length ? bad.join('; ') : `7 boxes, none overlapping; the pipeline is the largest (${map.area.pipeline} px²) and marked; sandbox, pipeline and policy inside the edge, spec, production, humans and inspector outside; smallest map text ${map.minSize} px`);
+  if (!map.flowDown) bad.push('the flow does not run spec, sandbox, pipeline, production from top to bottom');
+  if (!map.besidePipeline) bad.push('factory policy is not beside the pipeline');
+  if (!map.besideSpec) bad.push('humans are not beside the spec');
+  record('Map', !bad.length, bad.length ? bad.join('; ') : `7 boxes, none overlapping; spec, sandbox, pipeline and production top to bottom; the pipeline is the largest (${map.area.pipeline} px²) and marked; policy beside it, humans beside the spec and wired to the pipeline; sandbox, pipeline and policy inside the edge, spec, production, humans and inspector outside; smallest map text ${map.minSize} px`);
 }
 
-function offlineCheck(log) {
+function offlineCheck(logs) {
   let renderLog = null;
   try {
     renderLog = JSON.parse(fs.readFileSync(path.join(OUT, 'render-log.json'), 'utf8'));
   } catch {
     return record('Offline', false, 'missing out/render-log.json; run render.mjs first');
   }
-  const problems = [...offlineProblems(renderLog).map((p) => `render: ${p}`), ...offlineProblems(log).map((p) => `verify: ${p}`)];
-  const n = renderLog.requests.length + log.requests.length;
-  record('Offline', !problems.length, problems.length ? problems.slice(0, 4).join('; ') : `${n} requests across render and verify, all file://; no page or console error`);
+  const problems = [...offlineProblems(renderLog).map((p) => `render: ${p}`), ...logs.flatMap((log) => offlineProblems(log).map((p) => `verify: ${p}`))];
+  const n = renderLog.requests.length + logs.reduce((t, log) => t + log.requests.length, 0);
+  record('Offline', !problems.length, problems.length ? problems.slice(0, 4).join('; ') : `${n} requests across render and verify, all file://; no page or console error, carousel and poster`);
 }
 
-function countCheck(m) {
-  const rows = ROWS.length;
-  const page1 = fs.existsSync(PDF) && hasTool('pdftotext') ? norm(pdfText(1)) : '';
-  const ok = m.count === String(rows) && page1.includes(norm(`${rows} practices`));
-  record('Count', ok, `${rows} rows in carousel.yaml; the cover says ${m.count ?? 'nothing'} in the page and ${page1.includes(norm(`${rows} practices`)) ? `"${rows} practices"` : 'something else'} in the PDF`);
+// Count: the number on the cover and the poster equals the rows the pages actually show, counted in the page, and the
+// PDFs print it where the subtitle and the poster's count put it.
+function countCheck(m, pm) {
+  const shown = m.rowsShown;
+  const cards = pm?.poster?.cards.length ?? 0;
+  const inText = (file, page, template) => {
+    if (!fs.existsSync(file) || !hasTool('pdftotext')) return false;
+    const [before, after] = String(template).split('{count}');
+    return norm(pdfText(page, file)).includes(norm(`${before}${shown}${after}`));
+  };
+  const coverPdf = inText(PDF, 1, doc.meta.subtitle);
+  const posterPdf = inText(POSTER_PDF, 1, doc.poster.count);
+  const ok = shown === ROWS.length && m.count === String(shown) && pm?.count === String(shown) && cards === shown && coverPdf && posterPdf;
+  record('Count', ok, `${shown} rows on pages 3 to 8 and ${cards} cards on the poster, of ${ROWS.length} in carousel.yaml; the cover says ${m.count ?? 'nothing'}${coverPdf ? ', as its PDF text does' : ', and its PDF text differs'}; the poster says ${pm?.count ?? 'nothing'}${posterPdf ? ', as its PDF text does' : ', and its PDF text differs'}`);
+}
+
+// Poster: one page; every row exactly once, in its section's column or band; the factory flows left to right; the
+// edge holds the sandbox, the pipeline's checks and evidence and factory policy, and leaves out the spec, production,
+// the inspector and routing humans.
+function posterCheck(pm) {
+  const bad = [];
+  const P = pm?.poster;
+  if (!P) return record('Poster', false, 'the poster page did not build');
+  const want = ROWS.map(({ row, section }) => `${section}\u0000${row.text}`).sort();
+  const got = P.cards.map((c) => `${c.section}\u0000${c.row}`).sort();
+  if (want.join('\n') !== got.join('\n')) bad.push(`cards differ from the rows: ${want.length} rows, ${got.length} cards, ${got.filter((g, i) => g !== want[i]).length} out of place`);
+  if (!P.flowRight) bad.push('the flow does not run spec, sandbox, checks, evidence, production from left to right');
+  if (P.inEdge.length !== 4) bad.push(`inside the factory's edge: ${P.inEdge.length} of the 3 columns and the policy band`);
+  if (P.outEdge.length !== 6) bad.push(`outside the factory's edge: ${P.outEdge.length} of 6 (spec, production, inspector, humans)`);
+  if (!P.keyline.includes(String(doc.factory.flow[2]?.mark))) bad.push('the pipeline is not marked with its mark');
+  let pages = 0;
+  let size = '';
+  if (!fs.existsSync(POSTER_PDF)) bad.push('missing out/poster.pdf');
+  else if (hasTool('pdfinfo')) {
+    const info = execFileSync('pdfinfo', [POSTER_PDF], { encoding: 'utf8' });
+    pages = Number((info.match(/^Pages:\s+(\d+)/m) || [])[1]);
+    size = (info.match(/^Page size:\s+([\d.]+ x [\d.]+)/m) || [])[1] || '';
+    const [w, h] = size.split(' x ').map(Number);
+    if (pages !== 1) bad.push(`poster.pdf has ${pages} pages`);
+    if (Math.abs(w - POSTER.width * 0.75) > 1 || Math.abs(h - POSTER.height * 0.75) > 1) bad.push(`poster.pdf is ${size} pt`);
+  }
+  if (!fs.existsSync(path.join(OUT, 'poster.png'))) bad.push('missing out/poster.png');
+  record('Poster', !bad.length, bad.length ? bad.join('; ') : `1 page of ${size} pt; all ${got.length} rows once each, in their sections' places; flow left to right; columns and policy inside the factory's edge, spec, production, inspector and humans outside`);
 }
 
 // Text: every string carousel.yaml puts on a page is in that page of the PDF, as pdftotext reads it.
@@ -359,22 +478,31 @@ function textCheck() {
     2: [f.heading, f.lede, f.edge, ...[...f.flow, ...f.around].flatMap((b) => [b.name, b.text, b.mark].filter(Boolean))],
   };
   doc.sections.forEach((s, i) => {
-    expect[i + 3] = [s.name, s.tag, s.blurb, doc.legend.windows, doc.windows.always, doc.legend.untagged, doc.legend.diy, ...s.rows.flatMap((r) => [r.text, r.lead, r.ref, ...list(r.tools).map((t) => t.name), doc.where[r.where]].filter(Boolean))];
+    expect[i + 3] = [s.name, s.tag, s.blurb, doc.legend.windows, doc.windows.always, doc.legend.untagged, doc.legend.diy, doc.legend.tools, ...s.rows.flatMap((r) => [r.text, r.lead, r.ref, ...list(r.tools).map((t) => t.name), doc.where[r.where]].filter(Boolean))];
   });
   const h = doc.humans;
   expect[PAGES - 1] = [h.heading, ...h.rows.flatMap((r) => [r.label, r.text, r.note]), h.day_one.heading, ...h.day_one.items, h.day_one.end];
   const c = doc.close;
   expect[PAGES] = [c.heading, ...c.items.flatMap((i) => [i.verb, i.what, i.how]), `${m.close_line_plain} ${m.close_line_key}`, m.byline, ...m.sites];
+  // The poster holds every row and the words of pages 1, 9 and 10, but not each page's blurb or page 2's map text.
+  const poster = [m.title, doc.poster.view, `${m.thesis_key} ${m.thesis_rest}`, String(doc.poster.count).replace('{count}', String(ROWS.length)), m.byline,
+    doc.legend.windows, doc.windows.always, doc.legend.untagged, doc.legend.diy, doc.legend.tools, f.edge, f.flow[0].name, f.flow[0].text, f.flow[2].name, f.flow[2].mark, f.flow[3].name, f.flow[3].text,
+    ...doc.sections.flatMap((s) => [s.name, s.tag, ...s.rows.flatMap((r) => [r.text, r.lead, r.ref, ...list(r.tools).map((t) => t.name), doc.where[r.where]].filter(Boolean))]),
+    h.heading, ...h.rows.flatMap((r) => [r.label, r.text]), h.day_one.heading, ...h.day_one.items, h.day_one.end,
+    c.heading, ...c.items.flatMap((i) => [i.verb, i.what, i.how]), `${m.close_line_plain} ${m.close_line_key}`, ...m.sites];
   const missing = [];
   let n = 0;
-  for (const [page, strings] of Object.entries(expect)) {
-    const text = norm(pdfText(Number(page)));
+  const look = (file, page, strings, label) => {
+    const text = norm(pdfText(Number(page), file));
     for (const s of strings) {
       n++;
-      if (!text.includes(norm(s))) missing.push(`page ${page}: "${short(s, 40)}"`);
+      if (!text.includes(norm(s))) missing.push(`${label}: "${short(s, 40)}"`);
     }
-  }
-  record('Text', !missing.length, missing.length ? `${missing.length} string(s) not in the PDF: ${missing.slice(0, 4).join('; ')}` : `all ${n} strings carousel.yaml puts on the 10 pages are in the PDF text`);
+  };
+  for (const [page, strings] of Object.entries(expect)) look(PDF, page, strings, `page ${page}`);
+  if (fs.existsSync(POSTER_PDF)) look(POSTER_PDF, 1, poster, 'poster');
+  else missing.push('no out/poster.pdf');
+  record('Text', !missing.length, missing.length ? `${missing.length} string(s) not in the PDF: ${missing.slice(0, 4).join('; ')}` : `all ${n} strings carousel.yaml puts on the 10 pages and the poster are in the PDF text`);
 }
 
 // ------------------------------------------------------------------ coverage report
@@ -399,28 +527,54 @@ function coverageReport() {
 }
 
 // ------------------------------------------------------------------ main
-if (want('schema')) schemaCheck();
-if (want('practices') || want('report')) practicesCheck();
-if (want('phrasing')) phrasingCheck();
-const BROWSER = ['fit', 'map', 'fonts', 'offline', 'count'];
-if (doc && BROWSER.some(want)) {
-  const { chromium } = await import('../factory-video/playwright.mjs');
-  const browser = await chromium.launch();
+const NAME = Object.fromEntries(CHECKS.map((k) => [k, k.charAt(0).toUpperCase() + k.slice(1)]));
+const unparsed = (k) => record(NAME[k], false, 'carousel.yaml does not parse');
+if (want('schema')) safely('Schema', schemaCheck);
+if (want('practices')) safely('Practices', practicesCheck);
+else if (doc) {
   try {
-    const { page, log, ready } = await openCarousel(browser, doc);
-    const m = await page.evaluate(measure);
-    if (want('fit')) fitCheck(m);
-    if (want('map')) mapCheck(m);
-    if (want('fonts')) fontsCheck(ready);
-    if (want('offline')) offlineCheck(log);
-    if (want('count')) countCheck(m);
-  } finally {
-    await browser.close();
+    practicesCheck();
+    results.pop(); // only the report's coverage needs it
+  } catch {
+    /* the report goes without coverage */
   }
 }
-if (doc && want('pages')) pagesCheck();
-if (doc && want('text')) textCheck();
-coverageReport();
+if (want('phrasing')) safely('Phrasing', phrasingCheck);
+const BROWSER = ['fit', 'map', 'poster', 'fonts', 'offline', 'count'].filter(want);
+if (BROWSER.length && !doc) BROWSER.forEach(unparsed);
+else if (BROWSER.length) {
+  let browser;
+  try {
+    const { chromium } = await import('../factory-video/playwright.mjs');
+    browser = await chromium.launch();
+    const carousel = await openCarousel(browser, doc);
+    const m = await carousel.page.evaluate(measure);
+    const poster = await openCarousel(browser, doc, POSTER);
+    const pm = await poster.page.evaluate(measure);
+    if (want('fit')) safely('Fit', () => fitCheck(m, pm));
+    if (want('map')) safely('Map', () => mapCheck(m));
+    if (want('poster')) safely('Poster', () => posterCheck(pm));
+    if (want('fonts')) safely('Fonts', () => fontsCheck([carousel.ready, poster.ready]));
+    if (want('offline')) safely('Offline', () => offlineCheck([carousel.log, poster.log]));
+    if (want('count')) safely('Count', () => countCheck(m, pm));
+  } catch (e) {
+    const done = new Set(results.map((r) => r.name));
+    for (const k of BROWSER) if (!done.has(NAME[k])) record(NAME[k], false, `the browser failed: ${String(e.message || e).split('\n')[0]}`);
+  } finally {
+    await browser?.close();
+  }
+}
+for (const [k, fn] of [['pages', pagesCheck], ['text', textCheck]]) {
+  if (!want(k)) continue;
+  if (doc) safely(NAME[k], fn);
+  else unparsed(k);
+}
+try {
+  coverageReport();
+} catch (e) {
+  report.push(`The coverage report failed: ${e.message}`, '');
+}
+if (!results.length) record('Checks', false, 'no check ran');
 
 const pad = (s, n) => String(s).padEnd(n);
 const w = Math.max(...results.map((r) => r.name.length), 5);

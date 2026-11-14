@@ -55,7 +55,7 @@ a { color: inherit; text-decoration: none; }
 .sec-head .blurb { margin: 18px 0 0; font-size: 27px; line-height: 1.4; color: var(--muted); max-width: 42ch; }
 .rows { list-style: none; margin: 30px 0 0; padding: 0; border-top: 3px solid var(--ink); }
 .rows li { padding: calc(18px * var(--k, 1)) 0 calc(17px * var(--k, 1)); border-bottom: 1px solid var(--line); }
-.rows .p { font-size: calc(31px * var(--k, 1)); font-weight: 600; line-height: 1.24; text-wrap: pretty; }
+.rows .p { font-size: calc(31px * var(--k, 1)); font-weight: 600; line-height: 1.24; text-wrap: pretty; overflow-wrap: anywhere; }
 .rows .lead { font: 700 calc(22px * var(--k, 1)) var(--font-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--brass); margin-right: 12px; }
 .rows .ref { font: 500 calc(21px * var(--k, 1)) var(--font-mono); color: var(--muted); margin-left: 10px; white-space: nowrap; }
 .rows .meta { display: flex; align-items: center; gap: 14px; margin-top: calc(8px * var(--k, 1)); }
@@ -189,7 +189,7 @@ a { color: inherit; text-decoration: none; }
   }
 
   // Page 2: the factory map. Boxes sit on a grid; the factory's edge and the wires are drawn after layout.
-  const pagesLabel = (p) => { const ps = list(p); return `${ps.length > 1 ? 'pp.' : 'p.'} ${ps.join(', ')}`; };
+  const pagesLabel = (p) => { const ps = list(p); return `${ps.length > 1 ? doc.labels.pages : doc.labels.page} ${ps.join(', ')}`; };
   const KEY_ICON = () => {
     const i = svg('svg', { width: 34, height: 20, viewBox: '0 0 34 20', 'aria-hidden': 'true' });
     i.append(svg('circle', { cx: 9, cy: 10, r: 6.5, fill: 'none', stroke: 'currentColor', 'stroke-width': 3.4 }),
@@ -280,9 +280,9 @@ a { color: inherit; text-decoration: none; }
     });
     const label = doc.where[r.where];
     return el('li', null,
-      el('div', 'p', r.lead ? el('span', 'lead', r.lead) : null, r.text, r.ref ? el('span', 'ref', `OWASP ${r.ref}`) : null),
+      el('div', 'p', r.lead ? el('span', 'lead', r.lead) : null, r.text, r.ref ? el('span', 'ref', `${doc.labels.ref} ${r.ref}`) : null),
       el('div', 'meta', tools,
-        r.diy ? el('span', 'diy', 'DIY') : null,
+        r.diy ? el('span', 'diy', doc.labels.diy) : null,
         label ? el('span', String(r.where).startsWith('human') ? 'who human' : 'who', label) : null,
         track(r.when)));
   }
@@ -292,7 +292,8 @@ a { color: inherit; text-decoration: none; }
       el('span', null, keys, doc.legend.windows),
       el('span', null, track(['always']), doc.windows.always),
       el('span', null, doc.legend.untagged),
-      el('span', null, el('span', 'diy', 'DIY'), doc.legend.diy));
+      el('span', null, el('span', 'diy', doc.labels.diy), doc.legend.diy),
+      el('span', null, doc.legend.tools));
   }
   function section(sec, n) {
     const s = slide('sectionpage', n, 'section');
@@ -338,7 +339,7 @@ a { color: inherit; text-decoration: none; }
       const t = m.querySelector('.tools');
       return t.scrollWidth > t.clientWidth + 1;
     });
-    return page.scrollHeight <= page.clientHeight && rows.bottom <= lg.top - 6 && !toolsOverlap;
+    return page.scrollHeight <= page.clientHeight && page.scrollWidth <= page.clientWidth && rows.bottom <= lg.top - 6 && !toolsOverlap;
   }
   function fit(page) {
     let k = 80; // hundredths, so the steps do not drift
