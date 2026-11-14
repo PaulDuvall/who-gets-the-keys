@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
@@ -9,7 +9,7 @@ const WORKFLOW = ".github/workflows/factory-video.yml";
 const text = readFileSync(WORKFLOW, "utf8");
 interface Step { name?: string; id?: string; if?: string; uses?: string; run?: string; with?: Record<string, unknown> }
 interface Job { needs?: string | string[]; if?: string; permissions?: Record<string, string>; environment?: { name?: string; url?: string }; steps: Step[] }
-const workflow = parse(text) as { on: { push: { paths: string[] } }; permissions: unknown; jobs: Record<string, Job> };
+const workflow = parse(text) as { on: { push: { branches: string[]; paths: string[] }; workflow_dispatch?: unknown }; permissions: unknown; jobs: Record<string, Job> };
 const job = (name: string): Job => {
   const found = workflow.jobs[name];
   if (!found) throw new Error(`no job ${name}`);
@@ -31,54 +31,108 @@ const tempDir = (prefix: string): string => {
   return dir;
 };
 
+// No git configuration of the machine running the tests reaches the temporary repositories.
+const gitEnv = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+
 // Runs a step's script as GitHub Actions does, `bash -e` with pipefail, in `cwd` with only the given environment.
 function runStep(script: string, cwd: string, env: Record<string, string>): { status: number; stdout: string; stderr: string } {
   const r = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", script], {
     cwd,
     encoding: "utf8",
-    env: { PATH: process.env["PATH"] ?? "", HOME: cwd, ...env },
+    env: { PATH: process.env["PATH"] ?? "", HOME: cwd, ...gitEnv, ...env },
   });
   return { status: r.status ?? 1, stdout: r.stdout, stderr: r.stderr };
 }
 
+// A stand-in for gh in the claims job's decide step. It logs each call, answers the newest github-pages deployment as
+// STUB_DEPLOY, "<id> <sha>" or nothing, and true for a deployment ID listed in STUB_SUCCESS when asked whether it ever
+// had a success status. STUB_FAIL_LIST and STUB_FAIL_STATUSES fail those calls, as an API error would.
+const stubGh = [
+  "#!/usr/bin/env bash",
+  'printf \'%s\\n\' "$*" >> "$STUB_LOG"',
+  'case "$2" in',
+  '  "repos/o/r/deployments?environment=github-pages&per_page=1") [ -z "${STUB_FAIL_LIST:-}" ] || exit 1; [ -z "${STUB_DEPLOY:-}" ] || echo "$STUB_DEPLOY" ;;',
+  '  "repos/o/r/deployments/"*"/statuses?per_page=100") [ -z "${STUB_FAIL_STATUSES:-}" ] || exit 1; id="${2#repos/o/r/deployments/}"; id="${id%%/*}"; case " ${STUB_SUCCESS:-} " in *" $id "*) echo true ;; *) echo false ;; esac ;;',
+  "  *) exit 1 ;;",
+  "esac",
+  "",
+].join("\n");
+
 describe("SPEC-001-R235 the factory video follows main and is published to GitHub Pages", () => {
-  it("SPEC-001-R235 runs the workflow when docs/progress.json changes", () => {
+  it("SPEC-001-R235 runs on a push to main that changes docs/progress.json, and when started by hand", () => {
+    expect(workflow.on.push.branches).toEqual(["main"]);
     expect(workflow.on.push.paths).toEqual(expect.arrayContaining(["factory-video/**", ".github/workflows/factory-video.yml", "docs/progress.json"]));
+    expect(Object.keys(workflow.on)).toContain("workflow_dispatch");
+    expect(job("claims").permissions).toEqual({ contents: "read", deployments: "read" });
   });
 
-  it("SPEC-001-R235 rebuilds the video when the kit, the workflow or the progress record changed, and only then", () => {
+  describe("SPEC-001-R235 the claims job builds the video unless nothing it shows changed since the last page published", () => {
     const repo = tempDir("factory-rebuild-");
+    const bin = tempDir("factory-gh-");
+    writeFileSync(join(bin, "gh"), stubGh);
+    chmodSync(join(bin, "gh"), 0o755);
     const git = (...args: string[]): string =>
-      execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", ...args], { cwd: repo, encoding: "utf8" }).trim();
+      execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", ...args],
+        { cwd: repo, encoding: "utf8", env: { ...process.env, ...gitEnv } }).trim();
+    const progress = (approved: number, built: number, open: number) =>
+      `${JSON.stringify({ requirements: { approved, drafted: 2 }, claims: { built, open: 1 }, backlog: { open, closed: 0 } }, null, 2)}\n`;
     git("init", "-q", "-b", "main");
-    const files = ["factory-video/kit.txt", ".github/workflows/factory-video.yml", "docs/progress.json", "docs/notes/n.md", "specs/s.md"];
-    for (const f of files) {
+    for (const [f, body] of [["factory-video/kit.txt", "a\n"], [".github/workflows/factory-video.yml", "a\n"], ["docs/notes/n.md", "a\n"], ["docs/progress.json", progress(1, 1, 1)]] as const) {
       mkdirSync(join(repo, f, ".."), { recursive: true });
-      writeFileSync(join(repo, f), "a\n");
+      writeFileSync(join(repo, f), body);
     }
     git("add", "-A");
-    git("commit", "-q", "-m", "base");
-    const base = git("rev-parse", "HEAD");
-    const script = step("claims", "Decide whether the video itself needs a rebuild").run ?? "";
-    const decide = (changed: string | undefined, event = "push", before = base): string => {
-      git("checkout", "-q", base);
-      if (changed) {
-        writeFileSync(join(repo, changed), `changed ${Math.random()}\n`);
-        git("commit", "-q", "-am", `change ${changed}`);
-      }
+    git("commit", "-q", "-m", "published");
+    const published = git("rev-parse", "HEAD");
+    git("checkout", "-q", "-b", "side");
+    writeFileSync(join(repo, "docs/notes/n.md"), "side\n");
+    git("commit", "-q", "-am", "side");
+    const side = git("rev-parse", "HEAD");
+    const script = step("claims", "Decide whether the video needs a rebuild, against the last page published").run ?? "";
+
+    // Commits `changes` on top of the published commit and runs the step with the stand-in gh, which answers that the
+    // newest github-pages deployment is `deployed` and succeeded, unless `env` says otherwise.
+    const decide = (changes: Record<string, string>, env: Record<string, string> = {}, deployed = published) => {
+      git("checkout", "-q", "--detach", published);
+      for (const [f, body] of Object.entries(changes)) writeFileSync(join(repo, f), body);
+      git("commit", "-q", "--allow-empty", "-am", "pushed");
       const out = join(tempDir("factory-out-"), "output");
+      const log = join(tempDir("factory-log-"), "calls");
       writeFileSync(out, "");
-      const r = runStep(script, repo, { EVENT: event, BEFORE: before, GITHUB_SHA: git("rev-parse", "HEAD"), GITHUB_OUTPUT: out });
+      writeFileSync(log, "");
+      const r = runStep(script, repo, {
+        PATH: `${bin}:${process.env["PATH"] ?? ""}`, EVENT: "push", REPO: "o/r", GITHUB_SHA: git("rev-parse", "HEAD"), GITHUB_OUTPUT: out,
+        GH_TOKEN: "stub", STUB_LOG: log, STUB_DEPLOY: `41 ${deployed}`, STUB_SUCCESS: "41", ...env,
+      });
       expect(r.status).toBe(0);
-      return readFileSync(out, "utf8").trim();
+      return { video: readFileSync(out, "utf8").trim(), calls: readFileSync(log, "utf8").trim().split("\n").filter(Boolean) };
     };
-    expect(decide("docs/progress.json")).toBe("video=true");
-    expect(decide("factory-video/kit.txt")).toBe("video=true");
-    expect(decide(".github/workflows/factory-video.yml")).toBe("video=true");
-    expect(decide("docs/notes/n.md")).toBe("video=false");
-    expect(decide("specs/s.md")).toBe("video=false");
-    expect(decide(undefined, "workflow_dispatch")).toBe("video=true");
-    expect(decide("docs/notes/n.md", "push", "0".repeat(40))).toBe("video=true");
+
+    it.each([
+      ["the kit changed", { "factory-video/kit.txt": "b\n" }, {}, "video=true"],
+      ["the workflow changed", { ".github/workflows/factory-video.yml": "b\n" }, {}, "video=true"],
+      ["an approved count changed", { "docs/progress.json": progress(2, 1, 1) }, {}, "video=true"],
+      ["a claim count changed", { "docs/progress.json": progress(1, 2, 1) }, {}, "video=true"],
+      ["only the backlog count changed", { "docs/progress.json": progress(1, 1, 2) }, {}, "video=false"],
+      ["only a note changed", { "docs/notes/n.md": "b\n" }, {}, "video=false"],
+      ["nothing changed", {}, {}, "video=false"],
+      ["no page was ever published", {}, { STUB_DEPLOY: "" }, "video=true"],
+      ["the newest deployment never succeeded", {}, { STUB_SUCCESS: "" }, "video=true"],
+      ["the deployments cannot be listed", {}, { STUB_FAIL_LIST: "1" }, "video=true"],
+      ["a deployment's statuses cannot be read", {}, { STUB_FAIL_STATUSES: "1" }, "video=true"],
+      ["the published commit is not in the checkout", {}, { STUB_DEPLOY: `41 ${"0".repeat(40)}` }, "video=true"],
+    ])("SPEC-001-R235 when %s", (_title, changes, env, expected) => {
+      expect(decide(changes, env).video).toBe(expected);
+    });
+
+    it("SPEC-001-R235 when the published commit is not an ancestor of the pushed one", () => {
+      expect(decide({}, {}, side).video).toBe("video=true");
+    });
+
+    it("SPEC-001-R235 when started by hand, without asking GitHub", () => {
+      const run = decide({}, { EVENT: "workflow_dispatch" });
+      expect([run.video, run.calls]).toEqual(["video=true", []]);
+    });
   });
 
   it("SPEC-001-R235 lays out a page that plays the guided video and names the commit, on main only", () => {
@@ -128,7 +182,7 @@ describe("SPEC-001-R235 the factory video follows main and is published to GitHu
     expect(workflow.permissions).toEqual({});
     expect(text).toMatch(/^cache-mode: none$/m);
     for (const j of Object.values(workflow.jobs)) expect(j.permissions?.["contents"] ?? "read").toBe("read");
-    expect(text).not.toMatch(/secrets\.|aws-actions|actions\/cache/);
+    expect(text).not.toMatch(/\bsecrets\b|aws-actions|actions\/cache/);
     for (const uses of text.match(/uses: \S+/g) ?? []) expect(uses).toMatch(/@[0-9a-f]{40}$/);
   });
 

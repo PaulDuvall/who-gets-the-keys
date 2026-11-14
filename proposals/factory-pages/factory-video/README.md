@@ -30,7 +30,7 @@ Google Slides cannot loop video, so the primary output for the deck is the loopi
 
 ## Outputs
 
-Generated files are never committed, so they never pile up in git history. `build.sh` writes them to `out/` on your machine. On every push to `main` that touches this folder, the workflow or `docs/progress.json`, and on demand, the `factory-video` workflow (`.github/workflows/factory-video.yml`, landed in `9f887da` on 2026-11-08) builds and verifies them. `docs/progress.json` changes whenever the end card's counts do, so the published video counts `main` (SPEC-001-R235). The workflow uploads them as one artifact, `factory-video-<short SHA>-<UTC time>`, then a separate job deletes every earlier `factory-video-` artifact. So only one copy of each file exists, and it expires 30 days after upload. The build job can only read the repository; the prune job can only delete artifacts. A failed check uploads nothing, and the previous build stays.
+Generated files are never committed, so they never pile up in git history. `build.sh` writes them to `out/` on your machine. On demand, and on a push to `main` when this folder, the workflow or the end card's counts in `docs/progress.json` changed since the last page published to GitHub Pages, the `factory-video` workflow (`.github/workflows/factory-video.yml`, landed in `9f887da` on 2026-11-08) builds and verifies them. So the published video counts `main`, and a build that failed is tried again by the next run (SPEC-001-R235). The workflow uploads them as one artifact, `factory-video-<short SHA>-<UTC time>`, then a separate job deletes every earlier `factory-video-` artifact. So only one copy of each file exists, and it expires 30 days after upload. The build job can only read the repository; the prune job can only delete artifacts. A failed check uploads nothing, and the previous build stays.
 
 On `main`, the build job also lays out a page of `factory-guided.mp4`, `factory-guided.srt`, `poster.png` and an `index.html` that plays the video and names the commit. The deploy job publishes it to GitHub Pages, at https://paulduvall.github.io/who-gets-the-keys/, with `actions/deploy-pages` as its only step and only `pages: write` and `id-token: write`. A failed build publishes nothing, and the page keeps the previous video.
 
@@ -39,7 +39,7 @@ To download the newest build:
 | Where | How |
 |---|---|
 | Browser, the guided video only | Open https://paulduvall.github.io/who-gets-the-keys/ |
-| Browser, every file | Open the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain). Open the newest run whose Artifacts section lists a `factory-video-…` artifact, and download it; GitHub asks you to sign in. A push that changes only specs, decisions, proposals or the backlog, and not `docs/progress.json`, runs the claims check alone, and its run lists a `factory-claims-…` artifact instead |
+| Browser, every file | Open the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain). Open the newest run whose Artifacts section lists a `factory-video-…` artifact, and download it; GitHub asks you to sign in. A push that leaves the kit, the workflow and the end card's counts as they were runs the claims check alone, and its run lists a `factory-claims-…` artifact instead |
 | Terminal | The first command below, with the GitHub CLI signed in. It downloads the newest artifact whose name matches |
 | Nothing listed | No build has run in the last 30 days, so the artifact has expired. Start one with the second command, or with **Run workflow** on the runs page. Starting it needs write access |
 
@@ -193,7 +193,6 @@ It also checks the labels, the 12 story beats (with a PNG of each in `probe/`), 
 Revision 20, moved to who-gets-the-keys (decision 0008):
 
 - **Built here, kept once.** The `factory-video` workflow builds the kit on a push to `main` that touches it, and uploads one artifact. A separate job deletes the earlier ones. That replaces a GitHub release that was deleted and recreated on each build and needed `contents: write`.
-- **Published to GitHub Pages.** The guided video is also published from `main` to a page that plays it with no sign-in (SPEC-001-R235, backlog `who-gets-the-keys-v5p`). The deploy job runs no repository code and holds no `contents: write`.
 - **No new dependency.** Playwright comes from `video/record`'s pinned package through `playwright.mjs`. The voice's pins moved to `narration/`, which joins the protected paths.
 - **The video is the target, and the ledger is the check.** `claims.json` and its check report, per claim, what is built, planned or open. At this revision: 11 built, 6 partly built, 6 planned, 1 open (DAST) and 2 illustrative.
 - **Dependencies pinned and protected.** `narration/requirements.in` names `kokoro-onnx==0.6.1`; the batch adds it to `allowed-deps.txt` and protects `narration/`, `package.json` and `package-lock.json` under this folder.
