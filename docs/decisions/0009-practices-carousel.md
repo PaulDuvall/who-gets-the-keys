@@ -25,13 +25,14 @@ The owner's corrections of 2026-11-14, which win where older material differs:
 
 ## The carousel is the target; the report shows the gap
 
-As with the factory video (decision 0008), the carousel shows what the repository should do. `verify.mjs` reports, for each row, the coverage `practices.yaml` records for its IDs. A gap does not fail the build. At `fc97f75` the 36 rows are:
+As with the factory video (decision 0008), the carousel shows what the repository should do. `verify.mjs` reports, for each row, the coverage `practices.yaml` records for its IDs. A gap does not fail the build. At `fc97f75` the 40 rows are:
 
 | Rows | Coverage of the practices each cites |
 |---|---|
 | 18 | Shown: every cited practice is `good+bad` or `good-only` |
 | 7 | Partly shown: at least one is `partial` or `not-shown` |
 | 10 | Not shown: every cited practice is `not-shown` |
+| 4 | From the AWS Deployment Pipeline Reference Architecture, `source: dpra`, which `practices.yaml` does not list |
 | 1 | From the deck's Q&A only, `source: qa` |
 
 P01 and P10 appear on no row. P01, "controls are machine-checkable", is the "Check" step on page 10. P10, coverage as evidence, was dropped from the carousel.
@@ -59,7 +60,7 @@ P01 and P10 appear on no row. P01, "controls are machine-checkable", is the "Che
 | Check | Fails when |
 |---|---|
 | Schema | `carousel.yaml` does not parse; a row lacks `text`, `when`, `where` or `tools`; `when` or `where` names an undefined key; a tool URL is not `https://`; a factory box names a page outside 1 to 10 |
-| Practices | A row cites an ID that is not in `practices.yaml`, or cites none without `source: qa`. It reports the IDs no row cites |
+| Practices | A row cites an ID that is not in `practices.yaml`, cites none without `source: qa` or `source: dpra`, or cites some and also names a source. It reports the IDs no row cites |
 | Phrasing | Any string, key or comment matches a pattern the owner rejects, "patch" among them, (`practices-carousel/README.md` lists them). Only a tool's `url` is skipped, and only a tool's name may hold a command-line flag |
 | Pages | The PDF does not have exactly 10 pages of 810 × 1013.04 pt |
 | Fit | A page or the poster overflows, or puts an element or a line of text in its margins (the poster's are 64 px at each side); a line of text is wider than its own box; rows run into the legend or the footer; a tool line runs under its tags; `--k` is outside 0.8 to 1.5, or the poster's `--pk` outside 0.8 to 1.3 |
@@ -109,6 +110,7 @@ Landing that commit starts the workflow's first build, because it adds the workf
 | 4 | The single-image poster built from the same data | (a) A second template later. (b) Now | The owner chose (b) on 2026-11-14: a one-pager of the current carousel, as the factory view | (b): `poster.html` |
 | 5 | Archivo's width | (a) Keep the static 112.5 % face. (b) Pin a 115 % instance cut from the variable font | (a). (b) needs a font tool the kit does not have and a new pinned file; the two faces differ by 2.5 points of width | (a) |
 | 6 | Whether to protect more of the kit than `fonts.json` | (a) No: the pins record the approved files, as for the factory video. (b) Also `practices-carousel/build.sh`, `lib.mjs` and both templates, which decide what is downloaded and loaded | (a). (b) puts every layout edit behind a signature, for a kit with no credentials whose output only the owner posts | (a) |
+| 8 | Whether the carousel accounts for the AWS Deployment Pipeline Reference Architecture's application pipeline ([the page](https://aws-samples.github.io/aws-deployment-pipeline-reference-architecture/application-pipeline/index.html), read 2026-11-14) | Appendix A kept its secrets, SAST, SCA and DAST checks and dropped its unit, integration, acceptance, performance and resilience tests, infrastructure scans, SBOM, build-once artifact and progressive release. (a) Four grouped rows, `source: dpra`. (b) One "keep every stage" row. (c) A line naming it as the baseline | The owner chose (a) on 2026-11-14 | Four rows: "Unit tests and code-quality checks on every change" and "Scan infrastructure code and publish an SBOM" on page 4; "Integration, acceptance, load and resilience tests in a staging environment" on page 5; "Release progressively, and roll back when alarms or synthetic tests fail" on page 7, the page that watches production, because page 5 overflowed with it. The attestations row now reads "Build the artifact once and sign its attestations, and deploy verifies them first". Not added: database deploys, as the talk's service has none, and the DPRA's metrics, beside the revert rate on page 8 |
 | 7 | Two of Appendix A's rows, as the review read them | "Gate on mutation score" calls an automated check a gate, a word this repository keeps for human approvals. "Observes: read telemetry redacted" is tagged sandbox in the hours window, which the legend calls production, while the sandbox has no network | The first could read "Fail a change whose mutation score drops, on changed code only". The second could move to the inspector, or keep the sandbox tag if the agent reads an exported, redacted copy | The owner chose on 2026-11-14: the first reads as suggested, and "Observes" moved to the inspector section, tagged inspector |
 
 ## Not yet verified

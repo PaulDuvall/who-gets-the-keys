@@ -19,7 +19,7 @@ Edit `carousel.yaml` and nothing else. It holds every word on every page and on 
 | `humans` | 9, poster | Where humans still decide, and the day-one box |
 | `close` | 10, poster | Three things to do tomorrow |
 
-Every row cites the `practices.yaml` IDs it shows. A row from the deck's Q&A slides cites none and says `source: qa`, because `specs/source-of-record/slides.txt` does not hold those slides.
+Every row cites the `practices.yaml` IDs it shows, or cites none and names its source: `source: qa` for the deck's Q&A slides, which `specs/source-of-record/slides.txt` does not hold, or `source: dpra` for a stage of the [AWS Deployment Pipeline Reference Architecture](https://aws-samples.github.io/aws-deployment-pipeline-reference-architecture/application-pipeline/index.html)'s application pipeline, which the deck takes as given: tests, infrastructure scans, the SBOM and progressive release.
 
 ## Build
 
@@ -49,7 +49,7 @@ The `practices-carousel` workflow builds the same files in GitHub Actions on a p
 | Check | Fails when |
 |---|---|
 | Schema | `carousel.yaml` does not parse; a row lacks `text`, `when`, `where` or `tools`; `when` or `where` names a key the file does not define; a tool URL is not `https://`; a factory box names a page outside 1 to 10 |
-| Practices | A row cites an ID `practices.yaml` does not define, or cites none without `source: qa`. It also reports the IDs no row cites |
+| Practices | A row cites an ID `practices.yaml` does not define, cites none without `source: qa` or `source: dpra`, or cites some and also names a source. It also reports the IDs no row cites |
 | Phrasing | Any string, key or comment, tool URLs aside, holds an em dash, `--`, "patch", "not just", a comma followed by "not", a sentence that starts with "Not", "never", "Here's", or one of delve, unlock, harness, robust, crucial, pivotal, landscape, ecosystem, transformative, cutting-edge, game-changer, seamless. Only a tool's name may hold a command-line flag such as `pip --require-hashes`, and only a tool's `url` is skipped |
 | Pages | The PDF does not have exactly 10 pages of 810 × 1013.04 pt, which is 1080 × 1350 px as Chromium rounds it |
 | Fit | A page or the poster overflows, or has an element or a line of text in its margins (the poster's are 64 px at each side); a line of text is wider than its own box, as a long word in a heading or an arrow would be; a section page's rows run into its legend, or the poster's last row into its footer; a tool line runs under its tags; a section page's `--k` is outside 0.8 to 1.5, or the poster's `--pk` outside 0.8 to 1.3 |

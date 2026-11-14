@@ -143,19 +143,22 @@ function practicesCheck() {
   if (!doc) return record('Practices', false, 'carousel.yaml does not parse');
   const bad = [];
   const cited = new Set();
-  let qa = 0;
+  const sources = { qa: 0, dpra: 0 };
   for (const { row, name } of ROWS) {
     const ids = list(row?.practices);
     for (const id of ids) {
       cited.add(id);
       if (!PRACTICES.has(id)) bad.push(`${name}: "${short(row.text, 40)}" cites ${id}, which practices.yaml does not define`);
     }
-    if (!ids.length && row?.source !== 'qa') bad.push(`${name}: "${short(row?.text, 40)}" cites no practice and is not source: qa`);
-    if (!ids.length && row?.source === 'qa') qa++;
+    // A row that cites no practice names where it comes from: the deck's Q&A slides, or the AWS Deployment Pipeline
+    // Reference Architecture, which the deck takes as given.
+    if (!ids.length && !(row?.source in sources)) bad.push(`${name}: "${short(row?.text, 40)}" cites no practice and is not source: qa or source: dpra`);
+    if (!ids.length && row?.source in sources) sources[row.source]++;
+    if (ids.length && row?.source) bad.push(`${name}: "${short(row?.text, 40)}" cites practices and also names source: ${row.source}`);
   }
   const uncited = [...PRACTICES.keys()].filter((id) => !cited.has(id));
   report.push('## Practices no row cites', '', uncited.length ? `${uncited.join(', ')}: in practices.yaml, on no carousel row. This is reported, and does not fail the check.` : 'None.', '');
-  record('Practices', !bad.length, bad.length ? bad.slice(0, 4).join('; ') : `${cited.size} of ${PRACTICES.size} practices.yaml IDs cited; ${qa} row(s) from the Q&A only; not cited: ${uncited.join(', ') || 'none'}`);
+  record('Practices', !bad.length, bad.length ? bad.slice(0, 4).join('; ') : `${cited.size} of ${PRACTICES.size} practices.yaml IDs cited; ${sources.qa} row(s) from the deck's Q&A and ${sources.dpra} from the DPRA, citing none; not cited: ${uncited.join(', ') || 'none'}`);
 }
 
 // Phrasing: the patterns the owner rejects, in every string and comment of carousel.yaml except tool URLs.
@@ -617,9 +620,9 @@ function coverageReport() {
     const ids = list(row.practices);
     const cov = ids.map((id) => `${id} ${PRACTICES.get(id)?.coverage ?? 'unknown'}`);
     const kinds = new Set(ids.map((id) => PRACTICES.get(id)?.coverage));
-    const verdict = !ids.length ? 'Q&A only' : [...kinds].every((k) => k === 'good+bad' || k === 'good-only') ? 'shown' : [...kinds].every((k) => k === 'not-shown') ? 'not shown' : 'partly shown';
+    const verdict = !ids.length ? (row.source === 'dpra' ? 'DPRA, not in the deck' : 'Q&A only') : [...kinds].every((k) => k === 'good+bad' || k === 'good-only') ? 'shown' : [...kinds].every((k) => k === 'not-shown') ? 'not shown' : 'partly shown';
     tally[verdict] = (tally[verdict] || 0) + 1;
-    lines.push(`| ${section + 3} | ${short(row.lead ? `${row.lead}: ${row.text}` : row.text, 70)} | ${ids.join(', ') || 'none'} | ${cov.join(', ') || 'none (source: qa)'} |`);
+    lines.push(`| ${section + 3} | ${short(row.lead ? `${row.lead}: ${row.text}` : row.text, 70)} | ${ids.join(', ') || 'none'} | ${cov.join(', ') || `none (source: ${row.source})`} |`);
   }
   report.push(
     ...lines,
