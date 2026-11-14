@@ -1,4 +1,5 @@
-// Check dispatcher (SPEC-001-R1 to R18, R190 and R215), and the task and scope checks (R64 to R68), which run outside ORDER.
+// Check dispatcher (SPEC-001-R1 to R18, R190, R215, R233 and R234), and the task and scope checks (R64 to R68), which run
+// outside ORDER.
 // Usage: node scripts/checks.ts [check [args] | practices-md]; node scripts/checks.ts task|scope [<base commit>]
 // No check imports a package before the install check has run, so the first three need only Node.js built-ins.
 import { spawnSync } from "node:child_process";
@@ -174,6 +175,95 @@ export function topAdvisory(groups: readonly AdvisoryGroup[]): string | undefine
   const sorted = [...groups].sort((a, b) => Number(b.max_severity ?? 0) - Number(a.max_severity ?? 0) || (a.ids[0] ?? "").localeCompare(b.ids[0] ?? ""));
   const ids = sorted[0]?.ids ?? [];
   return ids.find((id) => id.startsWith("GHSA-")) ?? first(ids);
+}
+
+// ---------- sca exceptions: their shape and their expiry (SPEC-001-R233, R234) ----------
+
+export interface ScaException { id: string; ignoreUntil: string; reason: string }
+
+/** The labels every exception's reason holds, each at the start of a line, in this order (SPEC-001-R234). */
+export const EXCEPTION_LABELS = ["What", "Why not fixed", "Why not reached", "Evidence", "Expires"] as const;
+
+const EXCEPTION_KEYS = ["id", "ignoreUntil", "reason"] as const;
+type ExceptionKey = (typeof EXCEPTION_KEYS)[number];
+
+function utcDateTime(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value)) return false;
+  const time = Date.parse(value);
+  return !Number.isNaN(time) && new Date(time).toISOString() === value.replace("Z", ".000Z");
+}
+
+// A control character other than tab, which TOML allows in no comment or string.
+const CONTROL = /[\x00-\x08\x0a-\x1f\x7f]/;
+
+/**
+ * Reads `specs/sca-exceptions.toml` in the one form it may take, a subset of TOML that OSV-Scanner reads the same way,
+ * and checks each entry and its section in `specs/sca-exceptions.md`. Returns the entries, or the sca check's
+ * identifier for the first problem: the first line outside the form, else the first entry, in file order, that breaks
+ * a rule, checked in the order of SPEC-001-R234.
+ * @requirement SPEC-001-R234
+ */
+export function scaExceptions(toml: string, evidence: string): ScaException[] | string {
+  const lines = toml.split("\n").map((l) => (l.endsWith("\r") ? l.slice(0, -1) : l));
+  const entries: { at: number; values: Partial<Record<ExceptionKey, string>>; twice: ExceptionKey[] }[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    if (/^[ \t]*(#.*)?$/.test(line) && !CONTROL.test(line.replaceAll("\t", ""))) continue;
+    if (line === "[[IgnoredVulns]]") {
+      entries.push({ at: i + 1, values: {}, twice: [] });
+      continue;
+    }
+    const m = /^(id|ignoreUntil|reason) = (.*)$/.exec(line);
+    const entry = entries.at(-1);
+    if (!m || !entry) return `exceptions file line ${i + 1}`;
+    const key = m[1] as ExceptionKey;
+    const raw = m[2] ?? "";
+    let value: string | undefined;
+    if (key === "id") value = /^"([A-Za-z0-9][A-Za-z0-9._:-]*)"$/.exec(raw)?.[1];
+    else if (key === "ignoreUntil") value = utcDateTime(raw) ? raw : undefined;
+    else if (raw === '"""') {
+      const end = lines.indexOf('"""', i + 1);
+      const body = end < 0 ? [] : lines.slice(i + 1, end);
+      if (end < 0 || body.some((l) => l.includes("\\") || l.includes('"""') || CONTROL.test(l))) return `exceptions file line ${i + 1}`;
+      value = body.join("\n");
+      i = end;
+    }
+    if (value === undefined) return `exceptions file line ${i + 1}`;
+    if (entry.values[key] !== undefined) entry.twice.push(key);
+    else entry.values[key] = value;
+  }
+  const seen = new Set<string>();
+  const result: ScaException[] = [];
+  for (const { at, values, twice } of entries) {
+    const name = values.id ?? `entry at line ${at}`;
+    const missing = EXCEPTION_KEYS.find((k) => values[k] === undefined);
+    if (missing) return `${name} lacks ${missing}`;
+    if (twice[0]) return `${name} sets ${twice[0]} twice`;
+    const { id = "", ignoreUntil = "", reason = "" } = values;
+    if (seen.has(id)) return `${id} listed twice`;
+    seen.add(id);
+    let next = 0;
+    for (const l of reason.split("\n")) if (next < EXCEPTION_LABELS.length && l.startsWith(`${EXCEPTION_LABELS[next] ?? ""}:`)) next++;
+    if (next < EXCEPTION_LABELS.length) return `${id} reason lacks ${EXCEPTION_LABELS[next] ?? ""}`;
+    const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const sections = evidence.match(new RegExp(`^## ${escaped}(?=$|[ \\t:])`, "gm"))?.length ?? 0;
+    if (sections === 0) return `${id} has no evidence section`;
+    if (sections > 1) return `${id} has more than one evidence section`;
+    result.push({ id, ignoreUntil, reason });
+  }
+  return result;
+}
+
+/**
+ * One warning line for each exception whose `ignoreUntil` is at most `days` days after `now`: `expired` when it is at or
+ * before `now`, as OSV-Scanner then no longer ignores the advisory, and `expires` otherwise.
+ * @requirement SPEC-001-R233
+ */
+export function expiryWarnings(entries: readonly ScaException[], now: Date, days = 14): string[] {
+  const limit = now.getTime() + days * 86_400_000;
+  return entries
+    .filter((e) => Date.parse(e.ignoreUntil) <= limit)
+    .map((e) => `CHECK sca WARNING: ${e.id} ${Date.parse(e.ignoreUntil) <= now.getTime() ? "expired" : "expires"} ${e.ignoreUntil.slice(0, 10)}`);
 }
 
 export const lowered = (current: number, parent: number): boolean => current < parent;
@@ -712,6 +802,28 @@ const checks: Record<string, (args: string[]) => void | Promise<void>> = {
   sca() {
     const lockfiles = lockfilePaths().flatMap((l) => ["-L", l]);
     const exceptions = existsSync("specs/sca-exceptions.toml") ? ["--config", "specs/sca-exceptions.toml"] : [];
+    if (exceptions.length > 0) {
+      const read = (path: string): string => {
+        try {
+          return existsSync(path) ? readFileSync(path, "utf8") : "";
+        } catch {
+          throw new CheckFailure("sca", `${path} unreadable`);
+        }
+      };
+      const entries = scaExceptions(read("specs/sca-exceptions.toml"), read("specs/sca-exceptions.md"));
+      if (typeof entries === "string") throw new CheckFailure("sca", entries);
+      // Warnings go to standard error, so standard output keeps only a failure line (SPEC-001-R1).
+      const warnings = expiryWarnings(entries, new Date());
+      if (warnings.length > 0) {
+        process.stderr.write(`${warnings.join("\n")}\n`);
+        const summary = ["## sca exceptions that expire within 14 days, or have expired", "", "```text", ...warnings, "```", ""];
+        try {
+          if (process.env.GITHUB_STEP_SUMMARY) writeFileSync(process.env.GITHUB_STEP_SUMMARY, summary.join("\n"), { flag: "a" });
+        } catch {
+          process.stderr.write("sca: could not append the warnings to the run summary\n");
+        }
+      }
+    }
     const r = tool([...COMMANDS.sca, ...exceptions, ...lockfiles]);
     if (r.status === 0) return;
     const parsed = JSON.parse(r.stdout || "{}") as { results?: { packages?: { groups?: AdvisoryGroup[] }[] }[] };

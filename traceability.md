@@ -23,6 +23,8 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R8 | `test/checks.test.ts` | iac | — |
 | SPEC-001-R9 | `test/checks.test.ts` | sast | — |
 | SPEC-001-R10 | `test/checks.test.ts` | sca | — |
+| SPEC-001-R233 | `test/sca-exceptions.test.ts` | sca | — |
+| SPEC-001-R234 | `test/sca-exceptions.test.ts` | sca | — |
 | SPEC-001-R11 | `test/checks.test.ts` | trace | — |
 | SPEC-001-R12 | `test/checks.test.ts`, `test/signatures.test.ts` | signatures | — |
 | SPEC-001-R13 | `test/checks.test.ts` | slides | — |

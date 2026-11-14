@@ -9,7 +9,7 @@ This file records why each advisory in `specs/sca-exceptions.toml` is excepted, 
 | Why does our use not reach the flaw? | What the flaw needs to run, and a run of our own checks that shows it does not happen |
 | When does it end? | The date in `ignoreUntil`, and the release that would let us remove it |
 
-Both files change together, in one approver-signed commit. A renewal re-runs every check under "How each claim was checked", updates each section's log, and moves the dates.
+Both files change together, in one approver-signed commit. A renewal re-runs every check under "How each claim was checked", updates each section's log, and moves the dates. The sca check fails if a TOML entry lacks `ignoreUntil` or any of its five labelled reason lines, or has no single section here headed with its ID (SPEC-001-R234). It does not read the sections' content. From 14 days before an `ignoreUntil`, it warns in its log and in the run's summary (SPEC-001-R233).
 
 ## Summary, as checked on 2026-11-14
 
