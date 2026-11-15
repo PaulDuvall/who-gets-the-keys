@@ -1,6 +1,6 @@
 # The factory video follows main and is published to GitHub Pages (backlog v5p, f6c)
 
-Status: staged in `proposals/factory-pages/`, not landed.
+Status: landed in `f3cf854` on 2026-11-14, signed by the owner. Live at https://paulduvall.github.io/who-gets-the-keys/ from factory-video run 43648064759, deployed at 22:38 UTC.
 
 ## Why
 
@@ -50,21 +50,23 @@ Read on 2026-11-14 from GitHub's documentation:
 | A deployment branch rule "is matched against the `GITHUB_REF` of the workflow run" | https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments |
 | "If your Pages site is using GitHub Actions as the source, while not required we highly recommend you also protect your environment (we will configure it by default for you)." The OIDC token "is passed to the pages deployment API as part of the request payload, where it's decoded internally to validate the claims and verify if that workflow is allowed to deploy to pages." | `actions/deploy-pages` README at the pinned SHA `368f825`, "Security Considerations" and "OIDC" |
 
-Not found in the documentation: what a job sees when it runs from a branch the environment's rule excludes, and what "we will configure it by default" sets, or whether it does so for a site created through the API. So after owner step 1 the agent reads `github-pages`'s branch policies, and restricts the environment before anything lands if they do not name `main` alone.
+Not found in the documentation: what a job sees when it runs from a branch the environment's rule excludes, and what "we will configure it by default" sets, or whether it does so for a site created through the API. So after owner step 1 the agent had the owner read `github-pages`'s branch policies.
+
+Observed on 2026-11-14, after `POST /repos/PaulDuvall/who-gets-the-keys/pages` with `build_type` `workflow`: GitHub had created environment `github-pages` with `custom_branch_policies` true, `protected_branches` false and one branch policy, `main`. That is the rule `github.sh` sets. What a job on another branch sees is still unobserved.
 
 Size: the newest build's whole artifact, eight files zipped, is 68.5 MB (artifact `factory-video-8dce7fe-20261112T1953Z`), so the page's three files are well under 1 GB. The page's own size is printed by the layout step's `du -sh` on the first run.
 
 The action pins were checked with `git ls-remote` on 2026-11-14: `actions/upload-pages-artifact` `v5.0.0` and `v5` are `fc324d3547104276b827a68afc52ff2a11cc49c9`; `actions/deploy-pages` `v5.0.1` and `v5` are `368f82528645a54fb793d4d04e342629a3f51346`.
 
-## Owner steps, in order
+## Owner steps, as they ran on 2026-11-14
 
-1. Turn on Pages, built by GitHub Actions, before the batch lands, so the first deploy finds a site. One `gh api` command, the same write `github.sh` makes. Then read `github-pages`'s branch policies; if they do not name `main` alone, restrict it with the two writes `github.sh` makes, before step 3.
-2. `land.sh --to-main` for the candidate branch that holds this batch. Docs and proposals only.
-3. `land.sh proposals/factory-pages`, which signs one commit. The push changes `factory-video.yml`, so the factory-video workflow rebuilds the video, about 15 minutes, then deploys it.
-4. `scripts/bootstrap/github.sh`, which restricts `github-pages` to `main` and finds Pages already built by Actions.
-5. Open https://paulduvall.github.io/who-gets-the-keys/ and play the video. Its caption names the commit; the end card should count what `docs/progress.json` counts at that commit.
-
-None of these ends at a `sandbox` deploy approval.
+| Step | Result |
+|---|---|
+| 1. Turn on Pages, built by GitHub Actions | `workflow https://paulduvall.github.io/who-gets-the-keys/`. The owner then read `github-pages`: already restricted to `main` |
+| 2. `land.sh --to-main` for `candidate/factory-pages-2026-11-14b` | `main` moved to `11927f2`; the deploy was skipped. Another session had moved `main` to `d9e3d07` meanwhile, so the chain was rebased onto it and pushed to this second candidate branch |
+| 3. `land.sh proposals/factory-pages` | Signed `f3cf854`; candidate run 43647838123 and main's run 43648064610 passed, the `sandbox` deploy skipped. Factory-video run 43648064759: claims job in 8 s, which decided to build because `github-pages` had no deployment; build 10.5 minutes; deploy 9 s |
+| 4. `github.sh` | Not needed: step 1 had given every setting it applies |
+| 5. Watch the page | The owner played it to the end card, "Requirements: 112 approved, 164 drafted.", equal to `docs/progress.json` at `f3cf854`. The page names `f3cf854`; the video is 25.2 MB |
 
 ## Preflight, 2026-11-14
 

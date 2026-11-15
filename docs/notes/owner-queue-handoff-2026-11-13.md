@@ -4,7 +4,7 @@ For the next agent session. Read this and `CLAUDE.md` first. It replaces `docs/n
 
 ## Where things stand
 
-Updated on 2026-11-14, after steps H-3 to H-6, W-1, W-2, R-1 and R-2 below. `main` is at `1d623a3`. SPEC-001-R232 is confirmed on `main`: see "H-3 result". s7e and w8x are done: every sca exception expires on 2027-01-13, with its evidence in `specs/sca-exceptions.md`, and from 2026-12-30 the sca check warns. r1k is done: from run 218 every receipt failed, because `gh` v2.103.3 overwrites the newest attestations once a zip has more than 100 of one type; `--limit 100` fixed it, and main's run for `1d623a3` verified its receipt. This update is on `candidate/handoff-2026-11-14c` until the owner moves `main` to it (step H-7).
+Updated on 2026-11-14, after steps H-3 to H-7, W-1, W-2, R-1, R-2 and P-1 to P-5 below. `main` is at `f3cf854`. SPEC-001-R232 is confirmed on `main`: see "H-3 result". s7e and w8x are done: every sca exception expires on 2027-01-13, with its evidence in `specs/sca-exceptions.md`, and from 2026-12-30 the sca check warns. r1k is done: from run 218 every receipt failed, because `gh` v2.103.3 overwrites the newest attestations once a zip has more than 100 of one type; `--limit 100` fixed it, and main's run for `1d623a3` verified its receipt. This update is on `candidate/handoff-2026-11-14c` until the owner moves `main` to it (step H-7).
 
 Landed on 2026-11-12 and 2026-11-13, each verified through the GitHub connector:
 
@@ -27,6 +27,10 @@ Landed on 2026-11-12 and 2026-11-13, each verified through the GitHub connector:
 | `fc97f75` | SPEC-001-R233 and R234: the sca expiry warning and the exceptions' shape check, signed by the owner (W-2) | w8x, closed |
 | `7816615` | README `progress updated` badge; r1k filed and staged; this note's W steps (R-1, pushed by hand because every receipt failed) | r1k |
 | `1d623a3` | SPEC-001-R50 amended: `gh attestation verify --limit 100`, signed by the owner (R-2). The first receipt to pass since run 217 | r1k, closed |
+| `fa38bed` | This note after R-1 and R-2 (H-7) | none |
+| `d9e3d07` | Another session's practices-carousel kit, decision 0009, and its staged batch in `proposals/practices-carousel/`, not yet signed | none |
+| `11927f2` | factory-pages staged: SPEC-001-R235, the workflow, `github.sh`, tests, READMEs, the review's fixes and notes (P-2) | v5p, f6c |
+| `f3cf854` | SPEC-001-R235: the factory video rebuilt when what it shows changes, and published to GitHub Pages, signed by the owner (P-3). Live from factory-video run 43648064759 | v5p, f6c, closed |
 
 Every deploy since 2026-11-11 reported Terraform `No changes.`; the deploys for `a6de08a` and `894c313` applied 0 added, 0 changed, 0 destroyed.
 
@@ -50,12 +54,12 @@ Give one step at a time, in the "Owner steps" format, and read each result yours
 | R-1 | Done: `git push origin 7816615…:refs/heads/main` by hand, since `land.sh --to-main` needs a passing receipt; the ruleset counts only `checks`, which passed | none: the receipt failed, nothing deployed |
 | R-2 | Done: `land.sh proposals/receipt-limit`, signed, `1d623a3`; candidate run 43614472354, main's run 43614734023, both receipts passed | none: skipped |
 | H-7 | Done: `land.sh --to-main fa38bed… candidate/handoff-2026-11-14c` | none: skipped |
-| P-1 | Turn on Pages, built by GitHub Actions: `gh api -X POST repos/PaulDuvall/who-gets-the-keys/pages -f build_type=workflow`. Before P-3, so the first deploy finds a site. Then the agent reads `github-pages`'s branch policies; if they do not name `main` alone, P-1b restricts it as `github.sh` does | none |
-| P-2 | `land.sh --to-main <tip of candidate/factory-pages-2026-11-14b> candidate/factory-pages-2026-11-14b` | none expected: docs and proposals only |
-| P-3 | `land.sh proposals/factory-pages`, signed. Its push rebuilds the factory video, about 15 minutes, and deploys it to Pages | none: no `sandbox` deploy; `github-pages` has no reviewer |
-| P-4 | `scripts/bootstrap/github.sh`: `github-pages` deployable from `main` only; Pages already built by Actions | none |
-| P-5 | Open https://paulduvall.github.io/who-gets-the-keys/ and play the video; check the end card against `docs/progress.json` at the commit it names | none |
-| Any time | `git push origin --delete claude/wizardly-johnson-hfuk4e claude/relaxed-hypatia-hp356k candidate/progress-badge-2026-11-14`: the first two are superseded on `main` (`git cherry` and the sca-mf5v note); the third's tip `7816615` is on `main`. Keep `candidate/sandbox-gate` for g4e. Also `candidate/factory-pages-2026-11-14`: its chain was staged on `fa38bed`, and another session moved `main` to `d9e3d07` meanwhile, so the same commits, rebased, are on `candidate/factory-pages-2026-11-14b` | none |
+| P-1 | Done: `gh api -X POST …/pages -f build_type=workflow` printed `workflow https://paulduvall.github.io/who-gets-the-keys/`. P-1b, the owner reading `github-pages`: `custom_branch_policies` true, `protected_branches` false, one policy `branch main`. GitHub had restricted the new environment to `main` itself, so no P-1c | none |
+| P-2 | Done: `land.sh --to-main 11927f2… candidate/factory-pages-2026-11-14b`; candidate run 43621143911, main's run 43646683175 | none: skipped |
+| P-3 | Done: `land.sh proposals/factory-pages`, signed, `f3cf854`; candidate run 43647838123, main's run 43648064610. Factory-video run 43648064759 built the video in 10.5 minutes and deployed it at 22:38 UTC | none: `sandbox` skipped; `github-pages` deployed with no reviewer |
+| P-4 | Not needed: P-1 and P-1b already gave every setting the new `github.sh` code applies. It applies them again whenever the owner next runs it | none |
+| P-5 | Done: the owner played https://paulduvall.github.io/who-gets-the-keys/ to its end card, "Requirements: 112 approved, 164 drafted.", which equals `docs/progress.json` at `f3cf854` | none |
+| Branches | Done 2026-11-14: the owner deleted `candidate/factory-pages-2026-11-14`, `claude/focused-planck-flcgn0`, `candidate/practices-carousel`, `candidate/practices-carousel-2` and `claude/gifted-ritchie-7u0ydr`, each with every commit on `main`. The others named here before were already gone. Kept: `candidate/sandbox-gate` (g4e) and the other session's `candidate/practices-carousel-receipt` and `-receipt-2` | none |
 
 ### H-3 result
 
@@ -82,10 +86,10 @@ A skipped deploy writes no deployment, so `894c313` stays the comparison point. 
 | s3p, checks of record from code the candidate cannot change, and a promote App | open | Design note first. Its open question: can a repository owned by a personal account use a ruleset that requires a workflow from another repository? Read GitHub's "Available rules for rulesets" page; this session could not |
 | g4e, deploy to `sandbox` with no reviewer | held behind s3p | Staged on `candidate/sandbox-gate`, not landed. Rebuild it after s3p, on nh9's landed `land.sh` (`894c313`). Drop its R221 change. Notes: `docs/notes/sandbox-gate.md` |
 | o1p, land a signed batch with one push to `main` | open | Mechanical; no trust change. Changes `land.sh`, so build on nh9's landed copy (`894c313`) |
-| v5p, publish the factory video to GitHub Pages | staged in `proposals/factory-pages/` with f6c, SPEC-001-R235; notes `docs/notes/factory-pages.md` | Staged 2026-11-14. Pins verified with `git ls-remote` on 2026-11-13: `actions/deploy-pages` v5.0.1 `368f82528645a54fb793d4d04e342629a3f51346`, `actions/upload-pages-artifact` v5.0.0 `fc324d3547104276b827a68afc52ff2a11cc49c9`. Deploy job: `pages: write`, `id-token: write`, environment `github-pages`. The newest factory-video artifact, all eight files zipped, is 68.5 MB, so the guided video fits Pages' limits. (Corrected 2026-11-14: this row said Pages has a 100 MB file limit. GitHub's Pages limits page, read 2026-11-14, states a 1 GB site limit and no per-file limit; 100 MB is git's push limit for one file.) The owner turns on Pages, source "GitHub Actions", in the repository settings; check GitHub's docs for where before saying so |
+| v5p, publish the factory video to GitHub Pages | closed, `f3cf854` | SPEC-001-R235. Live at https://paulduvall.github.io/who-gets-the-keys/ from factory-video run 43648064759: a 25.2 MB video, its captions and poster, naming `f3cf854`. The next push that changes the kit, the workflow or the end card's counts rebuilds it. Notes: `docs/notes/factory-pages.md` |
 | s7e, sca exceptions | closed, `4e7c522` | All 8 expire on 2027-01-13. Renew before then: re-run every check in `specs/sca-exceptions.md`, "How each claim was checked". Notes: `docs/notes/sca-renewal-2027-01.md` |
 | w8x, warn before an sca exception expires, and check each has its evidence | closed, `fc97f75` | Open questions kept in the item: the reach probes as a committed script, before the next renewal; the warning in `land.sh`'s summary, with o1p. Notes: `docs/notes/sca-expiry-warning.md` |
-| f6c, rebuild the factory video whenever its end card's counts change | staged with v5p, closed there as its duplicate: this session filed f6c without searching the backlog, and the owner pointed out that v5p already asked for it | The newest video, built at `8dce7fe`, counts 103 approved requirements; `main` has 111. Changes `factory-video.yml`, so a signed batch. Do it with v5p, which publishes the video: today neither video has a public link |
+| f6c, rebuild the factory video whenever its end card's counts change | closed, `f3cf854`, as a duplicate of v5p | This session filed f6c without searching the backlog; the owner pointed out that v5p already asked for it |
 | r1k, the receipt failing once a zip has more than 100 attestations | closed, `1d623a3` | A deploy approved more than about five days late could still fall outside the newest 100 and fail closed. A later batch could verify the run's own bundle with `gh attestation verify --bundle` instead (protected: `pipeline.yml`). Notes: `docs/notes/receipt-limit.md` |
 | r3m, alarm on refused break-glass attempts | open | Priority 1; amends R217; needs an owner apply |
 | Not filed yet | from 2026-11-13 | A `land.sh --sca-exception` mode with the touch cue; clear `summary_next` when main's run fails; `openssh-client` in `cloud-session-setup.sh`. Details: `docs/notes/sca-mf5v.md`, "For the backlog" |
@@ -114,6 +118,9 @@ Dependabot reported 6 moderate alerts on `main` on 2026-11-13 and 7 on 2026-11-1
 | Every receipt failed from run 218, though no commit touched the receipt: `gh` v2.103.3 decodes each page of attestations into one response, and the reproducible zip had passed 100 attestations | When a check fails for every commit at once, look for data that grows with each run before suspecting the commit; a Go replay of the tool's loop against the real API settled it |
 | The appendix's `simulate-land.sh` reported `requires:` texts missing that were present: it pipes `git show` into `grep -q` under `pipefail`, so a large file's early match kills `git show` with SIGPIPE | Confirm a reported miss with `git show <rev>:<file> \| grep -cF`; `land.sh` reads the file directly and is not affected |
 | Another Claude session worked in this repository at the same time (`claude/gifted-ritchie-7u0ydr`, `candidate/practices-carousel*`, decision 0009) | List remote branches at the start of a session; a push to `main` by either session makes the other's `--to-main` refuse |
+| Branch lists built from `refs/remotes/origin/*` named branches already deleted on GitHub, twice on 2026-11-14, and one `git push --delete` that named a missing ref deleted nothing at all | List branches with `git ls-remote --heads origin`, or after `git fetch --prune`; give one delete command per set of branches that exist |
+| Another session moved `main` from `fa38bed` to `d9e3d07` while factory-pages was on its candidate branch, and the agent may not force-push | Rebase onto the new `main` and push to a new candidate branch, `-b`; delete the old one and the session branch after landing |
+| The simulated Mac's Homebrew `node@24` keg held only `node`, so SPEC-001-R215's `.npmrc` test could not start `npm` | Give the keg `npm` and `npx` too, as Homebrew's does |
 
 ## Owner preferences that apply
 
