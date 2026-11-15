@@ -22,6 +22,7 @@ move: github-workflows/practices-carousel.yml .github/workflows/practices-carous
 move: test/factory-pages.test.ts test/factory-pages.test.ts
 move: test/site-pages.test.ts test/site-pages.test.ts
 move: test/helpers/artifacts-gh.ts test/helpers/artifacts-gh.ts
+move: test/producer.test.ts test/producer.test.ts
 move: README.md README.md
 move: factory-video/README.md factory-video/README.md
 move: practices-carousel/README.md practices-carousel/README.md

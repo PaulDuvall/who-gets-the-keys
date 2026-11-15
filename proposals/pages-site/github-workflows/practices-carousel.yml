@@ -98,7 +98,7 @@ jobs:
       actions: read # pages.yml's assemble job reads the kits' artifacts
       pages: write # pages.yml's deploy job creates the Pages deployment
       id-token: write # pages.yml's deploy job proves to GitHub Pages which workflow, ref and run it is
-    uses: ./.github/workflows/pages.yml
+    uses: $/.github/workflows/pages.yml # the self-repository form: pages.yml at this run's commit
 
   prune:
     name: keep only the newest practices carousel

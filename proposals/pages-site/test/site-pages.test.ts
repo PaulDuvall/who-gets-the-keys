@@ -27,6 +27,8 @@ const step = (wf: Workflow, j: string, name: string): Step => {
   return found;
 };
 const PINNED = (action: string) => new RegExp(`^actions/${action}@[0-9a-f]{40}$`);
+// GitHub's self-repository form: pages.yml at the caller's commit, resolved against the repository, not the workspace.
+const CALL = "$/.github/workflows/pages.yml";
 
 const dirs: string[] = [];
 afterAll(() => {
@@ -107,12 +109,10 @@ describe("SPEC-001-R236 one workflow publishes the factory video and the practic
   });
 
   it("SPEC-001-R236 is the only workflow that deploys to Pages, and other workflows hold pages: write only to call it", () => {
-    for (const file of readdirSync(DIR).filter((f) => f.endsWith(".yml") && f !== "pages.yml")) {
-      expect(read(file)).not.toMatch(/upload-pages-artifact|deploy-pages/);
-      for (const [name, j] of Object.entries(load(file).jobs)) {
-        if (j.permissions?.["pages"] !== undefined) expect([file, name, j.uses]).toEqual([file, name, "./.github/workflows/pages.yml"]);
-      }
-    }
+    const others = readdirSync(DIR).filter((f) => f.endsWith(".yml") && f !== "pages.yml");
+    expect(others.filter((file) => /upload-pages-artifact|deploy-pages/.test(read(file)))).toEqual([]);
+    const holders = others.flatMap((file) => Object.entries(load(file).jobs).filter(([, j]) => j.permissions?.["pages"] !== undefined).map(([name, j]) => [file, name, j.uses]));
+    expect(holders).toEqual([["factory-video.yml", "pages", CALL], ["practices-carousel.yml", "pages", CALL]]);
   });
 
   it.each([
@@ -122,7 +122,7 @@ describe("SPEC-001-R236 one workflow publishes the factory video and the practic
     const wf = load(file);
     const p = job(wf, "pages");
     expect([p.uses, p.needs, p.concurrency, p.permissions]).toEqual([
-      "./.github/workflows/pages.yml", needs, { group: "github-pages-site", "cancel-in-progress": true },
+      CALL, needs, { group: "github-pages-site", "cancel-in-progress": true },
       { actions: "read", pages: "write", "id-token": "write" },
     ]);
     expect(p.if).toContain("github.ref == 'refs/heads/main'");

@@ -121,7 +121,7 @@ describe("SPEC-001-R235 the factory video follows main", () => {
   it("SPEC-001-R235 publishes with SPEC-001-R236 on every run on main whose build passed or was not needed", () => {
     expect(job("pages").needs).toEqual(["claims", "build"]);
     expect(job("pages").if).toBe("always() && github.ref == 'refs/heads/main' && needs.claims.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')");
-    expect(job("pages").uses).toBe("./.github/workflows/pages.yml");
+    expect(job("pages").uses).toBe("$/.github/workflows/pages.yml");
     expect(Object.keys(workflow.jobs)).not.toContain("deploy");
   });
 
@@ -130,7 +130,7 @@ describe("SPEC-001-R235 the factory video follows main", () => {
     expect(text).toMatch(/^cache-mode: none$/m);
     for (const j of Object.values(workflow.jobs)) expect(j.permissions?.["contents"] ?? "read").toBe("read");
     expect(text).not.toMatch(/\bsecrets\b|aws-actions|actions\/cache/);
-    for (const uses of text.match(/uses: \S+/g) ?? []) expect(uses).toMatch(/@[0-9a-f]{40}$|^uses: \.\/\.github\/workflows\/pages\.yml$/);
+    for (const uses of text.match(/uses: \S+/g) ?? []) expect(uses).toMatch(/@[0-9a-f]{40}$|^uses: \$\/\.github\/workflows\/pages\.yml$/);
   });
 
   it("SPEC-001-R235 links the page from the README", () => {
