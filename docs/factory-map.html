@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="en">
+<!-- Source of docs/factory-map.png, rendered at 1920x1080 with device scale 2. See docs/factory-map.md. -->
+<head>
+<meta charset="utf-8">
+<title>The line runs through the factory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,500&amp;family=Barlow+Condensed:wght@600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1D4B87}a:hover{color:#123360}
+</style>
+</head>
+<body>
+<div style="width: 1920px; height: 1080px; box-sizing: border-box; padding: 28px 40px 16px; background-color: #F3F0E8; background-image: linear-gradient(rgba(62,84,104,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(62,84,104,0.07) 1px, transparent 1px); background-size: 24px 24px; display: flex; flex-direction: column; font-family: Barlow, sans-serif; color: #1C1F23">
+
+<!-- Header -->
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 32px; height: 112px; flex: none">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.16em; text-transform: uppercase; color: #A3440E">Who gets the keys?</div>
+<h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 54px; line-height: 1; color: #1C1F23">The line runs through the factory</h1>
+<p style="margin: 2px 0 0; font-family: Barlow, sans-serif; font-weight: 500; font-size: 18px; line-height: 1.3; color: #33383E">The pipeline is the line. Each station stops it on a defect. Only a person releases what ships.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 18px; max-width: 820px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 18px; border-radius: 4px; background: #DDE3EA; border: 1.5px solid #3E5468; box-sizing: border-box; flex: none"></span><span style="font-size: 15px; color: #1C1F23"><strong>Engineering</strong> approved intent</span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 18px; border-radius: 4px; background: #F9D8BF; border: 1.5px solid #A3440E; box-sizing: border-box; flex: none"></span><span style="font-size: 15px; color: #1C1F23"><strong>Stations</strong> automated checks</span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 18px; border-radius: 4px; background: #D6EAD3; border: 1.5px solid #2E6436; box-sizing: border-box; flex: none"></span><span style="font-size: 15px; color: #1C1F23"><strong>Traceability</strong> proof of the build</span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 18px; border-radius: 4px; background: #F6E6A0; border: 1.5px solid #6E5200; box-sizing: border-box; flex: none"></span><span style="font-size: 15px; color: #1C1F23"><strong>Plant security</strong> the walls</span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 18px; border-radius: 4px; background: #D3E2F6; border: 1.5px solid #1D4B87; box-sizing: border-box; flex: none"></span><span style="font-size: 15px; color: #1C1F23"><strong>Release</strong> a person signs</span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 18px; border-radius: 4px; background: #FBFAF6; border: 1.5px dashed #6B7077; box-sizing: border-box; flex: none"></span><span style="font-size: 15px; color: #1C1F23"><strong>Audit</strong> not a gate</span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 26px; height: 14px; background: #B3261E; box-sizing: border-box; flex: none; clip-path: polygon(30% 0, 100% 0, 100% 100%, 30% 100%, 0 50%)"></span><span style="font-size: 15px; color: #1C1F23"><strong>Red tag</strong> what a station catches</span></div>
+</div>
+</div>
+
+<!-- Factory -->
+<div style="flex: 1; min-height: 0; margin-top: 40px; position: relative; border: 5px solid #6E5200; border-radius: 0 0 8px 8px; background: #F8F5EE; padding: 18px 22px 16px; box-sizing: border-box; display: flex; flex-direction: column">
+<div style="position: absolute; top: -29px; left: -5px; right: -5px; height: 24px; background-image: linear-gradient(to top left, #6E5200 50%, transparent 50%); background-size: 48px 24px; background-repeat: repeat-x"></div>
+
+<div style="flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr) 58px minmax(0, 1fr) minmax(0, 1fr); gap: 14px">
+
+<!-- Zone halos -->
+<div style="grid-column: 1; grid-row: 1 / 5; margin: -7px; border-radius: 14px; border: 1.5px dashed rgba(62,84,104,0.5); background: rgba(62,84,104,0.06)"></div>
+<div style="grid-column: 2 / 7; grid-row: 1 / 4; margin: -7px; border-radius: 14px; border: 1.5px dashed rgba(163,68,14,0.45); background: rgba(163,68,14,0.05)"></div>
+<div style="grid-column: 7; grid-row: 1 / 5; margin: -7px; border-radius: 14px; border: 1.5px dashed rgba(46,100,54,0.5); background: rgba(46,100,54,0.06)"></div>
+
+<!-- The line -->
+<div style="grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center; gap: 14px; min-width: 0">
+<div style="flex: none; width: calc((100% - 84px) / 7); box-sizing: border-box; padding: 0 10px; display: flex; align-items: center; justify-content: space-between">
+<div>
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 22px; letter-spacing: 0.06em; line-height: 1; color: #1C1F23">THE LINE</div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #4B4F55; margin-top: 3px">pipeline.yml</div>
+</div>
+<svg width="34" height="20" viewBox="0 0 34 20" aria-hidden="true" style="fill: none; stroke: #4B4F55; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; flex: none">
+<path d="M2 10h28M22 3l8 7-8 7"></path>
+</svg>
+</div>
+<svg viewBox="0 0 1529 58" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-width: 0; height: 58px; fill: none; stroke-linecap: round; stroke-linejoin: round">
+<path d="M121.5 0v15" style="stroke: #6E5200; stroke-width: 3"></path>
+<path d="M121.5 43v15" style="stroke: #4B4F55; stroke-width: 3"></path>
+<path d="M378.5 0v15M378.5 43v15M635.5 0v15M635.5 43v15M892.5 0v15M892.5 43v15M1149.5 0v15M1149.5 43v15" style="stroke: #A3440E; stroke-width: 3"></path>
+<path d="M1380 0v15M1380 43v15" style="stroke: #2E6436; stroke-width: 3"></path>
+<rect x="0" y="15" width="1529" height="28" rx="14" style="fill: #4B4F55"></rect>
+<circle cx="14" cy="29" r="9" style="fill: #6B7077; stroke: #2F3237; stroke-width: 2"></circle>
+<path d="M40 23l6 6-6 6M250 23l6 6-6 6M507 23l6 6-6 6M764 23l6 6-6 6M1021 23l6 6-6 6M1278 23l6 6-6 6" style="stroke: #FFFFFF; stroke-width: 2"></path>
+<rect x="112" y="22" width="18" height="14" rx="1" style="fill: #F3F0E8"></rect>
+<rect x="369" y="22" width="18" height="14" rx="1" style="fill: #F3F0E8"></rect>
+<rect x="626" y="22" width="18" height="14" rx="1" style="fill: #F3F0E8"></rect>
+<rect x="883" y="22" width="18" height="14" rx="1" style="fill: #F3F0E8"></rect>
+<rect x="1140" y="22" width="18" height="14" rx="1" style="fill: #F3F0E8"></rect>
+<rect x="1371" y="22" width="18" height="14" rx="1" style="fill: #F3F0E8"></rect>
+<rect x="1424" y="0" width="105" height="58" rx="6" style="fill: #1D4B87"></rect>
+<text x="1476.5" y="26" style="fill: #FFFFFF; font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 1px; text-anchor: middle">RELEASE</text>
+<text x="1476.5" y="45" style="fill: #FFFFFF; font-family: Barlow, sans-serif; font-size: 12px; font-weight: 600; text-anchor: middle">a person approves</text>
+</svg>
+</div>
+
+<!-- r1 c1 Spec -->
+<div style="grid-column: 1; grid-row: 1; background: #DDE3EA; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #3E5468">Engineering</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #3E5468">B4</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #3E5468; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<rect x="8" y="6" width="184" height="88" rx="2" style="fill: #FFFFFF"></rect>
+<path d="M30 18h70M30 15v6M100 15v6" style="stroke-width: 1.2"></path>
+<text x="65" y="14" style="fill: #3E5468; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.5px; font-weight: 500; text-anchor: middle">70</text>
+<path d="M30 24h70v14H52v40H30z" style="fill: #DDE3EA; stroke-width: 2.5"></path>
+<circle cx="88" cy="31" r="3.5"></circle>
+<circle cx="41" cy="68" r="3.5"></circle>
+<path d="M22 24v54M19 24h6M19 78h6" style="stroke-width: 1.2"></path>
+<g transform="rotate(-8 155 30)">
+<rect x="124" y="20" width="62" height="20" rx="3"></rect>
+<text x="155" y="33.5" style="fill: #3E5468; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-anchor: middle">RELEASED</text>
+</g>
+<rect x="128" y="60" width="58" height="28" style="fill: #DDE3EA"></rect>
+<path d="M128 74h58" style="stroke-width: 1.2"></path>
+<text x="157" y="70" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.5px; font-weight: 500; text-anchor: middle">SPEC-014</text>
+<text x="157" y="84" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.5px; font-weight: 500; text-anchor: middle">R1 to R7</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Spec</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Released engineering drawing</div>
+</div>
+</div>
+
+<!-- r1 c2 Hooks -->
+<div style="grid-column: 2; grid-row: 1; background: #F6E6A0; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #6E5200">Plant security</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #6E5200">R39</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #6E5200; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<path d="M14 56h26a12 12 0 0 0 24 0h40a12 12 0 0 0 24 0h36v30H14z" style="fill: #E3C75A"></path>
+<circle cx="52" cy="57" r="10" style="fill: #FFFFFF"></circle>
+<path d="M46 36l4 4 8-8" style="stroke-width: 2.5"></path>
+<rect x="103" y="22" width="26" height="26" style="fill: #FFFFFF"></rect>
+<path d="M108 6l8 8M116 6l-8 8" style="stroke-width: 2.5"></path>
+<path d="M131 36C170 36 186 64 178 94" style="stroke-width: 1.6; stroke-dasharray: 4 4"></path>
+<path d="M172 89l6 6 5-8" style="stroke-width: 1.6"></path>
+<text x="52" y="97" style="fill: #6E5200; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">right part fits</text>
+<text x="150" y="20" style="fill: #6E5200; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">or goes around</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Hooks</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Error-proofing fixture: blocks mistakes, not intent</div>
+</div>
+</div>
+
+<!-- r1 c3 Secrets, station 1 -->
+<div style="grid-column: 3; grid-row: 1; background: #F9D8BF; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #A3440E">Station 1</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #A3440E">B5</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #A3440E; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<path d="M4 92h192" style="stroke-width: 3"></path>
+<path d="M22 92V18h116v74" style="stroke-width: 3"></path>
+<rect x="22" y="10" width="116" height="10" rx="2" style="fill: #EFB48C"></rect>
+<path d="M30 30h100M30 38h100" style="stroke-width: 1.2; stroke-dasharray: 3 3"></path>
+<rect x="44" y="52" width="72" height="40" style="fill: #EFB48C"></rect>
+<path d="M44 60h72" style="stroke-width: 1.2"></path>
+<circle cx="64" cy="75" r="6" style="stroke: #1C1F23; stroke-width: 2"></circle>
+<path d="M70 75h26M90 75v6M95 75v5" style="stroke: #1C1F23; stroke-width: 2"></path>
+<ellipse cx="80" cy="76" rx="25" ry="11" style="stroke: #B3261E; stroke-width: 2"></ellipse>
+<path d="M148 48L105 69" style="stroke: #7A1A14; stroke-width: 1.2"></path>
+<path d="M148 48l8-8h32v16h-32z" style="fill: #B3261E; stroke: #7A1A14; stroke-width: 1"></path>
+<circle cx="155" cy="48" r="1.8" style="fill: #FFFFFF; stroke: none"></circle>
+<text x="173" y="51" style="fill: #FFFFFF; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 8px; font-weight: 700; text-anchor: middle; letter-spacing: 0.5px">FAILED</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Secrets scanning</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Master key left inside the product</div>
+</div>
+</div>
+
+<!-- r1 c4 SAST, station 3 -->
+<div style="grid-column: 4; grid-row: 1; background: #F9D8BF; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #A3440E">Station 3</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #A3440E">B12</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #A3440E; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<rect x="8" y="8" width="128" height="86" rx="2" style="fill: #FFFFFF"></rect>
+<path d="M8 30h128M8 52h128M8 74h128M40 8v86M72 8v86M104 8v86" style="stroke-width: 0.8; stroke-opacity: 0.35"></path>
+<path d="M18 18h52v44H18zM44 18v20M18 46h14" style="stroke-width: 2"></path>
+<path d="M18 74h40M18 82h28" style="stroke-width: 1.2; stroke-opacity: 0.6"></path>
+<circle cx="112" cy="52" r="30" style="fill: #FFFFFF; stroke-width: 3"></circle>
+<path d="M92 40h40M92 66h30" style="stroke-width: 1.2; stroke-opacity: 0.5"></path>
+<text x="112" y="56" style="fill: #B3261E; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 8px; font-weight: 500; text-anchor: middle">exec(file)</text>
+<path d="M90 59.5q3 2 6 0t6 0 6 0 6 0 6 0 6 0 6 0" style="stroke: #B3261E; stroke-width: 1.2"></path>
+<path d="M133 73l20 20" style="stroke-width: 7"></path>
+<path d="M152 18L134 31" style="stroke: #7A1A14; stroke-width: 1.2"></path>
+<path d="M152 18l8-8h32v16h-32z" style="fill: #B3261E; stroke: #7A1A14; stroke-width: 1"></path>
+<circle cx="159" cy="18" r="1.8" style="fill: #FFFFFF; stroke: none"></circle>
+<text x="177" y="21" style="fill: #FFFFFF; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 8px; font-weight: 700; text-anchor: middle; letter-spacing: 0.5px">FAILED</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">SAST</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Drawing checked for known failure modes</div>
+</div>
+</div>
+
+<!-- r1 c5 Trace, station 5 -->
+<div style="grid-column: 5; grid-row: 1; background: #F9D8BF; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #A3440E">Station 5</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #A3440E">B3 B15 B16</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #A3440E; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<rect x="6" y="12" width="46" height="64" rx="2" style="fill: #FFFFFF"></rect>
+<text x="29" y="24" style="fill: #A3440E; stroke: none; font-family: Barlow, sans-serif; font-size: 7px; font-weight: 700; text-anchor: middle">SPEC</text>
+<rect x="11" y="31" width="36" height="10" style="fill: #EFB48C; stroke: none"></rect>
+<text x="14" y="38.5" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.5px; font-weight: 500">R1</text>
+<path d="M27 36h16M12 50h34M12 58h34M12 66h24" style="stroke-width: 1.1; stroke-opacity: 0.5"></path>
+<rect x="78" y="12" width="44" height="64" rx="2" style="fill: #FFFFFF"></rect>
+<text x="100" y="24" style="fill: #A3440E; stroke: none; font-family: Barlow, sans-serif; font-size: 7px; font-weight: 700; text-anchor: middle">TEST</text>
+<path d="M84 34l3 3 5-5" style="stroke-width: 1.8"></path>
+<text x="96" y="38.5" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.5px; font-weight: 500">R1</text>
+<path d="M84 50h32M84 58h32M84 66h22" style="stroke-width: 1.1; stroke-opacity: 0.5"></path>
+<rect x="144" y="30" width="52" height="12" style="fill: #EFB48C"></rect>
+<rect x="160" y="26" width="5" height="20" style="fill: #A3440E"></rect>
+<path d="M178 42v8" style="stroke-width: 1.2"></path>
+<rect x="169" y="50" width="18" height="14" rx="1" style="fill: #FFFFFF"></rect>
+<text x="178" y="59.5" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.5px; font-weight: 500; text-anchor: middle">R1</text>
+<path d="M52 36h26M122 36h22" style="stroke-width: 1.5; stroke-dasharray: 3 3"></path>
+<text x="29" y="91" style="fill: #A3440E; stroke: none; font-family: Barlow, sans-serif; font-size: 8px; font-weight: 700; text-anchor: middle">requirement</text>
+<text x="100" y="91" style="fill: #A3440E; stroke: none; font-family: Barlow, sans-serif; font-size: 8px; font-weight: 700; text-anchor: middle">test</text>
+<text x="170" y="91" style="fill: #A3440E; stroke: none; font-family: Barlow, sans-serif; font-size: 8px; font-weight: 700; text-anchor: middle">code</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Trace</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Every part links to its drawing and its test</div>
+</div>
+</div>
+
+<!-- r1 c6 Mutation, station 7 -->
+<div style="grid-column: 6; grid-row: 1; background: #F9D8BF; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #A3440E">Station 7</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #A3440E">B2</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #A3440E; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<path d="M4 90h192" style="stroke-width: 3"></path>
+<rect x="16" y="68" width="20" height="22" style="fill: #FFFFFF"></rect>
+<rect x="42" y="68" width="20" height="22" style="fill: #FFFFFF"></rect>
+<text x="39" y="60" style="fill: #A3440E; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">good parts</text>
+<rect x="84" y="18" width="8" height="72" style="fill: #EFB48C"></rect>
+<rect x="140" y="18" width="8" height="72" style="fill: #EFB48C"></rect>
+<path d="M92 30h48M92 42h48M92 54h48" style="stroke: #B3261E; stroke-width: 1.2; stroke-dasharray: 3 3"></path>
+<circle cx="88" cy="11" r="5" style="fill: #B3261E"></circle>
+<path d="M78 6q-4 5 0 10M98 6q4 5 0 10" style="stroke-width: 1.5"></path>
+<rect x="100" y="62" width="32" height="28" rx="2" style="fill: #B3261E; stroke: #7A1A14"></rect>
+<text x="116" y="80" style="fill: #FFFFFF; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; text-anchor: middle">BUG</text>
+<path d="M164 34l5 5 10-11" style="stroke-width: 3"></path>
+<text x="172" y="54" style="fill: #A3440E; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">caught</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Mutation testing</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Red rabbit: a known-bad part proves the sensor works</div>
+</div>
+</div>
+
+<!-- r1 c7 Provenance -->
+<div style="grid-column: 7; grid-row: 1; background: #D6EAD3; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #2E6436">Traceability</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #2E6436">R45</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #2E6436; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<path d="M4 92h76" style="stroke-width: 3"></path>
+<rect x="12" y="44" width="56" height="48" style="fill: #A9CFA4"></rect>
+<rect x="20" y="54" width="40" height="18" style="fill: #FFFFFF; stroke-width: 1.2"></rect>
+<path d="M24 58v10M27 58v10M31 58v10M33 58v10M37 58v10M40 58v10M44 58v10M46 58v10M50 58v10M53 58v10M56 58v10" style="stroke: #1C1F23; stroke-width: 1.2"></path>
+<path d="M68 63C80 63 80 50 92 50" style="stroke-width: 1.2; stroke-dasharray: 3 3"></path>
+<rect x="92" y="6" width="102" height="88" rx="3" style="fill: #FFFFFF"></rect>
+<text x="143" y="19" style="fill: #2E6436; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">BUILD RECORD</text>
+<path d="M98 24h90" style="stroke-width: 1; stroke-dasharray: 2 2"></path>
+<text x="98" y="36" style="fill: #2E6436; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">line</text>
+<text x="188" y="36" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500; text-anchor: end">pipeline.yml</text>
+<text x="98" y="48" style="fill: #2E6436; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">lot</text>
+<text x="188" y="48" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500; text-anchor: end">a1b2c3d</text>
+<text x="98" y="60" style="fill: #2E6436; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">spec</text>
+<text x="188" y="60" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500; text-anchor: end">014-R1</text>
+<text x="98" y="72" style="fill: #2E6436; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">agent</text>
+<text x="188" y="72" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500; text-anchor: end">Claude Code</text>
+<text x="98" y="84" style="fill: #2E6436; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">model</text>
+<text x="188" y="84" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500; text-anchor: end">not recorded</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Provenance</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Build record: line, lot, spec, agent</div>
+</div>
+</div>
+
+<!-- r3 c1 Task file -->
+<div style="grid-column: 1; grid-row: 3; background: #DDE3EA; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #3E5468">Engineering</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #3E5468">B24</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #3E5468; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<rect x="36" y="6" width="128" height="88" rx="3" style="fill: #FFFFFF"></rect>
+<path d="M36 24V9a3 3 0 0 1 3-3h122a3 3 0 0 1 3 3v15z" style="fill: #3E5468"></path>
+<text x="96" y="18.5" style="fill: #FFFFFF; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 2px; text-anchor: middle">KANBAN</text>
+<circle cx="152" cy="15" r="2.5" style="fill: #FFFFFF; stroke: none"></circle>
+<text x="44" y="37" style="fill: #3E5468; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">REQUIREMENT</text>
+<text x="44" y="47" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 8px; font-weight: 500">SPEC-014-R1</text>
+<text x="44" y="61" style="fill: #3E5468; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">PRODUCES</text>
+<text x="44" y="71" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 8px; font-weight: 500">src/export.ts</text>
+<text x="44" y="84" style="fill: #3E5468; stroke: none; font-family: Barlow, sans-serif; font-size: 7px; font-style: italic; font-weight: 500">nothing else</text>
+<path d="M128 72v14M131 72v14M135 72v14M137 72v14M141 72v14M144 72v14M148 72v14M150 72v14M154 72v14" style="stroke: #1C1F23; stroke-width: 1.4"></path>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Task file</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Kanban card: build exactly what's on it</div>
+</div>
+</div>
+
+<!-- r3 c2 Agent -->
+<div style="grid-column: 2; grid-row: 3; background: #FFFFFF; border: 2px solid #4B4F55; border-radius: 10px; padding: 7px 10px 9px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #4B4F55">Head of the line</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #4B4F55; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<path d="M0 3h200" style="stroke-width: 5"></path>
+<rect x="8" y="34" width="36" height="46" rx="2" style="fill: #FFFFFF"></rect>
+<path d="M8 44V36a2 2 0 0 1 2-2h32a2 2 0 0 1 2 2v8z" style="fill: #3E5468; stroke: #3E5468"></path>
+<text x="26" y="41.5" style="fill: #FFFFFF; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 6px; font-weight: 700; letter-spacing: 0.5px; text-anchor: middle">KANBAN</text>
+<path d="M14 54h24M14 62h24M14 70h16" style="stroke-width: 1; stroke-opacity: 0.5"></path>
+<path d="M48 58h16" style="stroke-width: 1.5; stroke-dasharray: 3 3"></path>
+<path d="M61 54l5 4-5 4" style="stroke-width: 1.5"></path>
+<rect x="68" y="14" width="126" height="84" rx="6" style="stroke-width: 1.2; stroke-dasharray: 4 4"></rect>
+<rect x="74" y="84" width="40" height="12" rx="2" style="fill: #D8D9DB"></rect>
+<circle cx="94" cy="80" r="8" style="fill: #D8D9DB"></circle>
+<path d="M94 80L126 50" style="stroke-width: 7"></path>
+<circle cx="126" cy="50" r="6" style="fill: #FFFFFF"></circle>
+<path d="M126 50L106 24" style="stroke-width: 6"></path>
+<path d="M100 18l6 6 6-6" style="stroke-width: 2.5"></path>
+<rect x="97" y="7" width="18" height="10" rx="1" style="fill: #F3F0E8"></rect>
+<text x="164" y="80" style="fill: #4B4F55; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">sealed cell</text>
+<text x="164" y="90" style="fill: #4B4F55; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">no network</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Agent</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Robot cell: builds the part, never releases it</div>
+</div>
+</div>
+
+<!-- r3 c3 Allowlist, station 2 -->
+<div style="grid-column: 3; grid-row: 3; background: #F9D8BF; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #A3440E">Station 2</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #A3440E">B6</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #A3440E; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<rect x="8" y="8" width="74" height="86" rx="3" style="fill: #FFFFFF"></rect>
+<text x="45" y="21" style="fill: #A3440E; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">APPROVED</text>
+<path d="M15 31l3 3 5-5M15 45l3 3 5-5M15 59l3 3 5-5" style="stroke-width: 1.8"></path>
+<text x="28" y="34" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.5px; font-weight: 500">vitest</text>
+<text x="28" y="48" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.5px; font-weight: 500">typescript</text>
+<text x="28" y="62" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.5px; font-weight: 500">eslint</text>
+<path d="M15 76h58M15 86h44" style="stroke-width: 1.2; stroke-opacity: 0.4"></path>
+<path d="M86 62h14" style="stroke-width: 1.5; stroke-dasharray: 3 3"></path>
+<rect x="104" y="40" width="66" height="46" style="fill: #EFB48C"></rect>
+<path d="M104 52h66M104 76h66" style="stroke-width: 1.2"></path>
+<rect x="106" y="56" width="62" height="16" style="fill: #FFFFFF; stroke-width: 1.2"></rect>
+<text x="137" y="66.5" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6px; font-weight: 500; text-anchor: middle">csv-export-turbo</text>
+<rect x="100" y="86" width="74" height="5" style="fill: #A3440E"></rect>
+<path d="M155 26L160 40" style="stroke: #7A1A14; stroke-width: 1.2"></path>
+<path d="M148 24l8-8h32v16h-32z" style="fill: #B3261E; stroke: #7A1A14; stroke-width: 1"></path>
+<circle cx="155" cy="24" r="1.8" style="fill: #FFFFFF; stroke: none"></circle>
+<text x="173" y="27" style="fill: #FFFFFF; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 8px; font-weight: 700; text-anchor: middle; letter-spacing: 0.5px">FAILED</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Allowlist</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Approved-supplier list</div>
+</div>
+</div>
+
+<!-- r3 c4 SCA, station 4 -->
+<div style="grid-column: 4; grid-row: 3; background: #F9D8BF; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #A3440E">Station 4</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #A3440E">B13</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #A3440E; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<rect x="6" y="86" width="96" height="6" style="fill: #A3440E"></rect>
+<rect x="8" y="50" width="44" height="36" style="fill: #EFB48C"></rect>
+<rect x="56" y="50" width="44" height="36" style="fill: #EFB48C"></rect>
+<rect x="30" y="14" width="44" height="36" style="fill: #EFB48C"></rect>
+<rect x="36" y="26" width="32" height="10" style="fill: #FFFFFF; stroke-width: 1.2"></rect>
+<rect x="14" y="62" width="32" height="10" style="fill: #FFFFFF; stroke-width: 1.2"></rect>
+<rect x="59" y="59" width="38" height="18" style="fill: #FFFFFF; stroke: #B3261E; stroke-width: 1.5"></rect>
+<text x="78" y="66.5" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.5px; font-weight: 500; text-anchor: middle">lodash</text>
+<text x="78" y="74" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.5px; font-weight: 500; text-anchor: middle">4.17.20</text>
+<path d="M104 66l8-8h32v16h-32z" style="fill: #B3261E; stroke: #7A1A14; stroke-width: 1"></path>
+<circle cx="111" cy="66" r="1.8" style="fill: #FFFFFF; stroke: none"></circle>
+<text x="129" y="69" style="fill: #FFFFFF; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 8px; font-weight: 700; text-anchor: middle; letter-spacing: 0.5px">FAILED</text>
+<path d="M144 61L151 55" style="stroke: #B3261E; stroke-width: 1.2; stroke-dasharray: 2 2"></path>
+<rect x="148" y="8" width="46" height="86" rx="2" style="fill: #FFFFFF"></rect>
+<text x="171" y="20" style="fill: #A3440E; stroke: none; font-family: Barlow, sans-serif; font-size: 7px; font-weight: 700; text-anchor: middle">RECALLS</text>
+<path d="M153 30h36M153 39h36M153 72h36M153 81h36" style="stroke-width: 1.2; stroke-opacity: 0.4"></path>
+<rect x="151" y="45" width="40" height="19" style="fill: #F9D8BF; stroke: #B3261E; stroke-width: 1.2"></rect>
+<text x="171" y="53" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6px; font-weight: 500; text-anchor: middle">lodash</text>
+<text x="171" y="60.5" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6px; font-weight: 500; text-anchor: middle">&lt;4.17.21</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">SCA</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Incoming lots checked against recalls</div>
+</div>
+</div>
+
+<!-- r3 c5 Property, station 6 -->
+<div style="grid-column: 5; grid-row: 3; background: #F9D8BF; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #A3440E">Station 6</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #A3440E">014-R1</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #A3440E; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<rect x="8" y="4" width="26" height="26" rx="5" style="fill: #FFFFFF"></rect>
+<circle cx="15" cy="11" r="2" style="fill: #A3440E; stroke: none"></circle>
+<circle cx="27" cy="11" r="2" style="fill: #A3440E; stroke: none"></circle>
+<circle cx="21" cy="17" r="2" style="fill: #A3440E; stroke: none"></circle>
+<circle cx="15" cy="23" r="2" style="fill: #A3440E; stroke: none"></circle>
+<circle cx="27" cy="23" r="2" style="fill: #A3440E; stroke: none"></circle>
+<path d="M36 17c12 0 16 8 16 22" style="stroke-width: 1.5; stroke-dasharray: 3 3"></path>
+<rect x="46" y="44" width="14" height="14" style="fill: #EFB48C"></rect>
+<rect x="64" y="36" width="22" height="22" style="fill: #EFB48C"></rect>
+<rect x="90" y="52" width="10" height="6" style="fill: #EFB48C"></rect>
+<rect x="104" y="18" width="32" height="40" style="fill: #EFB48C"></rect>
+<text x="120" y="42" style="fill: #A3440E; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 9px; font-weight: 700; text-anchor: middle">10k</text>
+<rect x="140" y="42" width="18" height="16" style="fill: #EFB48C"></rect>
+<rect x="162" y="50" width="12" height="8" style="fill: #EFB48C"></rect>
+<rect x="10" y="58" width="180" height="7" rx="1" style="fill: #A3440E"></rect>
+<path d="M22 65l-7 11h14zM178 65l-7 11h14z" style="fill: #EFB48C"></path>
+<path d="M14 84h172M14 80v8M186 80v8" style="stroke-width: 1.5"></path>
+<text x="14" y="96" style="fill: #A3440E; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700">0 rows</text>
+<text x="186" y="96" style="fill: #A3440E; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: end">10,000 rows</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Property testing</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Tested across the full tolerance range</div>
+</div>
+</div>
+
+<!-- r3 c6 Scope, station 8 -->
+<div style="grid-column: 6; grid-row: 3; background: #F9D8BF; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #A3440E">Station 8</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #A3440E">B23</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #A3440E; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<rect x="8" y="10" width="40" height="52" rx="2" style="fill: #FFFFFF"></rect>
+<path d="M8 22V12a2 2 0 0 1 2-2h36a2 2 0 0 1 2 2v10z" style="fill: #A3440E"></path>
+<text x="28" y="19" style="fill: #FFFFFF; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 6.5px; font-weight: 700; letter-spacing: 0.5px; text-anchor: middle">KANBAN</text>
+<circle cx="19" cy="38" r="5" style="fill: #EFB48C"></circle>
+<rect x="31" y="33" width="10" height="10" style="fill: #EFB48C"></rect>
+<path d="M54 84h142" style="stroke-width: 3"></path>
+<circle cx="74" cy="74" r="9" style="fill: #FFFFFF"></circle>
+<rect x="94" y="65" width="18" height="18" style="fill: #FFFFFF"></rect>
+<path d="M150 83l11-20 11 20z" style="fill: #FFFFFF"></path>
+<rect x="144" y="56" width="34" height="32" style="stroke: #B3261E; stroke-width: 1.5; stroke-dasharray: 3 3"></rect>
+<path d="M159 30L161 56" style="stroke: #7A1A14; stroke-width: 1.2"></path>
+<path d="M152 30l8-8h32v16h-32z" style="fill: #B3261E; stroke: #7A1A14; stroke-width: 1"></path>
+<circle cx="159" cy="30" r="1.8" style="fill: #FFFFFF; stroke: none"></circle>
+<text x="177" y="33" style="fill: #FFFFFF; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 8px; font-weight: 700; text-anchor: middle; letter-spacing: 0.5px">FAILED</text>
+<text x="161" y="97" style="fill: #B3261E; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">not on the card</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Scope</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">A part not on the kanban comes off the line</div>
+</div>
+</div>
+
+<!-- r3 c7 Attestation -->
+<div style="grid-column: 7; grid-row: 3; background: #D6EAD3; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #2E6436">Traceability</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #2E6436">B10</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #2E6436; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<path d="M100 0v10"></path>
+<path d="M100 10v6a6 6 0 1 1-6 6" style="stroke-width: 2.5"></path>
+<path d="M100 22L50 36M100 22L150 36" style="stroke-width: 1.5"></path>
+<rect x="46" y="36" width="108" height="54" rx="2" style="fill: #A9CFA4"></rect>
+<rect x="60" y="44" width="62" height="38" rx="1" style="fill: #FFFFFF"></rect>
+<text x="91" y="54" style="fill: #2E6436; stroke: none; font-family: Barlow, sans-serif; font-size: 6.5px; font-weight: 700; text-anchor: middle">CERTIFICATE</text>
+<path d="M68 62h46M68 69h34" style="stroke-width: 1.2; stroke-opacity: 0.5"></path>
+<path d="M68 77q4-6 8 0t8 0 8 0" style="stroke-width: 1.2"></path>
+<path d="M112 80l-3 10 6-3 6 3-3-10" style="fill: #2E6436"></path>
+<circle cx="115" cy="76" r="8" style="fill: #2E6436"></circle>
+<path d="M111 76l3 3 5-5" style="stroke: #FFFFFF; stroke-width: 1.6"></path>
+<circle cx="178" cy="56" r="14" style="fill: #FFFFFF"></circle>
+<path d="M171 56l5 5 9-10" style="stroke-width: 3"></path>
+<text x="178" y="82" style="fill: #2E6436; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">verified</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Attestation</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Certificate of conformance, checked at receiving</div>
+</div>
+</div>
+
+<!-- r4 c1 Approver signature -->
+<div style="grid-column: 1; grid-row: 4; background: #D3E2F6; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #1D4B87">Release</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #1D4B87">B17 B18</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #1D4B87; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<rect x="8" y="8" width="58" height="86" rx="3" style="fill: #A7C3EA"></rect>
+<text x="37" y="24" style="fill: #1D4B87; stroke: none; font-family: Barlow, sans-serif; font-size: 7px; font-weight: 700; text-anchor: middle">SPECS</text>
+<text x="37" y="34" style="fill: #1D4B87; stroke: none; font-family: Barlow, sans-serif; font-size: 7px; font-weight: 700; text-anchor: middle">+ PIPELINE</text>
+<rect x="56" y="42" width="20" height="10" rx="2" style="fill: #FFFFFF"></rect>
+<path d="M66 54V42a10 10 0 0 1 20 0v12" style="stroke-width: 4"></path>
+<rect x="60" y="52" width="32" height="28" rx="4" style="fill: #1D4B87"></rect>
+<circle cx="76" cy="63" r="3" style="fill: #FFFFFF; stroke: none"></circle>
+<path d="M76 65v6" style="stroke: #FFFFFF; stroke-width: 2.5"></path>
+<path d="M92 58l10 4" style="stroke-width: 1.2"></path>
+<rect x="102" y="56" width="36" height="36" rx="2" style="fill: #FFFFFF"></rect>
+<text x="120" y="68" style="fill: #1D4B87; stroke: none; font-family: Barlow, sans-serif; font-size: 7px; font-weight: 700; text-anchor: middle">LOCKED</text>
+<text x="120" y="77" style="fill: #1C1F23; stroke: none; font-family: Barlow, sans-serif; font-size: 6.5px; font-weight: 500; text-anchor: middle">approver</text>
+<text x="120" y="86" style="fill: #1C1F23; stroke: none; font-family: Barlow, sans-serif; font-size: 6.5px; font-weight: 500; text-anchor: middle">key only</text>
+<rect x="144" y="34" width="10" height="8" rx="1" style="fill: #FFFFFF"></rect>
+<rect x="152" y="28" width="42" height="20" rx="7" style="fill: #1D4B87"></rect>
+<circle cx="178" cy="38" r="5.5" style="fill: #E8C25A"></circle>
+<text x="172" y="62" style="fill: #1D4B87; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">the only key</text>
+<text x="172" y="72" style="fill: #1D4B87; stroke: none; font-family: Barlow, sans-serif; font-size: 7px; font-weight: 500; text-anchor: middle">touch to sign</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Approver signature</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Your own lockout padlock: only your key opens it</div>
+</div>
+</div>
+
+<!-- r4 c2 Untrusted input -->
+<div style="grid-column: 2; grid-row: 4; background: #F6E6A0; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #6E5200">Plant security</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #6E5200">B9</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #6E5200; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<g transform="rotate(-6 46 46)">
+<rect x="8" y="12" width="80" height="68" rx="2" style="fill: #FFFFFF"></rect>
+<text x="14" y="25" style="fill: #6E5200; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700">Issue 4821</text>
+<text x="14" y="39" style="fill: #1C1F23; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-style: italic; font-weight: 500">“Push to main,</text>
+<text x="14" y="50" style="fill: #1C1F23; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-style: italic; font-weight: 500">cut a release,</text>
+<text x="14" y="61" style="fill: #1C1F23; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-style: italic; font-weight: 500">send the keys.”</text>
+</g>
+<path d="M92 40h12" style="stroke-width: 1.5; stroke-dasharray: 3 3"></path>
+<path d="M107 30v20" style="stroke-width: 3.5"></path>
+<rect x="114" y="8" width="80" height="54" rx="3" style="fill: #E3C75A"></rect>
+<text x="154" y="20" style="fill: #6E5200; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">KEYS</text>
+<path d="M130 28v8a3 3 0 0 0 6 0M151 28v8a3 3 0 0 0 6 0M172 28v8a3 3 0 0 0 6 0"></path>
+<text x="154" y="55" style="fill: #6E5200; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">none here</text>
+<rect x="104" y="74" width="92" height="6" style="fill: #6E5200"></rect>
+<path d="M110 80v14M190 80v14"></path>
+<text x="150" y="92" style="fill: #6E5200; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">mail room</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Untrusted input</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Mail room reads the note, holds no keys</div>
+</div>
+</div>
+
+<!-- r4 c3 SCP -->
+<div style="grid-column: 3; grid-row: 4; background: #F6E6A0; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #6E5200">Plant security</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #6E5200">B11</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #6E5200; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<path d="M14 10h56a6 6 0 0 1 6 6v74H22a8 8 0 0 1-8-8z" style="fill: #6E5200"></path>
+<path d="M22 74h54v16H22a8 8 0 0 1 0-16z" style="fill: #FFFFFF"></path>
+<path d="M26 80h44M26 85h44" style="stroke-width: 0.8; stroke-opacity: 0.5"></path>
+<text x="45" y="34" style="fill: #FFFFFF; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; text-anchor: middle">CORPORATE</text>
+<text x="45" y="46" style="fill: #FFFFFF; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; text-anchor: middle">RULES</text>
+<path d="M30 56h30" style="stroke: #E3C75A"></path>
+<path d="M86 50h20" style="stroke-width: 3"></path>
+<path d="M100 43l8 7-8 7" style="stroke-width: 3"></path>
+<rect x="118" y="16" width="70" height="70" rx="2" style="fill: #FFFFFF"></rect>
+<text x="153" y="30" style="fill: #6E5200; stroke: none; font-family: Barlow, sans-serif; font-size: 7px; font-weight: 700; text-anchor: middle">PLANT WAIVER</text>
+<path d="M126 42l4 4 7-7" style="stroke-width: 1.8"></path>
+<path d="M142 43h38M126 58h54M126 68h40" style="stroke-width: 1.2; stroke-opacity: 0.5"></path>
+<path d="M126 38l56 44M182 38l-56 44" style="stroke-width: 3.5"></path>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">SCP</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Corporate safety rule no plant can waive</div>
+</div>
+</div>
+
+<!-- r4 c4 Validator -->
+<div style="grid-column: 4; grid-row: 4; background: #FBFAF6; border: 2px dashed #6B7077; border-radius: 10px; padding: 7px 10px 9px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #4B4F55">Audit</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #4B4F55">advisory</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #4B4F55; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<path d="M22 96c0-22 12-32 30-32s30 10 30 32" style="fill: #FFFFFF"></path>
+<circle cx="52" cy="46" r="13" style="fill: #FFFFFF"></circle>
+<path d="M37 41a15 15 0 0 1 30 0z" style="fill: #D8D9DB"></path>
+<path d="M33 41h38"></path>
+<rect x="70" y="58" width="28" height="36" rx="2" style="fill: #FFFFFF"></rect>
+<rect x="78" y="54" width="12" height="6" rx="1.5" style="fill: #4B4F55"></rect>
+<path d="M75 68l3 3 5-5M86 69h8M75 80l3 3 5-5M86 81h8" style="stroke-width: 1.5"></path>
+<rect x="122" y="10" width="60" height="80" rx="2" style="fill: #FFFFFF"></rect>
+<text x="152" y="22" style="fill: #4B4F55; stroke: none; font-family: Barlow, sans-serif; font-size: 6.5px; font-weight: 700; text-anchor: middle">OPERATOR NOTES</text>
+<path d="M130 40h44M130 50h44M130 60h44M130 70h44M130 80h32" style="stroke-width: 1.2; stroke-opacity: 0.5"></path>
+<circle cx="152" cy="59" r="24" style="stroke-width: 3.5"></circle>
+<path d="M135 42l34 34" style="stroke-width: 3.5"></path>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Validator</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Auditor who never sees the operator's notes</div>
+</div>
+</div>
+
+<!-- r4 c5 Break-glass -->
+<div style="grid-column: 5; grid-row: 4; background: #D3E2F6; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #1D4B87">Release</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #1D4B87">R217</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #1D4B87; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<rect x="26" y="10" width="62" height="80" rx="5" style="fill: #1D4B87"></rect>
+<rect x="33" y="20" width="48" height="62" rx="2" style="fill: #A7C3EA"></rect>
+<text x="57" y="34" style="fill: #1D4B87; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">OVERRIDE</text>
+<circle cx="57" cy="52" r="6" style="fill: #1D4B87"></circle>
+<path d="M57 56v9" style="stroke-width: 3"></path>
+<path d="M88 30C106 30 108 26 122 26" style="stroke-width: 1.8"></path>
+<circle cx="140" cy="28" r="16" style="fill: #FFFFFF"></circle>
+<circle cx="140" cy="28" r="5" style="fill: #1D4B87"></circle>
+<path d="M162 16q7 12 0 24M170 10q12 18 0 36" style="stroke-width: 2"></path>
+<path d="M140 46v10M136 52l4 4 4-4" style="stroke-width: 1.6"></path>
+<rect x="124" y="60" width="32" height="22" rx="2" style="fill: #FFFFFF"></rect>
+<path d="M124 62l16 11 16-11"></path>
+<text x="140" y="95" style="fill: #1D4B87; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">owner alerted</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Break-glass</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Override key in an alarmed box</div>
+</div>
+</div>
+
+<!-- r4 c6 Irreversible change -->
+<div style="grid-column: 6; grid-row: 4; background: #D3E2F6; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #1D4B87">Release</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #1D4B87">B14</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #1D4B87; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<text x="37" y="22" style="fill: #1D4B87; stroke: none; font-family: Barlow, sans-serif; font-size: 7px; font-weight: 700; text-anchor: middle">MASTER TOOL</text>
+<rect x="8" y="28" width="58" height="52" rx="2" style="fill: #A7C3EA"></rect>
+<path d="M8 54h58" style="stroke-width: 1.5"></path>
+<rect x="24" y="44" width="26" height="20" rx="2" style="fill: #FFFFFF"></rect>
+<circle cx="15" cy="35" r="2.5"></circle>
+<circle cx="59" cy="35" r="2.5"></circle>
+<circle cx="15" cy="73" r="2.5"></circle>
+<circle cx="59" cy="73" r="2.5"></circle>
+<path d="M72 54h22" style="stroke-width: 2; stroke-dasharray: 3 3"></path>
+<path d="M92 48l7 6-7 6"></path>
+<path d="M104 40h50l-6 52h-38z" style="fill: #FFFFFF"></path>
+<text x="129" y="70" style="fill: #1D4B87; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-anchor: middle">SCRAP</text>
+<rect x="160" y="10" width="36" height="50" rx="2" style="fill: #FFFFFF"></rect>
+<text x="178" y="21" style="fill: #1D4B87; stroke: none; font-family: Barlow, sans-serif; font-size: 6px; font-weight: 700; text-anchor: middle">SIGN-OFF</text>
+<circle cx="178" cy="38" r="9" style="fill: #A7C3EA"></circle>
+<path d="M174 38l3 3 5-5" style="stroke-width: 1.6"></path>
+<path d="M166 52h24" style="stroke-width: 1; stroke-opacity: 0.5"></path>
+<text x="178" y="76" style="fill: #1D4B87; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">required</text>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Irreversible change</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Scrapping master tooling needs sign-off</div>
+</div>
+</div>
+
+<!-- r4 c7 Receipt -->
+<div style="grid-column: 7; grid-row: 4; background: #D6EAD3; border-radius: 10px; padding: 9px 12px 11px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline; height: 16px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #2E6436">Traceability</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; color: #2E6436">R55</span>
+</div>
+<svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #2E6436; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
+<path d="M22 3h96v88l-6-4-6 4-6-4-6 4-6-4-6 4-6-4-6 4-6-4-6 4-6-4-6 4-6-4-6 4-6-4-6 4z" style="fill: #FFFFFF"></path>
+<text x="70" y="14" style="fill: #2E6436; stroke: none; font-family: Barlow, sans-serif; font-size: 7.5px; font-weight: 700; text-anchor: middle">RECEIPT</text>
+<path d="M28 18h84" style="stroke-width: 1; stroke-dasharray: 2 2"></path>
+<text x="28" y="27" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">COMMIT</text>
+<text x="112" y="27" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500; text-anchor: end">a1b2c3d</text>
+<text x="28" y="36" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">FILES</text>
+<text x="112" y="36" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500; text-anchor: end">2</text>
+<text x="28" y="45" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">AGENT</text>
+<text x="112" y="45" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500; text-anchor: end">Claude Code</text>
+<text x="28" y="54" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">MODEL</text>
+<text x="112" y="54" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500; text-anchor: end">not recorded</text>
+<text x="28" y="63" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">SPEC</text>
+<text x="112" y="63" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500; text-anchor: end">014-R1</text>
+<text x="28" y="72" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">SIGNED</text>
+<text x="112" y="72" style="fill: #1C1F23; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500; text-anchor: end">editable</text>
+<text x="28" y="81" style="fill: #2E6436; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 6.2px; font-weight: 500">VERIFIED</text>
+<path d="M104 78l3 3 5-6" style="stroke-width: 1.8"></path>
+<rect x="134" y="14" width="7" height="30" style="fill: #2E6436"></rect>
+<rect x="141" y="16" width="52" height="6" style="fill: #FFFFFF; stroke-width: 1.2"></rect>
+<path d="M150 16l-4 6M160 16l-4 6M170 16l-4 6M180 16l-4 6M190 16l-4 6" style="stroke-width: 1.2"></path>
+<text x="148" y="36" style="fill: #2E6436; stroke: none; font-family: Barlow, sans-serif; font-size: 8px; font-weight: 700">build</text>
+<path d="M176 30l3 3 6-6" style="stroke-width: 2"></path>
+<rect x="134" y="56" width="7" height="30" style="fill: #2E6436"></rect>
+<rect x="141" y="58" width="52" height="6" style="fill: #FFFFFF; stroke-width: 1.2"></rect>
+<path d="M150 58l-4 6M160 58l-4 6M170 58l-4 6M180 58l-4 6M190 58l-4 6" style="stroke-width: 1.2"></path>
+<text x="148" y="78" style="fill: #2E6436; stroke: none; font-family: Barlow, sans-serif; font-size: 8px; font-weight: 700">deploy</text>
+<path d="M176 72l3 3 6-6" style="stroke-width: 2"></path>
+</svg>
+<div>
+<div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Receipt</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Checked at shipping and again at the dock</div>
+</div>
+</div>
+
+</div>
+</div>
+
+<!-- Footer -->
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 24px; margin-top: 8px; flex: none; font-family: Barlow, sans-serif; font-weight: 500; font-size: 13px; color: #4A4F55">
+<span>Top-right tag: B = a deliberately bad change the line stops. R = a requirement in SPEC-001; 014-R = SPEC-014. Stations run in the repo's check order.</span>
+<span style="margin-left: auto">github.com/PaulDuvall/who-gets-the-keys</span>
+</div>
+
+</div>
+</body>
+</html>

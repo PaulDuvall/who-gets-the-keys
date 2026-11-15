@@ -289,6 +289,7 @@ gh run download --repo PaulDuvall/who-gets-the-keys --pattern 'factory-video-*'
 | Doc | Contents |
 |---|---|
 | [factory-video/README.md](factory-video/README.md) | The software-factory scene: what each part shows, how it is built and checked, and where to download the videos |
+| [docs/factory-map.md](docs/factory-map.md) | One picture of the pipeline as an assembly line through a factory: each control, its factory metaphor and the check, scenario or requirement behind it |
 | [docs/verification.md](docs/verification.md) | Every version and syntax choice, with source URL and date |
 | [docs/deviations.md](docs/deviations.md) | Where the build departs from its prompt or the slides, and why |
 | [docs/slide-reconciliation.md](docs/slide-reconciliation.md) | Each practice the audience slides state, and what demonstrates it |
