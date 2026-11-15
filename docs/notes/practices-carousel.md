@@ -27,6 +27,10 @@ The first candidate run, 43610590868 on `71d354e`, passed its `checks` job and f
 
 The cause is backlog `who-gets-the-keys-r1k`, which another session diagnosed and staged in `proposals/receipt-limit/` on `candidate/progress-badge-2026-11-14` (its notes, `docs/notes/receipt-limit.md`). The Lambda zip has been the same bytes since 2026-11-12, so every run attests one digest; from its 101st attestation, at run 218, `gh` 2.103.3's paging overwrites the newest entries, and the run cannot find its own. Until that batch lands, every pipeline run fails its receipt job and `land.sh --to-main` refuses every candidate, this one included. When it has landed, this chain is replayed onto the new `main` and pushed to a new candidate branch, whose run should then pass.
 
+## First CI build, 2026-11-15
+
+The owner landed the batch as `639e83a` on 2026-11-15: main run 43731475823 passed and skipped the deploy. Adding the workflow started its first build, run 43731475832, which failed one check of twelve: Text found no "One cloud runner per task" on the poster's back. Locally it passed. The run uses Playwright 1.64.1 with Chromium 156, from `video/record`; this container has Playwright 1.63.0 with Chromium 153; `pdftotext` is 24.02 in both. The three column headings on the back share one baseline, at 311 pt here, and the check read the PDF in content-stream order only. The build uploads `out/` only when it passes, so the run left no PDF to inspect. The Text check now accepts a string found in either `pdftotext` order, and for a string it cannot find, prints the lines around its first word in both, so the next failing log shows what `pdftotext` saw.
+
 ## Fifth base, `f3cf854`, 2026-11-14
 
 `main` moved to `f3cf854` when the owner landed the factory-pages batch. It changed `.github/workflows/factory-video.yml`, SPEC-001 and its tests, and none of this chain's files; `specs/protected-paths.txt` is unchanged, so the staged copy is still `main`'s with four lines added. The chain was replayed onto it with no conflict, to `candidate/practices-carousel-receipt-3`.

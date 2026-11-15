@@ -269,8 +269,11 @@ function receiptCheck() {
   record('Receipt', !bad.length, bad.length ? `${bad.length} problem(s): ${bad.slice(0, 4).join('; ')}` : `${printed.lines.length} lines printed from verified evidence: the approver's SSH signature on ${RECEIPT.specCommit.slice(0, 7)}; two DSSE signatures, their Fulcio chains to the pinned root and the pinned identity; two Rekor entries' timestamps, inclusion proofs, UUIDs and checkpoints; the diff and deploy hashes recomputed. Evidence for ${t.shown} rows in full and ${t.partly} in part; ${printed.gaps.length} gaps`);
 }
 
-function pdfText(page, file = PDF) {
-  return execFileSync('pdftotext', ['-f', String(page), '-l', String(page), '-raw', '-enc', 'UTF-8', file, '-'], { encoding: 'utf8' });
+// pdftotext in content-stream order (-raw), or in its default reading order. Where several columns put text on one
+// baseline, as the poster's back does at the top of its three columns, either order can split a line; the Text check
+// accepts a string found in either.
+function pdfText(page, file = PDF, raw = true) {
+  return execFileSync('pdftotext', ['-f', String(page), '-l', String(page), ...(raw ? ['-raw'] : []), '-enc', 'UTF-8', file, '-'], { encoding: 'utf8' });
 }
 const norm = (s) =>
   String(s)
@@ -690,10 +693,19 @@ function textCheck() {
   const look = (file, page, strings, label) => {
     const tight = file === PDF && Number(page) === PAGES;
     const squeeze = (t) => (tight ? norm(t).replace(/\s+/g, '') : norm(t));
-    const text = squeeze(pdfText(Number(page), file));
+    const raw = pdfText(Number(page), file);
+    const read = pdfText(Number(page), file, false);
+    const texts = [squeeze(raw), squeeze(read)];
     for (const s of strings) {
       n++;
-      if (!text.includes(squeeze(s))) missing.push(`${label}: "${short(s, 40)}"`);
+      if (texts.some((t) => t.includes(squeeze(s)))) continue;
+      missing.push(`${label}: "${short(s, 40)}"`);
+      // What pdftotext saw around the string's first word, in both orders, so a failing run's log shows why.
+      const first = String(s).split(/\s+/)[0];
+      for (const [order, t] of [['raw', raw], ['reading', read]]) {
+        const near = t.split('\n').filter((l) => l.toLowerCase().includes(first.toLowerCase())).slice(0, 3);
+        console.error(`Text: ${label}: "${short(s, 60)}" missing; pdftotext ${order} order, lines with "${first}": ${near.map((l) => JSON.stringify(l)).join(' | ') || 'none'}`);
+      }
     }
   };
   for (const [page, strings] of Object.entries(expect)) look(PDF, page, strings, `page ${page}`);
