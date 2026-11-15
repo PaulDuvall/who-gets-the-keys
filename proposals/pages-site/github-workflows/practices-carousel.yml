@@ -95,7 +95,8 @@ jobs:
       group: github-pages-site
       cancel-in-progress: true
     permissions:
-      actions: read # pages.yml's assemble job reads the kits' artifacts
+      actions: read # pages.yml's assemble job reads the kits' artifacts and their runs
+      contents: read # pages.yml's assemble job reads main's tip; nothing is checked out
       pages: write # pages.yml's deploy job creates the Pages deployment
       id-token: write # pages.yml's deploy job proves to GitHub Pages which workflow, ref and run it is
     uses: $/.github/workflows/pages.yml # the self-repository form: pages.yml at this run's commit
@@ -119,18 +120,25 @@ jobs:
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
         run: |
+          set -o pipefail
+          if ! [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            echo "This prunes only branches named with letters, digits, '.', '_', '/' and '-'; nothing deleted."
+            exit 0
+          fi
           prefix="practices-carousel-"
+          # Newest run first; every field printed has a fixed form, so no artifact name can shift one.
           list="$(gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.expired | not) | "\(.created_at) \(.id) \(.name) \(.workflow_run.head_branch)"' |
-            awk -v p="$prefix" -v b="$BRANCH" 'index($3, p) == 1 && $4 == b' | sort -r)"
-          keep="$(printf '%s\n' "$list" | awk 'NF {print $2; exit}')"
+            --jq '.artifacts[] | select((.expired | not) and .workflow_run != null and .workflow_run.head_branch == "'"$BRANCH"'"
+              and (.workflow_run.id | type) == "number" and (.name | startswith("'"$prefix"'")))
+              | "\(.workflow_run.id) \(.created_at) \(.id)"' | sort -k1,1nr -k2,2r)"
+          keep="$(printf '%s\n' "$list" | awk 'NF && !n {print $3; n = 1}')"
           if [ -z "$keep" ]; then
             echo "No ${prefix} artifact from ${BRANCH} found; nothing deleted."
             exit 0
           fi
-          printf '%s\n' "$list" | while read -r created id name _; do
+          printf '%s\n' "$list" | while read -r run created id; do
             { [ -z "$id" ] || [ "$id" = "$keep" ]; } && continue
             gh api -X DELETE "repos/$REPO/actions/artifacts/$id"
-            echo "Deleted ${name} (${created})"
+            echo "Deleted ${prefix} artifact ${id} (run ${run}, ${created})"
           done
           echo "Kept ${prefix} artifact ${keep} from ${BRANCH}."

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { afterAll, describe, expect, it } from "vitest";
-import { type Artifact, artifactList, runWithGh } from "./helpers/artifacts-gh.ts";
+import { type Artifact, artifactList, type Run, runsFor, runWithGh } from "./helpers/artifacts-gh.ts";
 
 const WORKFLOW = ".github/workflows/factory-video.yml";
 const text = readFileSync(WORKFLOW, "utf8");
@@ -64,16 +64,18 @@ describe("SPEC-001-R235 the factory video follows main", () => {
       ({ name: `factory-video-${sha.slice(0, 7)}-20261115T1200Z`, created: "2026-11-15T12:00:00Z", id: 7, run: 70, branch: "main", sha, ...over });
 
     // Commits `changes` on top of the built commit and runs the step with the stand-in gh, whose artifact list is
-    // `artifacts`: by default one video built on main at the built commit.
-    const decide = (changes: Record<string, string>, artifacts: Artifact[] = [video(built)], env: Record<string, string> = {}) => {
+    // `artifacts`, by default one video built on main at the built commit, and whose runs are pushes to main running this
+    // workflow unless `runs` says otherwise.
+    const decide = (changes: Record<string, string>, artifacts: Artifact[] = [video(built)], env: Record<string, string> = {}, runs: Record<string, Partial<Run>> = {}) => {
       git("checkout", "-q", "--detach", built);
       for (const [f, body] of Object.entries(changes)) writeFileSync(join(repo, f), body);
       git("commit", "-q", "--allow-empty", "-am", "pushed");
       const work = tempDir("factory-decide-");
-      const out = join(work, "output"), list = join(work, "artifacts.json");
+      const out = join(work, "output"), list = join(work, "artifacts.json"), runList = join(work, "runs.json");
       writeFileSync(out, "");
       writeFileSync(list, artifactList(artifacts));
-      const r = runWithGh(script, repo, { EVENT: "push", GITHUB_SHA: git("rev-parse", "HEAD"), GITHUB_OUTPUT: out, STUB_ARTIFACTS: list, ...env });
+      writeFileSync(runList, runsFor(artifacts, runs));
+      const r = runWithGh(script, repo, { EVENT: "push", GITHUB_SHA: git("rev-parse", "HEAD"), GITHUB_OUTPUT: out, STUB_ARTIFACTS: list, STUB_RUNS: runList, ...env });
       expect(r.status).toBe(0);
       return { video: readFileSync(out, "utf8").trim(), calls: r.calls };
     };
@@ -100,16 +102,43 @@ describe("SPEC-001-R235 the factory video follows main", () => {
       expect(decide({}, artifacts, env).video).toBe("video=true");
     });
 
-    it("SPEC-001-R235 judges by the newest unexpired video built on main, not a claims report, another branch's video or an expired one", () => {
+    it("SPEC-001-R235 judges by the newest video this workflow built on main, by run, whatever newer artifacts claim", () => {
+      // Each decoy names a newer run and claims to have built side, which would force a rebuild if it counted.
       const decoys: Artifact[] = [
-        video(side, { created: "2026-11-15T13:00:00Z", branch: "side", id: 8 }),
-        video(side, { created: "2026-11-15T14:00:00Z", expired: true, id: 9 }),
-        { ...video(side, { created: "2026-11-15T15:00:00Z", id: 10 }), name: `factory-claims-${side.slice(0, 7)}-20261115T1500Z` },
-        video(side, { created: "2026-11-15T16:00:00Z", branch: null, id: 11 }),
-        video("1".repeat(40), { created: "2026-11-14T12:00:00Z", id: 6 }),
+        video(side, { run: 81, branch: "side", id: 8 }),
+        video(side, { run: 82, expired: true, id: 9 }),
+        { ...video(side, { run: 83, id: 10 }), name: `factory-claims-${side.slice(0, 7)}-20261115T1500Z` },
+        video(side, { run: 84, branch: null, id: 11 }),
+        video(side, { run: 85, id: 12 }),
+        video(side, { run: 86, id: 13 }),
+        { ...video(side, { run: 87, id: 14 }), name: `x-factory-video-${side.slice(0, 7)}-20261115T1500Z` },
+        video(side, { run: 88, branch: "main-x", id: 15 }),
+        video(side, { run: "abc", id: 16 }),
+        { ...video(side, { run: 89, id: 17 }), name: "factory-video-x y z" },
+        video("1".repeat(40), { run: 60, created: "2026-11-16T12:00:00Z", id: 6 }),
       ];
-      expect(decide({}, [...decoys, video(built)]).video).toBe("video=false");
-      expect(decide({}, [...decoys, video(built, { created: "2026-11-13T12:00:00Z" })]).video).toBe("video=true");
+      const runs = { "85": { event: "pull_request" }, "86": { path: ".github/workflows/evil.yml" } };
+      expect(decide({}, [...decoys, video(built)], {}, runs).video).toBe("video=false");
+      expect(decide({}, [...decoys, video(built, { run: 50 })], {}, runs).video).toBe("video=true");
+      // When the counts changed, a newer pull request run from a branch named main, or a name with spaces that claims a
+      // branch and a commit, must not stand in for the built commit.
+      const counts = { "docs/progress.json": progress(2, 1, 1) };
+      expect(decide(counts, [video(built), video("0".repeat(40), { run: 90, id: 30 })], {}, { "90": { event: "pull_request" } }).video).toBe("video=true");
+      const crafted = { ...video("0".repeat(40), { run: 91, id: 31, branch: "candidate/x" }), name: `factory-video-x main ${"0".repeat(40)}` };
+      expect(decide(counts, [video(built), crafted]).video).toBe("video=true");
+      // Two pages of artifacts: the only real build is on the second.
+      expect(decide({}, [video(side, { run: 81, branch: "side" }), video(side, { run: 82, expired: true }), video(built)], { STUB_PAGE_SIZE: "2" }).video).toBe("video=false");
+    });
+
+    it("SPEC-001-R235 counts a build started by hand, and builds when the build's run cannot be read", () => {
+      const work = tempDir("factory-runs-");
+      writeFileSync(join(work, "none.json"), "{}");
+      expect(decide({}, [video(built)], { STUB_RUNS: join(work, "none.json") }).video).toBe("video=true");
+      expect(decide({}, [video(built)], {}, { "70": { event: "workflow_dispatch" } }).video).toBe("video=false");
+    });
+
+    it("SPEC-001-R235 sets pipefail, so a list that fails part way is no answer", () => {
+      expect(script.startsWith("set -o pipefail\n")).toBe(true);
     });
 
     it("SPEC-001-R235 builds when started by hand, without asking GitHub", () => {

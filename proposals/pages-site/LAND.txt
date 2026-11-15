@@ -9,12 +9,15 @@ message: spec: publish the practices poster beside the factory video, from one P
 spec: SPEC-001-R236
 spec: SPEC-001-R235
 # Each is on main: R235 (f3cf854), the README's watch badge (9670152), the carousel workflow and README as the other
-# session landed them (639e83a, d62a911), the backlog with r1k.
+# session landed them (639e83a, d62a911), the backlog with r1k, github.sh's github-pages environment (f3cf854) and
+# decision 0009's poster row.
 requires: specs/SPEC-001-delivery-pipeline.md | SPEC-001-R235 |
 requires: README.md watch-the%20factory%20video
 requires: .github/workflows/practices-carousel.yml docs/notes/practices-carousel.md
 requires: practices-carousel/README.md prints its lines from verified evidence
 requires: .tasks/backlog.jsonl who-gets-the-keys-r1k
+requires: scripts/bootstrap/github.sh github-pages gets none either
+requires: docs/decisions/0009-practices-carousel.md | 2a | The poster has two sides
 move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
 move: github-workflows/pages.yml .github/workflows/pages.yml
 move: github-workflows/factory-video.yml .github/workflows/factory-video.yml
@@ -23,6 +26,9 @@ move: test/factory-pages.test.ts test/factory-pages.test.ts
 move: test/site-pages.test.ts test/site-pages.test.ts
 move: test/helpers/artifacts-gh.ts test/helpers/artifacts-gh.ts
 move: test/producer.test.ts test/producer.test.ts
+move: scripts/bootstrap/github.sh scripts/bootstrap/github.sh
+move: docs/decisions/0008-factory-video-kit.md docs/decisions/0008-factory-video-kit.md
+move: docs/decisions/0009-practices-carousel.md docs/decisions/0009-practices-carousel.md
 move: README.md README.md
 move: factory-video/README.md factory-video/README.md
 move: practices-carousel/README.md practices-carousel/README.md

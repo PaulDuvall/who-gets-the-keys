@@ -52,8 +52,10 @@ jobs:
       # verify.mjs imports Playwright only for the browser checks, so this needs no npm install.
       - name: Check that every on-screen claim cites evidence that exists
         run: node factory-video/verify.mjs --only claims
-      # Compared with the newest video a run on main built, not the previous push, so a build that failed, or a run that a
-      # newer push cancelled, is built by the next run. Any doubt builds (SPEC-001-R235, as SPEC-001-R232 does for sandbox).
+      # Compared with the newest video this workflow built on main, not the previous push, so a build that failed, or a
+      # run that a newer push cancelled, is built by the next run. A candidate counts only if its run is this workflow,
+      # started by a push or by hand on main in this repository; the jq filter prints only fields of a fixed form, so no
+      # artifact name can shift one. Any doubt builds (SPEC-001-R235, as SPEC-001-R232 does for sandbox).
       - name: Decide whether the video needs a rebuild, against the newest video built on main
         id: paths
         env:
@@ -61,12 +63,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
+          set -o pipefail
           video=true
           last=""
+          newest_built() {
+            filter='.artifacts[] | select((.expired | not) and .workflow_run != null and .workflow_run.head_branch == "main"
+              and (.workflow_run.id | type) == "number" and (.workflow_run.head_sha | test("^[0-9a-f]{40}$"))
+              and (.name | test("^factory-video-[0-9a-f]{7}-[0-9]{8}T[0-9]{4}Z$")))
+              | "\(.workflow_run.id) \(.created_at) \(.workflow_run.head_sha)"'
+            candidates="$(gh api --paginate "repos/${REPO}/actions/artifacts?per_page=100" --jq "$filter" | sort -k1,1nr -k2,2r)"
+            while read -r run _ sha; do
+              [ -n "$run" ] || continue
+              run_of="$(gh api "repos/${REPO}/actions/runs/${run}" --jq '"\(.event) \(.path) \(.head_branch) \(.head_repository.full_name)"')"
+              case "$run_of" in
+                "push .github/workflows/factory-video.yml main ${REPO}" | "workflow_dispatch .github/workflows/factory-video.yml main ${REPO}")
+                  echo "$sha"
+                  return 0 ;;
+              esac
+            done <<<"$candidates"
+          }
           if [ "$EVENT" = push ]; then
-            last="$(gh api --paginate "repos/${REPO}/actions/artifacts?per_page=100" \
-              --jq '.artifacts[] | select(.expired | not) | "\(.created_at) \(.name) \(.workflow_run.head_branch) \(.workflow_run.head_sha)"' |
-              awk '$3 == "main" && index($2, "factory-video-") == 1' | sort -r | awk 'NF && !n {print $4; n = 1}')" || last=""
+            last="$(newest_built)" || last=""
           fi
           counts() { git show "$1:docs/progress.json" | jq -c '{requirements, claims}'; }
           if [ -n "$last" ] && git cat-file -e "${last}^{commit}" 2>/dev/null && git merge-base --is-ancestor "$last" "$GITHUB_SHA" &&
@@ -184,7 +201,8 @@ jobs:
       group: github-pages-site
       cancel-in-progress: true
     permissions:
-      actions: read # pages.yml's assemble job reads the kits' artifacts
+      actions: read # pages.yml's assemble job reads the kits' artifacts and their runs
+      contents: read # pages.yml's assemble job reads main's tip; nothing is checked out
       pages: write # pages.yml's deploy job creates the Pages deployment
       id-token: write # pages.yml's deploy job proves to GitHub Pages which workflow, ref and run it is
     uses: $/.github/workflows/pages.yml # the self-repository form: pages.yml at this run's commit
@@ -210,18 +228,25 @@ jobs:
           BUILT: ${{ needs.build.result }}
           BRANCH: ${{ github.ref_name }}
         run: |
+          set -o pipefail
+          if ! [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            echo "This prunes only branches named with letters, digits, '.', '_', '/' and '-'; nothing deleted."
+            exit 0
+          fi
           prefixes="factory-claims-"
           [ "$BUILT" = success ] && prefixes="factory-video- factory-claims-"
           for prefix in $prefixes; do
+            # Newest run first; every field printed has a fixed form, so no artifact name can shift one.
             list="$(gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
-              --jq '.artifacts[] | select(.expired | not) | "\(.created_at) \(.id) \(.name) \(.workflow_run.head_branch)"' |
-              awk -v p="$prefix" -v b="$BRANCH" 'index($3, p) == 1 && $4 == b' | sort -r)"
-            keep="$(printf '%s\n' "$list" | awk 'NF {print $2; exit}')"
+              --jq '.artifacts[] | select((.expired | not) and .workflow_run != null and .workflow_run.head_branch == "'"$BRANCH"'"
+                and (.workflow_run.id | type) == "number" and (.name | startswith("'"$prefix"'")))
+                | "\(.workflow_run.id) \(.created_at) \(.id)"' | sort -k1,1nr -k2,2r)"
+            keep="$(printf '%s\n' "$list" | awk 'NF && !n {print $3; n = 1}')"
             [ -n "$keep" ] || { echo "No ${prefix} artifact from ${BRANCH} found; nothing deleted."; continue; }
-            printf '%s\n' "$list" | while read -r created id name _; do
+            printf '%s\n' "$list" | while read -r run created id; do
               { [ -z "$id" ] || [ "$id" = "$keep" ]; } && continue
               gh api -X DELETE "repos/$REPO/actions/artifacts/$id"
-              echo "Deleted ${name} (${created})"
+              echo "Deleted ${prefix} artifact ${id} (run ${run}, ${created})"
             done
             echo "Kept ${prefix} artifact ${keep} from ${BRANCH}."
           done

@@ -40,8 +40,8 @@ To download the newest build:
 |---|---|
 | Browser, the guided video only | Open https://paulduvall.github.io/who-gets-the-keys/ |
 | Browser, every file | Open the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain). Open the newest run whose Artifacts section lists a `factory-video-…` artifact, and download it; GitHub asks you to sign in. A push that leaves the kit, the workflow and the end card's counts as they were runs the claims check alone, and its run lists a `factory-claims-…` artifact instead |
-| Terminal | The first command below, with the GitHub CLI signed in. It downloads the newest artifact whose name matches |
-| Nothing listed | No build has run in the last 30 days, so the artifact has expired. Start one with the second command, or with **Run workflow** on the runs page. Starting it needs write access |
+| Terminal | The first command below, with the GitHub CLI signed in. It downloads the newest build of each branch that has one, normally only `main`'s |
+| Nothing listed | No build has run in the last 90 days, so the artifact has expired. Start one with the second command, or with **Run workflow** on the runs page. Starting it needs write access |
 
 ```bash
 gh run download --repo PaulDuvall/who-gets-the-keys --pattern 'factory-video-*'
