@@ -7,12 +7,12 @@
 # which the deck snapshot does not hold.
 meta:
   title: Who gets the keys?
-  thesis_key: The pipeline
-  thesis_rest: holds the keys to production.
+  thesis_key: Only the pipeline
+  thesis_rest: deploys to production.
   subtitle: "{count} practices for code an AI agent writes, with when each one runs, where in the factory it runs and an example of the kind of tool that does it."
   byline: Paul Duvall · AI Native DevCon 2026
-  close_line_plain: The agent writes the change, and
-  close_line_key: the pipeline ships it.
+  close_line_plain: The agent drafts code and tests, and
+  close_line_key: only the pipeline deploys.
   sites: [paulmduvall.com, redactedventures.com]
 
 poster:
@@ -63,7 +63,7 @@ factory:
       text: An engineer captures the customer's intent and signs it with a security key.
       page: [5, 9]
     - name: Agent sandbox
-      text: One cloud runner per task. Its commands get no secrets, no deploy keys and no network. It hands back a proposed change and nothing else.
+      text: One cloud runner per task. Its commands get no secrets, no deploy keys and no network. Its only output is a proposed change.
       page: 3
     - name: Pipeline
       text: Runs the checks of record, signs the evidence and holds the only deploy key.
@@ -74,7 +74,7 @@ factory:
       page: 5
   around:
     - name: Factory policy
-      text: Guards the keys with pinned inputs, one deploy identity, no other writer to production and signed changes to the factory itself.
+      text: Protects the pipeline with pinned inputs, one deploy identity, no other writer to production and signed changes to the factory itself.
       page: 6
     - name: Inspector
       text: Runs in a security account the pipeline can't reach, and watches the pipeline and production for drift.
@@ -219,7 +219,7 @@ sections:
           - { name: CloudWatch Synthetics, url: "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries.html" }
 
   - name: Evidence
-    tag: Made along the way, checked at every gate
+    tag: Recorded at each step and checked before deploy
     blurb: Made where each fact happens, from signed intent to the build, and checked before main moves and again at deploy.
     # The poster draws this section as a band across the flow; each stop of its thread sits under one arrow.
     thread:
@@ -282,8 +282,8 @@ sections:
           - { name: CycloneDX, url: "https://cyclonedx.org/" }
 
   - name: Factory policy
-    tag: Guard the keys
-    blurb: The pipeline can hold the keys only if it is the best-protected system you run.
+    tag: Protect the pipeline
+    blurb: The pipeline holds the only deploy key, so it needs the strongest protection of any system you run.
     rows:
       - text: Pin actions by commit SHA, dependencies and images by hash
         when: [minutes]
@@ -391,7 +391,7 @@ sections:
           - { name: AWS Config, url: "https://docs.aws.amazon.com/config/latest/developerguide/WhatIsConfig.html" }
 
   - name: Route humans
-    tag: Late reviews are defects
+    tag: Risk tiers decide which changes need a person
     blurb: Every review after the code exists gets a root cause, and the fix is usually a new check.
     rows:
       - text: Risk tiers set in the room route every change, and a classifier can only escalate
@@ -432,7 +432,7 @@ sections:
           - { name: OSV-Scanner ignoreUntil, url: "https://google.github.io/osv-scanner/configuration/" }
 
 humans:
-  heading: Where humans still decide
+  heading: Where humans decide
   rows:
     - label: Intent
       text: Capture and approve the spec before code exists.
@@ -473,17 +473,17 @@ receipt:
     quotes:
       - { git: "96eb92cec073065a4846e36d3dd0cf88f7e2cfce:docs/verification.md", quote: "Step 6: `B10 pass attestation CHECK attestation FAILED: dist/function.zip`" }
       - { git: "96eb92cec073065a4846e36d3dd0cf88f7e2cfce:docs/verification.md", quote: "2026-11-07. Candidate run 42378752588" }
-  motto: No evidence, no deploy.
+  motto: Every deploy needs evidence.
   under: No agent runs in the jobs that verify and deploy. A failed attestation stops the deploy.
 close:
   heading: Three things to do tomorrow
   items:
     - verb: Check
-      what: Make controls machine-checkable.
-      how: Stop treating downstream review as a control.
+      what: Write each control as a check a machine runs.
+      how: A review after the code exists does not count.
     - verb: Trace
-      what: Verify intent and behavior.
-      how: Confirm intent before code exists and trace every change to it.
+      what: Trace each change to the signed spec.
+      how: The spec records the customer request behind it.
     - verb: Prove
-      what: Let evidence authorize every deploy.
-      how: A deploy without complete evidence stops.
+      what: Add checks for what agents get wrong.
+      how: Deploy only when the evidence is complete.
