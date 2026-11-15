@@ -19,6 +19,7 @@ A repository has one GitHub Pages site, and each `actions/deploy-pages` call rep
 | `test/site-pages.test.ts` | New, R236: the two workflows' shapes, the assemble scripts run against a stand-in `gh`, the prune scripts, retention and the README |
 | `test/factory-pages.test.ts` | R235's decision against artifacts; the page and deploy tests moved to R236 |
 | `test/helpers/artifacts-gh.ts` | New: the stand-in `gh`. It applies each script's own `--jq` filter to a fixture with `jq`, so the filters are tested too |
+| `test/producer.test.ts` | SPEC-001-R86's test walked every job's steps in every workflow; a job that calls a reusable workflow has none |
 | `README.md` | Both sides of the poster, side by side, under the video at the top; the keys table names `pages.yml`'s deploy job |
 | `factory-video/README.md`, `practices-carousel/README.md` | Where each kit's output is published now |
 | `traceability.md`, `.tasks/backlog.jsonl` | R236's row; backlog `who-gets-the-keys-p6s`, filed and closed |
@@ -36,6 +37,7 @@ No deployable path changes, so main's `sandbox` deploy is skipped (SPEC-001-R232
 | `factory-video` publishes on every run on `main`, even when the build was not needed | A deploy that failed is tried again by the next run of either kit. It costs about a minute |
 | Artifacts kept 90 days | The most a public repository allows. The publisher needs the newest build of both kits; if one is not rebuilt for 90 days, the publisher fails and the live site stays as it was. A monthly build would remove that; not added |
 | Prune only the run's own branch | Before this, a run on another branch deleted `main`'s newest artifact, which the publisher now reads. The review of `factory-pages` noted the old behaviour |
+| Call it as `$/.github/workflows/pages.yml` | GitHub's "recommended syntax for referencing a reusable workflow in the same repository", at the caller's commit, resolved against the repository rather than the runner's workspace. zizmor's `self-repository` audit fails the workflows check on the `./` form |
 | The poster's files under `practices/` | The video's `poster.png` stays at the root, where the README's links already point |
 | Fail the assemble step when an artifact is missing or incomplete, naming the workflow to run | Nothing is deployed, so the live site keeps both kits' previous files |
 
@@ -60,9 +62,11 @@ Not verified until a run shows it: that the `github-pages` environment's `main` 
 2. `land.sh proposals/pages-site`, signed. The push runs both kit workflows. The carousel's, about 2 minutes, publishes the poster with the current video. The factory video's rebuilds the video, because R236 moves the end card's approved count to 113, and publishes again about 12 minutes later.
 3. Open the README and the page, and check both sides of the poster and the video.
 
-## Preflight
+## Preflight, 2026-11-15
 
-Not run yet.
+The first run, at `5360763`, failed three steps, each fixed in `52a455c`: the workflows check, on zizmor's `self-repository` audit of the `./` call; ESLint, on an `expect` inside a condition in the new test; and Vitest, on SPEC-001-R86's test, which read `steps` of every job. The second run's results follow.
+
+SECOND_RUN
 
 ## Independent review
 
