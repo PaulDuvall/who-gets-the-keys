@@ -1,0 +1,125 @@
+# Publishes the repository's GitHub Pages site, https://paulduvall.github.io/who-gets-the-keys/ (SPEC-001-R236): the
+# factory video's guided video and the practices carousel's poster, each from the newest build that a run on main
+# uploaded. A repository has one Pages site, and each deploy replaces all of it, so this is the only workflow that
+# deploys there. factory-video.yml and practices-carousel.yml call it after their builds on main, from jobs in one
+# concurrency group with cancel-in-progress, so the newest call wins, and the newest call takes both kits' newest builds.
+# The assemble job checks out nothing and runs no repository code. The deploy job runs only actions/deploy-pages.
+# No job reads a secret, uses AWS or a cache, or holds contents: write.
+name: pages
+
+on:
+  workflow_call:
+
+permissions: {}
+cache-mode: none
+
+jobs:
+  assemble:
+    name: lay out the site from the newest builds on main
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # lists and downloads the two kits' artifacts; nothing else in this job
+    steps:
+      # The newest unexpired artifact of each kind that a run on main uploaded. A kit uploads only after its checks pass.
+      - name: Download the newest factory video and practices carousel built on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          builds="$RUNNER_TEMP/builds"
+          mkdir -p "$builds"
+          for kind in factory-video practices-carousel; do
+            case "$kind" in
+              factory-video) files="factory-guided.mp4 factory-guided.srt poster.png" ;;
+              practices-carousel) files="poster.png poster-back.png poster.pdf" ;;
+            esac
+            found="$(gh api --paginate "repos/${REPO}/actions/artifacts?per_page=100" \
+              --jq '.artifacts[] | select(.expired | not) | "\(.created_at) \(.id) \(.workflow_run.id) \(.workflow_run.head_branch) \(.workflow_run.head_sha) \(.name)"' |
+              awk -v p="${kind}-" '$4 == "main" && index($6, p) == 1' | sort -r | awk 'NF && !n {print; n = 1}')"
+            if [ -z "$found" ]; then
+              echo "::error::No ${kind}- artifact from a run on main. Run the ${kind} workflow on main; it publishes the site when it ends."
+              exit 1
+            fi
+            read -r created _ run _ sha name <<<"$found"
+            if ! [[ "$run" =~ ^[0-9]+$ && "$sha" =~ ^[0-9a-f]{40}$ && "$created" =~ ^[0-9T:Z-]+$ ]]; then
+              echo "::error::The newest ${kind}- artifact names no run, commit or time this can use: ${found}"
+              exit 1
+            fi
+            gh run download "$run" --repo "$REPO" --name "$name" --dir "$builds/$kind"
+            dir="$builds/$kind"
+            [ ! -d "$dir/$name" ] || dir="$dir/$name"
+            for f in $files; do
+              if [ ! -f "$dir/$f" ]; then
+                echo "::error::${name} holds no ${f}. Run the ${kind} workflow on main; it publishes the site when it ends."
+                exit 1
+              fi
+            done
+            echo "$run $sha $created $dir" > "$builds/$kind.meta"
+            echo "${kind}: ${name}, run ${run}, commit ${sha}"
+          done
+      # The guided video at the root, where the README's links point, and the poster under practices/. Every value
+      # that reaches index.html is a run ID, a commit SHA or a time the step above checked, or github.repository.
+      - name: Lay out the page for GitHub Pages
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          builds="$RUNNER_TEMP/builds"
+          site="$RUNNER_TEMP/site"
+          mkdir -p "$site/practices"
+          read -r video_run video_sha video_built video_dir < "$builds/factory-video.meta"
+          read -r poster_run poster_sha poster_built poster_dir < "$builds/practices-carousel.meta"
+          cp "$video_dir/factory-guided.mp4" "$video_dir/factory-guided.srt" "$video_dir/poster.png" "$site/"
+          cp "$poster_dir/poster.png" "$site/practices/poster-front.png"
+          cp "$poster_dir/poster-back.png" "$site/practices/poster-back.png"
+          cp "$poster_dir/poster.pdf" "$site/practices/poster.pdf"
+          cat > "$site/index.html" <<EOF
+          <!doctype html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Who Gets the Keys? The software factory</title>
+          <style>body{margin:0 auto;max-width:1100px;padding:16px;font-family:system-ui,sans-serif;line-height:1.5}video,img{display:block;width:100%;height:auto}video{background:#000}.sides{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media (max-width:700px){.sides{grid-template-columns:1fr}}</style>
+          </head>
+          <body>
+          <h1>Who Gets the Keys? The software factory</h1>
+          <video controls preload="metadata" poster="poster.png" src="factory-guided.mp4"></video>
+          <p>The guided video, narrated and captioned. It shows the whole factory, then ends on a card of what is built and what is left, counted at commit <a href="https://github.com/${REPO}/commit/${video_sha}">${video_sha:0:7}</a> of <code>main</code>, built ${video_built} in <a href="https://github.com/${REPO}/actions/runs/${video_run}">run ${video_run}</a>.</p>
+          <p><a href="factory-guided.srt">Captions (SRT)</a> &middot; <a href="https://github.com/${REPO}#progress">Progress against the specs</a> &middot; <a href="https://github.com/${REPO}">Repository</a></p>
+          <h2 id="poster">The practices poster</h2>
+          <p>Every practice from the talk for code an AI agent writes. The front is the factory view: where and when each practice runs. The back is a checklist to tick, section by section. Built from commit <a href="https://github.com/${REPO}/commit/${poster_sha}">${poster_sha:0:7}</a> of <code>main</code>, ${poster_built}, in <a href="https://github.com/${REPO}/actions/runs/${poster_run}">run ${poster_run}</a>.</p>
+          <div class="sides">
+          <a href="practices/poster-front.png"><img src="practices/poster-front.png" alt="The poster's front: every practice in the factory, by where and when it runs"></a>
+          <a href="practices/poster-back.png"><img src="practices/poster-back.png" alt="The poster's back: a checklist of every practice, section by section"></a>
+          </div>
+          <p><a href="practices/poster.pdf">Both sides as a two-page PDF</a> &middot; <a href="https://github.com/${REPO}/tree/main/practices-carousel">The carousel kit</a></p>
+          </body>
+          </html>
+          EOF
+          du -sh "$site"
+      - name: Upload the page for GitHub Pages
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/site
+
+  # Publishes the site the assemble job laid out. It checks out nothing and runs no repository code: its one step is
+  # actions/deploy-pages, which needs exactly these two permissions. No AWS role trusts this workflow's OIDC token
+  # (infra/sandbox/iam.tf requires an exact job_workflow_ref of another workflow).
+  deploy:
+    name: publish the site to GitHub Pages
+    needs: assemble
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      pages: write # deploy-pages creates the Pages deployment
+      id-token: write # deploy-pages proves to GitHub Pages which workflow, ref and run it is
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
