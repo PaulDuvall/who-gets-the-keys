@@ -87,7 +87,8 @@ if [ "$visibility" = "public" ]; then
   reviewers=", \"reviewers\": [{\"type\": \"User\", \"id\": ${me_id}}], \"prevent_self_review\": false"
 fi
 # producer gets no reviewer: only the owner can start producer.yml, and its job checks the actor (SPEC-001-R83, R85).
-# github-pages gets none either: it publishes only the factory video built from main (SPEC-001-R235). Branch main only
+# github-pages gets none either: it publishes only the factory video and the practices poster built from main
+# (SPEC-001-R235, R236). Branch main only
 # keeps a workflow on any other branch from deploying to it.
 for env in sandbox probe producer github-pages; do
   env_reviewers="$reviewers"

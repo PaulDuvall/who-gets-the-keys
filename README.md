@@ -17,6 +17,13 @@ Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code
 
 [![The software factory: the agent sandbox, the pipeline and its checks, the receipt and production. Click to watch the guided video.](https://paulduvall.github.io/who-gets-the-keys/poster.png)](https://paulduvall.github.io/who-gets-the-keys/)
 
+**[The practices poster](https://paulduvall.github.io/who-gets-the-keys/#poster)**: every practice from the talk for code an AI agent writes, on one two-sided page, rebuilt whenever the carousel kit or `practices.yaml` changes on `main`. The front is the factory view: where and when each practice runs. The back is a checklist to tick. Click a side for full size, or get [both sides as a PDF](https://paulduvall.github.io/who-gets-the-keys/practices/poster.pdf).
+
+<p>
+<a href="https://paulduvall.github.io/who-gets-the-keys/practices/poster-front.png"><img src="https://paulduvall.github.io/who-gets-the-keys/practices/poster-front.png" alt="The poster's front: every practice in the factory, by where and when it runs" width="49%"></a>
+<a href="https://paulduvall.github.io/who-gets-the-keys/practices/poster-back.png"><img src="https://paulduvall.github.io/who-gets-the-keys/practices/poster-back.png" alt="The poster's back: a checklist of every practice, section by section" width="49%"></a>
+</p>
+
 | | |
 |---|---|
 | Rule demonstrated | Bad changes never reach production, because the pipeline prevents them |
@@ -149,7 +156,7 @@ Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and
 | Scenario probe role | Read state (`ReadOnlyAccess`) | Write: its one Lambda write grant exists so B11 can show the SCP deny it |
 | Break-glass role | Write, alarmed | Be assumed by anyone but the break-glass user, and by that user only with a TOTP code from the owner's YubiKey |
 | Break-glass user | Assume the break-glass role with a TOTP code, through `us-east-1`; every call it makes is alarmed | Anything else: its own policy denies every other action and every other role |
-| `factory-video.yml` deploy job | Publish the guided video, built from `main` by a job that can only read the repository, to GitHub Pages from environment `github-pages` | Run repository code; deploy from any branch but `main`; read a secret or reach AWS |
+| `pages.yml` deploy job | Publish the guided video and the practices poster, each built on `main` by a job that can only read the repository, to GitHub Pages from environment `github-pages` | Run repository code; deploy from any branch but `main`; read a secret or reach AWS |
 
 ## Tool choices compared with the deck
 
@@ -264,13 +271,13 @@ The script it calls is [`scripts/bootstrap/cloud-session-setup.sh`](scripts/boot
 
 **Watch it: [https://paulduvall.github.io/who-gets-the-keys/](https://paulduvall.github.io/who-gets-the-keys/)**, the narrated guided video built from `main`, with no sign-in. The page names the commit it was built from.
 
-`factory-video/` builds the "software factory" scene for the talk: a narrated, captioned guided video, an 18 s loop for the deck, and a poster. It shows the factory this repository is building toward, and `factory-video/claims.json` records, claim by claim, how much of it is built. The videos are not committed. The `factory-video` workflow builds them when started by hand, and on a push to `main` when the kit, the workflow or the end card's counts in `docs/progress.json` changed since the last page published, so the end card follows `main` (SPEC-001-R227, R235). On `main`, a deploy job publishes the guided video to the page above with GitHub Pages. The workflow also keeps the newest build's files, as one artifact named `factory-video-<short SHA>-<UTC time>`, which expires 30 days after upload.
+`factory-video/` builds the "software factory" scene for the talk: a narrated, captioned guided video, an 18 s loop for the deck, and a poster. It shows the factory this repository is building toward, and `factory-video/claims.json` records, claim by claim, how much of it is built. The videos are not committed. The `factory-video` workflow builds them when started by hand, and on a push to `main` when the kit, the workflow or the end card's counts in `docs/progress.json` changed since the newest video built on `main`, so the end card follows `main` (SPEC-001-R227, R235). On `main`, it then calls `pages.yml`, which publishes the guided video and the practices poster to the page above with GitHub Pages (SPEC-001-R236). The workflow also keeps the newest build's files, as one artifact named `factory-video-<short SHA>-<UTC time>`, which expires 90 days after upload.
 
 | To get | Do |
 |---|---|
 | The guided video in a browser | Open [https://paulduvall.github.io/who-gets-the-keys/](https://paulduvall.github.io/who-gets-the-keys/). It plays `factory-guided.mp4` with its captions file beside it |
 | Every file of the newest build, in a browser | Open the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain). Open the newest run whose Artifacts section lists a `factory-video-…` artifact, and download it. Runs that only checked the claims list a `factory-claims-…` artifact instead. GitHub asks you to sign in to download |
-| Every file of the newest build, from a terminal | The command below, with the GitHub CLI signed in |
+| Every file of the newest build, from a terminal | The command below, with the GitHub CLI signed in. It downloads the newest build of each branch that has one, normally only `main`'s |
 | The one to watch | `factory-guided.mp4`: 124.7 s, 1920×1080, narrated and captioned. It shows the whole target, then ends on a card of what is built and what is left. [factory-video/README.md](factory-video/README.md#outputs) lists the other files |
 
 ```bash

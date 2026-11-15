@@ -1,14 +1,15 @@
-import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { afterAll, describe, expect, it } from "vitest";
+import { type Artifact, artifactList, type Run, runsFor, runWithGh } from "./helpers/artifacts-gh.ts";
 
 const WORKFLOW = ".github/workflows/factory-video.yml";
 const text = readFileSync(WORKFLOW, "utf8");
 interface Step { name?: string; id?: string; if?: string; uses?: string; run?: string; with?: Record<string, unknown> }
-interface Job { needs?: string | string[]; if?: string; permissions?: Record<string, string>; environment?: { name?: string; url?: string }; steps: Step[] }
+interface Job { needs?: string | string[]; if?: string; uses?: string; permissions?: Record<string, string>; steps?: Step[] }
 const workflow = parse(text) as { on: { push: { branches: string[]; paths: string[] }; workflow_dispatch?: unknown }; permissions: unknown; jobs: Record<string, Job> };
 const job = (name: string): Job => {
   const found = workflow.jobs[name];
@@ -16,7 +17,7 @@ const job = (name: string): Job => {
   return found;
 };
 const step = (j: string, name: string): Step => {
-  const found = job(j).steps.find((s) => s.name === name);
+  const found = (job(j).steps ?? []).find((s) => s.name === name);
   if (!found) throw new Error(`no step ${name} in ${j}`);
   return found;
 };
@@ -31,151 +32,157 @@ const tempDir = (prefix: string): string => {
   return dir;
 };
 
-// No git configuration of the machine running the tests reaches the temporary repositories.
-const gitEnv = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
-
-// Runs a step's script as GitHub Actions does, `bash -e` with pipefail, in `cwd` with only the given environment.
-function runStep(script: string, cwd: string, env: Record<string, string>): { status: number; stdout: string; stderr: string } {
-  const r = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", script], {
-    cwd,
-    encoding: "utf8",
-    env: { PATH: process.env["PATH"] ?? "", HOME: cwd, ...gitEnv, ...env },
-  });
-  return { status: r.status ?? 1, stdout: r.stdout, stderr: r.stderr };
-}
-
-// A stand-in for gh in the claims job's decide step. It logs each call, answers the newest github-pages deployment as
-// STUB_DEPLOY, "<id> <sha>" or nothing, and true for a deployment ID listed in STUB_SUCCESS when asked whether it ever
-// had a success status. STUB_FAIL_LIST and STUB_FAIL_STATUSES fail those calls, as an API error would.
-const stubGh = [
-  "#!/usr/bin/env bash",
-  'printf \'%s\\n\' "$*" >> "$STUB_LOG"',
-  'case "$2" in',
-  '  "repos/o/r/deployments?environment=github-pages&per_page=1") [ -z "${STUB_FAIL_LIST:-}" ] || exit 1; [ -z "${STUB_DEPLOY:-}" ] || echo "$STUB_DEPLOY" ;;',
-  '  "repos/o/r/deployments/"*"/statuses?per_page=100") [ -z "${STUB_FAIL_STATUSES:-}" ] || exit 1; id="${2#repos/o/r/deployments/}"; id="${id%%/*}"; case " ${STUB_SUCCESS:-} " in *" $id "*) echo true ;; *) echo false ;; esac ;;',
-  "  *) exit 1 ;;",
-  "esac",
-  "",
-].join("\n");
-
-describe("SPEC-001-R235 the factory video follows main and is published to GitHub Pages", () => {
+describe("SPEC-001-R235 the factory video follows main", () => {
   it("SPEC-001-R235 runs on a push to main that changes docs/progress.json, and when started by hand", () => {
     expect(workflow.on.push.branches).toEqual(["main"]);
     expect(workflow.on.push.paths).toEqual(expect.arrayContaining(["factory-video/**", ".github/workflows/factory-video.yml", "docs/progress.json"]));
     expect(Object.keys(workflow.on)).toContain("workflow_dispatch");
-    expect(job("claims").permissions).toEqual({ contents: "read", deployments: "read" });
+    expect(job("claims").permissions).toEqual({ contents: "read", actions: "read" });
   });
 
-  describe("SPEC-001-R235 the claims job builds the video unless nothing it shows changed since the last page published", () => {
+  describe("SPEC-001-R235 the claims job builds the video unless nothing it shows changed since the newest video built on main", () => {
     const repo = tempDir("factory-rebuild-");
-    const bin = tempDir("factory-gh-");
-    writeFileSync(join(bin, "gh"), stubGh);
-    chmodSync(join(bin, "gh"), 0o755);
     const git = (...args: string[]): string =>
       execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", ...args],
-        { cwd: repo, encoding: "utf8", env: { ...process.env, ...gitEnv } }).trim();
+        { cwd: repo, encoding: "utf8", env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" } }).trim();
     const progress = (approved: number, built: number, open: number) =>
       `${JSON.stringify({ requirements: { approved, drafted: 2 }, claims: { built, open: 1 }, backlog: { open, closed: 0 } }, null, 2)}\n`;
     git("init", "-q", "-b", "main");
-    for (const [f, body] of [["factory-video/kit.txt", "a\n"], [".github/workflows/factory-video.yml", "a\n"], ["docs/notes/n.md", "a\n"], ["docs/progress.json", progress(1, 1, 1)]] as const) {
+    for (const [f, body] of [["factory-video/kit.txt", "a\n"], [".github/workflows/factory-video.yml", "a\n"], ["docs/notes/n.md", "a\n"], ["docs/progress.json", progress(0, 1, 1)]] as const) {
       mkdirSync(join(repo, f, ".."), { recursive: true });
       writeFileSync(join(repo, f), body);
     }
     git("add", "-A");
-    git("commit", "-q", "-m", "published");
-    const published = git("rev-parse", "HEAD");
+    git("commit", "-q", "-m", "older");
+    const older = git("rev-parse", "HEAD");
+    writeFileSync(join(repo, "docs/progress.json"), progress(1, 1, 1));
+    git("commit", "-q", "-am", "built");
+    const built = git("rev-parse", "HEAD");
     git("checkout", "-q", "-b", "side");
     writeFileSync(join(repo, "docs/notes/n.md"), "side\n");
     git("commit", "-q", "-am", "side");
     const side = git("rev-parse", "HEAD");
-    const script = step("claims", "Decide whether the video needs a rebuild, against the last page published").run ?? "";
+    const script = step("claims", "Decide whether the video needs a rebuild, against the newest video built on main").run ?? "";
+    const video = (sha: string, over: Partial<Artifact> = {}): Artifact =>
+      ({ name: `factory-video-${sha.slice(0, 7)}-20261115T1200Z`, created: "2026-11-15T12:00:00Z", id: 7, run: 70, branch: "main", sha, ...over });
 
-    // Commits `changes` on top of the published commit and runs the step with the stand-in gh, which answers that the
-    // newest github-pages deployment is `deployed` and succeeded, unless `env` says otherwise.
-    const decide = (changes: Record<string, string>, env: Record<string, string> = {}, deployed = published) => {
-      git("checkout", "-q", "--detach", published);
+    // Commits `changes` on top of the built commit and runs the step with the stand-in gh, whose artifact list is
+    // `artifacts`, by default one video built on main at the built commit, and whose runs are pushes to main running this
+    // workflow unless `runs` says otherwise; the runs in `gone` are unknown to GitHub.
+    // `artifacts` may be a function of the pushed commit, for a build that claims to be of it.
+    const decide = (changes: Record<string, string>, artifacts: Artifact[] | ((pushed: string) => Artifact[]) = [video(built)], env: Record<string, string> = {}, runs: Record<string, Partial<Run>> = {}, gone: string[] = []) => {
+      git("checkout", "-q", "--detach", built);
       for (const [f, body] of Object.entries(changes)) writeFileSync(join(repo, f), body);
       git("commit", "-q", "--allow-empty", "-am", "pushed");
-      const out = join(tempDir("factory-out-"), "output");
-      const log = join(tempDir("factory-log-"), "calls");
+      const work = tempDir("factory-decide-");
+      const out = join(work, "output"), list = join(work, "artifacts.json"), runList = join(work, "runs.json");
       writeFileSync(out, "");
-      writeFileSync(log, "");
-      const r = runStep(script, repo, {
-        PATH: `${bin}:${process.env["PATH"] ?? ""}`, EVENT: "push", REPO: "o/r", GITHUB_SHA: git("rev-parse", "HEAD"), GITHUB_OUTPUT: out,
-        GH_TOKEN: "stub", STUB_LOG: log, STUB_DEPLOY: `41 ${deployed}`, STUB_SUCCESS: "41", ...env,
-      });
+      const all = typeof artifacts === "function" ? artifacts(git("rev-parse", "HEAD")) : artifacts;
+      writeFileSync(list, artifactList(all));
+      const known = JSON.parse(runsFor(all, runs)) as Record<string, Run>;
+      for (const id of gone) delete known[id];
+      writeFileSync(runList, JSON.stringify(known));
+      const r = runWithGh(script, repo, { EVENT: "push", GITHUB_SHA: git("rev-parse", "HEAD"), GITHUB_OUTPUT: out, STUB_ARTIFACTS: list, STUB_RUNS: runList, ...env });
       expect(r.status).toBe(0);
-      return { video: readFileSync(out, "utf8").trim(), calls: readFileSync(log, "utf8").trim().split("\n").filter(Boolean) };
+      return { video: readFileSync(out, "utf8").trim(), calls: r.calls };
     };
 
     it.each([
-      ["the kit changed", { "factory-video/kit.txt": "b\n" }, {}, "video=true"],
-      ["the workflow changed", { ".github/workflows/factory-video.yml": "b\n" }, {}, "video=true"],
-      ["an approved count changed", { "docs/progress.json": progress(2, 1, 1) }, {}, "video=true"],
-      ["a claim count changed", { "docs/progress.json": progress(1, 2, 1) }, {}, "video=true"],
-      ["only the backlog count changed", { "docs/progress.json": progress(1, 1, 2) }, {}, "video=false"],
-      ["only a note changed", { "docs/notes/n.md": "b\n" }, {}, "video=false"],
-      ["nothing changed", {}, {}, "video=false"],
-      ["no page was ever published", {}, { STUB_DEPLOY: "" }, "video=true"],
-      ["the newest deployment never succeeded", {}, { STUB_SUCCESS: "" }, "video=true"],
-      ["the deployments cannot be listed", {}, { STUB_FAIL_LIST: "1" }, "video=true"],
-      ["a deployment's statuses cannot be read", {}, { STUB_FAIL_STATUSES: "1" }, "video=true"],
-      ["the published commit is not in the checkout", {}, { STUB_DEPLOY: `41 ${"0".repeat(40)}` }, "video=true"],
-    ])("SPEC-001-R235 when %s", (_title, changes, env, expected) => {
-      expect(decide(changes, env).video).toBe(expected);
+      ["the kit changed", { "factory-video/kit.txt": "b\n" }, "video=true"],
+      ["the workflow changed", { ".github/workflows/factory-video.yml": "b\n" }, "video=true"],
+      ["an approved count changed", { "docs/progress.json": progress(2, 1, 1) }, "video=true"],
+      ["a claim count changed", { "docs/progress.json": progress(1, 2, 1) }, "video=true"],
+      ["only the backlog count changed", { "docs/progress.json": progress(1, 1, 2) }, "video=false"],
+      ["only a note changed", { "docs/notes/n.md": "b\n" }, "video=false"],
+      ["nothing changed", {}, "video=false"],
+    ])("SPEC-001-R235 when %s", (_title, changes, expected) => {
+      expect(decide(changes).video).toBe(expected);
     });
 
-    it("SPEC-001-R235 when the published commit is not an ancestor of the pushed one", () => {
-      expect(decide({}, {}, side).video).toBe("video=true");
+    it.each([
+      ["no video was ever built on main", [], {}],
+      ["the only video built on main has expired", [video(built, { expired: true })], {}],
+      ["the artifacts cannot be listed", [video(built)], { STUB_FAIL_LIST: "1" }],
+      ["the built commit is not in the checkout", [video("f".repeat(40))], {}],
+      ["the built commit is not an ancestor of the pushed one", [video(side)], {}],
+    ])("SPEC-001-R235 builds when %s", (_title, artifacts, env) => {
+      expect(decide({}, artifacts, env).video).toBe("video=true");
     });
 
-    it("SPEC-001-R235 when started by hand, without asking GitHub", () => {
-      const run = decide({}, { EVENT: "workflow_dispatch" });
+    it("SPEC-001-R235 judges by the newest video this workflow built on main, by run, whatever newer artifacts claim", () => {
+      // Each decoy names a newer run and claims to have built side, which would force a rebuild if it counted.
+      const decoys: Artifact[] = [
+        video(side, { run: 81, branch: "side", id: 8 }),
+        video(side, { run: 82, expired: true, id: 9 }),
+        { ...video(side, { run: 83, id: 10 }), name: `factory-claims-${side.slice(0, 7)}-20261115T1500Z` },
+        video(side, { run: 84, branch: null, id: 11 }),
+        video(side, { run: 85, id: 12 }),
+        video(side, { run: 86, id: 13 }),
+        { ...video(side, { run: 87, id: 14 }), name: `x-factory-video-${side.slice(0, 7)}-20261115T1500Z` },
+        video(side, { run: 88, branch: "main-x", id: 15 }),
+        video(side, { run: "abc", id: 16 }),
+        { ...video(side, { run: 89, id: 17 }), name: "factory-video-x y z" },
+        video("1".repeat(40), { run: 60, created: "2026-11-16T12:00:00Z", id: 6 }),
+      ];
+      const runs = { "85": { event: "pull_request" }, "86": { path: ".github/workflows/evil.yml" } };
+      expect(decide({}, [...decoys, video(built)], {}, runs).video).toBe("video=false");
+      expect(decide({}, [...decoys, video(built, { run: 50 })], {}, runs).video).toBe("video=false");
+      // When the counts changed, a newer pull request run from a branch named main, or a name with spaces that claims a
+      // branch and a commit, must not stand in for the built commit.
+      const counts = { "docs/progress.json": progress(2, 1, 1) };
+      expect(decide(counts, [video(built), video("0".repeat(40), { run: 90, id: 30 })], {}, { "90": { event: "pull_request" } }).video).toBe("video=true");
+      const crafted = { ...video("0".repeat(40), { run: 91, id: 31, branch: "candidate/x" }), name: `factory-video-x main ${"0".repeat(40)}` };
+      expect(decide(counts, [video(built), crafted]).video).toBe("video=true");
+      // Two pages of artifacts: the only real build is on the second.
+      expect(decide({}, [video(side, { run: 81, branch: "side" }), video(side, { run: 82, expired: true }), video(built)], { STUB_PAGE_SIZE: "2" }).video).toBe("video=false");
+    });
+
+    it.each([
+      ["a pull request run from a branch named main", (p: string) => video(p, { run: 90, id: 30 }), { "90": { event: "pull_request" } }, "video=true"],
+      ["a fork's run", (p: string) => video(p, { run: 91, id: 31 }), { "91": { head_repository: { full_name: "fork/r" } } }, "video=true"],
+      ["another workflow's run", (p: string) => video(p, { run: 92, id: 32 }), { "92": { path: ".github/workflows/evil.yml" } }, "video=true"],
+      ["a name of another form", (p: string) => ({ ...video(p, { run: 93, id: 33 }), name: "factory-video-x y z" }), {}, "video=true"],
+      ["a run of this workflow, as the control", (p: string) => video(p, { run: 94, id: 34 }), {}, "video=false"],
+    ])("SPEC-001-R235 when the counts changed, a build of the pushed commit itself from %s", (_title, decoy, runs, expected) => {
+      expect(decide({ "docs/progress.json": progress(2, 1, 1) }, (pushed) => [video(built), decoy(pushed)], {}, runs).video).toBe(expected);
+    });
+
+    it("SPEC-001-R235 takes the build closest to the pushed commit, so a newer run at an older commit cannot outrank it", () => {
+      // A dispatch on a tag named main at the older commit, or a re-run of an older run: a newer run, an older commit.
+      const tagged = video(older, { run: 95, id: 40, created: "2026-11-16T12:00:00Z" });
+      expect(decide({}, [video(built), tagged], {}, { "95": { event: "workflow_dispatch" } }).video).toBe("video=false");
+      expect(decide({ "docs/progress.json": progress(0, 1, 1) }, [video(built), tagged], {}, { "95": { event: "workflow_dispatch" } }).video).toBe("video=true");
+    });
+
+    it("SPEC-001-R235 builds when any run of a candidate cannot be read, rather than judging by an older build", () => {
+      // The pushed commit matches the older build, not the newest; reading on past the newest build's lost run would skip.
+      const back = { "docs/progress.json": progress(0, 1, 1) };
+      expect(decide(back, [video(built), video(older, { run: 60, id: 41 })], {}, {}, ["70"]).video).toBe("video=true");
+      expect(decide(back, [video(built), video(older, { run: 60, id: 41 })], { STUB_RUN_ERROR: "1" }).video).toBe("video=true");
+    });
+
+    it("SPEC-001-R235 counts a build started by hand, and builds when the build's run cannot be read", () => {
+      const work = tempDir("factory-runs-");
+      writeFileSync(join(work, "none.json"), "{}");
+      expect(decide({}, [video(built)], { STUB_RUNS: join(work, "none.json") }).video).toBe("video=true");
+      expect(decide({}, [video(built)], {}, { "70": { event: "workflow_dispatch" } }).video).toBe("video=false");
+    });
+
+    it("SPEC-001-R235 sets pipefail, so a list that fails part way is no answer", () => {
+      expect(script.startsWith("set -o pipefail\n")).toBe(true);
+    });
+
+    it("SPEC-001-R235 builds when started by hand, without asking GitHub", () => {
+      const run = decide({}, [video(built)], { EVENT: "workflow_dispatch" });
       expect([run.video, run.calls]).toEqual(["video=true", []]);
     });
   });
 
-  it("SPEC-001-R235 lays out a page that plays the guided video and names the commit, on main only", () => {
-    const layout = step("build", "Lay out the page for GitHub Pages");
-    expect(layout.if).toBe("github.ref == 'refs/heads/main'");
-    const kit = tempDir("factory-kit-"), runnerTemp = tempDir("factory-runner-");
-    mkdirSync(join(kit, "out"));
-    for (const f of ["factory-guided.mp4", "factory-guided.srt", "poster.png"]) writeFileSync(join(kit, "out", f), f);
-    const sha = "0123456789abcdef0123456789abcdef01234567";
-    const r = runStep(layout.run ?? "", kit, { RUNNER_TEMP: runnerTemp, GITHUB_SHA: sha, REPO: "o/r", RUN_ID: "42" });
-    expect(r.status).toBe(0);
-    const site = join(runnerTemp, "site");
-    for (const f of ["factory-guided.mp4", "factory-guided.srt", "poster.png"]) expect(readFileSync(join(site, f), "utf8")).toBe(f);
-    const html = readFileSync(join(site, "index.html"), "utf8");
-    expect(html.startsWith("<!doctype html>\n")).toBe(true);
-    expect(html).toContain('<video controls preload="metadata" poster="poster.png" src="factory-guided.mp4"></video>');
-    expect(html).toContain(`<a href="https://github.com/o/r/commit/${sha}">0123456</a>`);
-    expect(html).toContain('<a href="https://github.com/o/r/actions/runs/42">run 42</a>');
-    expect(html).toContain('<a href="factory-guided.srt">Captions (SRT)</a>');
-    expect(existsSync(join(site, "factory-guided-clean.mp4"))).toBe(false);
-  });
-
-  it("SPEC-001-R235 uploads the page from the build job with actions/upload-pages-artifact pinned by SHA, on main only", () => {
-    const upload = step("build", "Upload the page for GitHub Pages");
-    expect(upload.uses).toMatch(/^actions\/upload-pages-artifact@[0-9a-f]{40}$/);
-    expect(upload.if).toBe("github.ref == 'refs/heads/main'");
-    expect(upload.with).toEqual({ path: "${{ runner.temp }}/site" });
-  });
-
-  it("SPEC-001-R235 deploys from main only, in github-pages, with pages: write and id-token: write and one pinned step", () => {
-    const deploy = job("deploy");
-    expect(deploy.needs).toBe("build");
-    expect(deploy.if).toBe("needs.build.result == 'success' && github.ref == 'refs/heads/main'");
-    expect(deploy.environment?.name).toBe("github-pages");
-    expect(deploy.permissions).toEqual({ pages: "write", "id-token": "write" });
-    expect(deploy.steps).toHaveLength(1);
-    expect(deploy.steps[0]?.uses).toMatch(/^actions\/deploy-pages@[0-9a-f]{40}$/);
-    expect(deploy.steps[0]?.run).toBeUndefined();
-    for (const [name, j] of Object.entries(workflow.jobs)) {
-      if (name === "deploy") continue;
-      expect(Object.keys(j.permissions ?? {})).not.toContain("pages");
-      expect(Object.keys(j.permissions ?? {})).not.toContain("id-token");
-    }
+  it("SPEC-001-R235 publishes with SPEC-001-R236 on every run on main whose build passed or was not needed", () => {
+    expect(job("pages").needs).toEqual(["claims", "build"]);
+    expect(job("pages").if).toBe("always() && github.ref == 'refs/heads/main' && needs.claims.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')");
+    expect(job("pages").uses).toBe("$/.github/workflows/pages.yml");
+    expect(Object.keys(workflow.jobs)).not.toContain("deploy");
   });
 
   it("SPEC-001-R235 gives no job contents: write, a secret, a cache or AWS credentials, and pins every action", () => {
@@ -183,7 +190,7 @@ describe("SPEC-001-R235 the factory video follows main and is published to GitHu
     expect(text).toMatch(/^cache-mode: none$/m);
     for (const j of Object.values(workflow.jobs)) expect(j.permissions?.["contents"] ?? "read").toBe("read");
     expect(text).not.toMatch(/\bsecrets\b|aws-actions|actions\/cache/);
-    for (const uses of text.match(/uses: \S+/g) ?? []) expect(uses).toMatch(/@[0-9a-f]{40}$/);
+    for (const uses of text.match(/uses: \S+/g) ?? []) expect(uses).toMatch(/@[0-9a-f]{40}$|^uses: \$\/\.github\/workflows\/pages\.yml$/);
   });
 
   it("SPEC-001-R235 links the page from the README", () => {

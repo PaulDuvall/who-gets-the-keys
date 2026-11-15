@@ -220,7 +220,8 @@ describe("SPEC-001 runner producer (Tracer 2, T2)", () => {
     expect(texts.filter(([, text]) => /vars\.\w*ROLE_ARN/.test(text)).map(([f]) => f)).toEqual([]);
     const roles = texts.flatMap(([f, text]) => {
       const wf = parse(text) as Workflow;
-      return Object.values(wf.jobs).flatMap((j) => j.steps.flatMap((s) => [
+      // A job that calls a reusable workflow, such as the kits' pages jobs, has no steps of its own.
+      return Object.values(wf.jobs as Record<string, Partial<Job>>).flatMap((j) => (j.steps ?? []).flatMap((s) => [
         ...(s.with?.["role-to-assume"] === undefined ? [] : [[f, "role-to-assume", s.with["role-to-assume"]]]),
         ...Object.entries(s.env ?? {}).filter(([k]) => k.endsWith("ROLE_ARN")).map(([k, v]) => [f, k, v]),
       ]));

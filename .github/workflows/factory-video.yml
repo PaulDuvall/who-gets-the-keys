@@ -1,15 +1,13 @@
-# Builds the software-factory slide assets in factory-video/ (decision 0008): the 18 s loop as a
-# GIF and a 3-minute MP4, the narrated guided video with and without burned-in captions, its
-# captions file, the poster, and the claims report: which on-screen claims the repository has built.
-# The claims job checks the ledger alone, with no browser and no voice, on every push to main that
-# can move a claim: a signed spec, a decision, a proposal, the backlog or the progress record. It
-# uploads the report as factory-claims-<short SHA>-<UTC time>. The build job runs when the kit,
-# this workflow or the end card's counts in docs/progress.json changed since the last page published
-# to GitHub Pages, or that page cannot be read, so the end card counts main (SPEC-001-R235), and on
-# demand. On main it also lays out a page that plays the guided video, and the deploy job
-# publishes it to GitHub Pages, https://paulduvall.github.io/who-gets-the-keys/. No job reads a
-# secret, uses AWS or a cache. The prune job keeps only the newest artifact of each kind. Nothing
-# is committed and no release is made, so no job needs contents: write.
+# Builds the software-factory slide assets in factory-video/ (decision 0008): the 18 s loop as a GIF and a 3-minute
+# MP4, the narrated guided video with and without burned-in captions, its captions file, the poster, and the claims
+# report: which on-screen claims the repository has built. The claims job checks the ledger alone, with no browser and
+# no voice, on every push to main that can move a claim: a signed spec, a decision, a proposal, the backlog or the
+# progress record. It uploads the report as factory-claims-<short SHA>-<UTC time>. The build job runs when the kit,
+# this workflow or the end card's counts in docs/progress.json changed since the newest video a run on main built, or
+# that build cannot be read, so the end card counts main (SPEC-001-R235), and on demand. On main, the pages job then
+# calls pages.yml, which publishes that video and the practices poster to https://paulduvall.github.io/who-gets-the-keys/
+# (SPEC-001-R236). No job reads a secret, uses AWS or a cache. The prune job deletes the artifacts that earlier runs on
+# the run's branch uploaded. Nothing is committed and no release is made, so no job needs contents: write.
 name: factory-video
 
 on:
@@ -19,6 +17,7 @@ on:
     paths:
       - "factory-video/**"
       - ".github/workflows/factory-video.yml"
+      - ".github/workflows/pages.yml"
       - "specs/**"
       - "docs/decisions/**"
       - "proposals/**"
@@ -38,7 +37,7 @@ jobs:
       cancel-in-progress: true
     permissions:
       contents: read
-      deployments: read # reads the newest github-pages deployment to decide whether to rebuild
+      actions: read # reads the newest factory-video artifact built on main, to decide whether to rebuild
     outputs:
       video: ${{ steps.paths.outputs.video }}
     steps:
@@ -53,25 +52,48 @@ jobs:
       # verify.mjs imports Playwright only for the browser checks, so this needs no npm install.
       - name: Check that every on-screen claim cites evidence that exists
         run: node factory-video/verify.mjs --only claims
-      # Compared with the last page published, not the previous push, so a build or deploy that failed, or a run that a
-      # newer push cancelled, is built by the next run. Any doubt builds (SPEC-001-R235, as SPEC-001-R232 does for sandbox).
-      - name: Decide whether the video needs a rebuild, against the last page published
+      # Compared with the newest video this workflow built on main, not the previous push, so a build that failed, or a
+      # run that a newer push cancelled, is built by the next run. Of the candidates whose run is this workflow, started by
+      # a push or by hand, reporting head branch main, in this repository, at a commit the pushed one descends from, the
+      # newest is the one whose commit is closest to the pushed one, as pages.yml chooses against main's tip. The jq filter
+      # prints only fields of a fixed form, so no artifact name can shift one. Any failed read, or any doubt, builds
+      # (SPEC-001-R235, as SPEC-001-R232 does for sandbox).
+      - name: Decide whether the video needs a rebuild, against the newest video built on main
         id: paths
         env:
           EVENT: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
+          set -o pipefail
           video=true
           last=""
+          newest_built() {
+            filter='.artifacts[] | select((.expired | not) and .workflow_run != null and .workflow_run.head_branch == "main"
+              and (.workflow_run.id | type) == "number" and (.workflow_run.head_sha | test("^[0-9a-f]{40}$"))
+              and (.name | test("^factory-video-[0-9a-f]{7}-[0-9]{8}T[0-9]{4}Z$")))
+              | "\(.workflow_run.id) \(.created_at) \(.workflow_run.head_sha)"'
+            candidates="$(gh api --paginate "repos/${REPO}/actions/artifacts?per_page=100" --jq "$filter" | sort -k1,1nr -k2,2r)" || return 1
+            best=""
+            nearest=""
+            while read -r run _ sha; do
+              [ -n "$run" ] || continue
+              run_of="$(gh api "repos/${REPO}/actions/runs/${run}" --jq '"\(.event) \(.path) \(.head_branch) \(.head_repository.full_name)"')" || return 1
+              case "$run_of" in
+                "push .github/workflows/factory-video.yml main ${REPO}" | "workflow_dispatch .github/workflows/factory-video.yml main ${REPO}") ;;
+                *) continue ;;
+              esac
+              git cat-file -e "${sha}^{commit}" 2>/dev/null && git merge-base --is-ancestor "$sha" "$GITHUB_SHA" || continue
+              behind="$(git rev-list --count "${sha}..${GITHUB_SHA}")" || return 1
+              if [ -z "$best" ] || [ "$behind" -lt "$nearest" ]; then
+                best="$sha"
+                nearest="$behind"
+              fi
+            done <<<"$candidates"
+            [ -n "$best" ] && echo "$best"
+          }
           if [ "$EVENT" = push ]; then
-            newest="$(gh api "repos/${REPO}/deployments?environment=github-pages&per_page=1" --jq '.[0] // empty | "\(.id) \(.sha)"')" || newest=""
-            id="${newest%% *}"
-            sha="${newest#* }"
-            if [ -n "$newest" ]; then
-              succeeded="$(gh api "repos/${REPO}/deployments/${id}/statuses?per_page=100" --jq '[.[].state] | index("success") != null')" || succeeded=""
-              [ "$succeeded" != true ] || last="$sha"
-            fi
+            last="$(newest_built)" || last=""
           fi
           counts() { git show "$1:docs/progress.json" | jq -c '{requirements, claims}'; }
           if [ -n "$last" ] && git cat-file -e "${last}^{commit}" 2>/dev/null && git merge-base --is-ancestor "$last" "$GITHUB_SHA" &&
@@ -81,9 +103,9 @@ jobs:
           fi
           echo "video=${video}" >> "$GITHUB_OUTPUT"
           if [ "$video" = true ]; then
-            echo "Rebuild: the kit, this workflow or the end card's counts changed since ${last:-the last page published}, or that page could not be read."
+            echo "Rebuild: the kit, this workflow or the end card's counts changed since ${last:-the newest video built on main}, or that build could not be read."
           else
-            echo "No rebuild: nothing the video shows changed since ${last}, the last commit published to GitHub Pages."
+            echo "No rebuild: nothing the video shows changed since ${last}, where the newest video on main was built."
           fi
       - name: Name the artifact factory-claims-<short SHA>-<UTC time>
         id: stamp
@@ -176,69 +198,27 @@ jobs:
             factory-video/out/poster.pdf
             factory-video/out/claims-report.md
           if-no-files-found: error
-          retention-days: 30
-      # The page for GitHub Pages (SPEC-001-R235): the guided video, its captions and poster, and an index.html
-      # that plays it and names the commit. Only on main; GITHUB_SHA is 40 hex digits, so nothing needs escaping.
-      - name: Lay out the page for GitHub Pages
-        if: github.ref == 'refs/heads/main'
-        env:
-          REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-        run: |
-          site="$RUNNER_TEMP/site"
-          mkdir -p "$site"
-          cp out/factory-guided.mp4 out/factory-guided.srt out/poster.png "$site/"
-          short="${GITHUB_SHA:0:7}"
-          built="$(date -u +%Y-%m-%dT%H:%MZ)"
-          cat > "$site/index.html" <<EOF
-          <!doctype html>
-          <html lang="en">
-          <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Who Gets the Keys? The software factory</title>
-          <style>body{margin:0 auto;max-width:1100px;padding:16px;font-family:system-ui,sans-serif;line-height:1.5}video{width:100%;height:auto;background:#000}</style>
-          </head>
-          <body>
-          <h1>Who Gets the Keys? The software factory</h1>
-          <video controls preload="metadata" poster="poster.png" src="factory-guided.mp4"></video>
-          <p>The guided video, narrated and captioned. It shows the whole factory, then ends on a card of what is built and what is left, counted at commit <a href="https://github.com/${REPO}/commit/${GITHUB_SHA}">${short}</a> of <code>main</code>, built ${built} in <a href="https://github.com/${REPO}/actions/runs/${RUN_ID}">run ${RUN_ID}</a>.</p>
-          <p><a href="factory-guided.srt">Captions (SRT)</a> &middot; <a href="https://github.com/${REPO}#progress">Progress against the specs</a> &middot; <a href="https://github.com/${REPO}">Repository</a></p>
-          </body>
-          </html>
-          EOF
-          du -sh "$site"
-      - name: Upload the page for GitHub Pages
-        if: github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: ${{ runner.temp }}/site
+          retention-days: 90 # pages.yml publishes the newest of these, so it must outlive a quiet spell (SPEC-001-R236)
 
-  # Publishes the page the build job laid out. It checks out nothing and runs no repository code: its one step is
-  # actions/deploy-pages, which needs exactly these two permissions. No AWS role trusts this workflow's OIDC token
-  # (infra/sandbox/iam.tf requires an exact job_workflow_ref of another workflow).
-  deploy:
-    name: publish the guided video to GitHub Pages
-    needs: build
-    if: needs.build.result == 'success' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
+  # Publishes the site with the shared workflow (SPEC-001-R236), on every run on main whose build passed or was not
+  # needed, so a deploy that failed is tried again by the next run. One concurrency group across both kits' workflows,
+  # newest wins: it always takes the newest build of each kit.
+  pages:
+    name: publish the site to GitHub Pages
+    needs: [claims, build]
+    if: always() && github.ref == 'refs/heads/main' && needs.claims.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     concurrency:
-      group: factory-video-pages
-      cancel-in-progress: false
+      group: github-pages-site
+      cancel-in-progress: true
     permissions:
-      pages: write # deploy-pages creates the Pages deployment
-      id-token: write # deploy-pages proves to GitHub Pages which workflow, ref and run it is
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      actions: read # pages.yml's assemble job reads the kits' artifacts and their runs
+      contents: read # pages.yml's assemble job reads main's tip and compares commits; nothing is checked out
+      pages: write # pages.yml's deploy job creates the Pages deployment
+      id-token: write # pages.yml's deploy job proves to GitHub Pages which workflow, ref and run it is
+    uses: $/.github/workflows/pages.yml # the self-repository form: pages.yml at this run's commit
 
   prune:
-    name: keep only the newest factory video and claims report
+    name: delete earlier runs' factory videos and claims reports
     needs: [claims, build]
     if: always() && needs.claims.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-24.04
@@ -249,24 +229,36 @@ jobs:
     permissions:
       actions: write # deletes earlier factory-video artifacts; nothing else in this job
     steps:
-      - name: Delete every factory-video and factory-claims artifact except the newest of each
+      # Only artifacts that earlier runs on this run's own branch uploaded: this run's build, which it just uploaded, and any
+      # newer run's, stay, so a run on another branch, a tag or a pull request whose head is named main cannot remove the
+      # build pages.yml publishes (SPEC-001-R236). Every field printed has a fixed form, so no artifact name can shift one.
+      - name: Delete the factory-video and factory-claims artifacts that earlier runs on this branch uploaded
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           BUILT: ${{ needs.build.result }}
+          REF: ${{ github.ref }}
+          RUN_ID: ${{ github.run_id }}
         run: |
+          set -o pipefail
+          case "$REF" in
+            refs/heads/*) branch="${REF#refs/heads/}" ;;
+            *) echo "${REF} is not a branch; nothing deleted."; exit 0 ;;
+          esac
+          if ! [[ "$branch" =~ ^[A-Za-z0-9._/-]+$ && "$RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "This prunes only branches named with letters, digits, '.', '_', '/' and '-'; nothing deleted."
+            exit 0
+          fi
           prefixes="factory-claims-"
           [ "$BUILT" = success ] && prefixes="factory-video- factory-claims-"
           for prefix in $prefixes; do
             list="$(gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
-              --jq '.artifacts[] | select(.expired | not) | "\(.created_at) \(.id) \(.name)"' |
-              awk -v p="$prefix" 'index($3, p) == 1' | sort -r)"
-            keep="$(printf '%s\n' "$list" | awk 'NF {print $2; exit}')"
-            [ -n "$keep" ] || { echo "No ${prefix} artifact found; nothing deleted."; continue; }
-            printf '%s\n' "$list" | while read -r created id name; do
-              { [ -z "$id" ] || [ "$id" = "$keep" ]; } && continue
+              --jq '.artifacts[] | select((.expired | not) and .workflow_run != null and .workflow_run.head_branch == "'"$branch"'"
+                and (.workflow_run.id | type) == "number" and .workflow_run.id < '"$RUN_ID"' and (.name | startswith("'"$prefix"'")))
+                | "\(.workflow_run.id) \(.created_at) \(.id)"')"
+            [ -n "$list" ] || { echo "No ${prefix} artifact from an earlier run on ${branch}; nothing deleted."; continue; }
+            printf '%s\n' "$list" | while read -r run created id; do
               gh api -X DELETE "repos/$REPO/actions/artifacts/$id"
-              echo "Deleted ${name} (${created})"
+              echo "Deleted ${prefix} artifact ${id} (run ${run}, ${created})"
             done
-            echo "Kept ${prefix} artifact ${keep}."
           done
