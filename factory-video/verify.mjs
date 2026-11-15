@@ -108,6 +108,8 @@ const POSTER_LABELS = [
 
 // Text that must stay off the poster too.
 const POSTER_CUT = ['KEEP', 'CHANGE', 'ADD', 'customer confirms', 'agent run', 'engineer-approved',
+  // Revision 23: two takeaways follow the deck more closely.
+  'A review after the code exists does not count.', 'Add checks for what agents get wrong.', 'Deploy only when the evidence is complete.',
   // Revision 22: new wording on screen and on the poster (2026-11-15).
   'Authorship is not authority', 'Not the agent.', 'Not the human.', 'paperwork', 'the control itself', 'Judgment belongs upstream',
   'Who watches the pipeline?', 'Enforcement belongs', 'No evidence', 'machine-checkable', 'Verify intent, not only', 'Let the evidence authorize'];
@@ -703,7 +705,7 @@ function buildId() {
 }
 
 // Stamp: every guided frame shows the build's commit in the caption strip's bottom-right corner, where no caption
-// touches it, and the poster shows it in its top-right corner.
+// touches it, and the poster shows it in its bottom-right corner.
 async function stampCheck(browser) {
   const id = buildId();
   const label = `Built from ${id}`;
@@ -741,7 +743,7 @@ async function stampCheck(browser) {
   const txt = await p.page.evaluate(domText);
   await p.ctx.close();
   if (!txt.includes(label)) bad.push(`the poster does not say "${label}"`);
-  record('Build stamp', !bad.length, bad.length ? bad.join('; ') : `"${label}" in the bottom-right corner of every guided frame, clear of every caption, and in the poster's top-right corner`);
+  record('Build stamp', !bad.length, bad.length ? bad.join('; ') : `"${label}" in the guided page's caption strip, bottom-right, clear of every caption, and in the poster's bottom-right corner`);
 }
 
 // ---------------------------------------------------------- render logs

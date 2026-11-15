@@ -14,7 +14,7 @@
 <body>
 <svg id="poster" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1350" width="2400" height="1350"></svg>
 <script src="scene.js"></script>
-<!-- The build's commit, for the stamp in the top-right corner: build.sh writes this file before it renders. -->
+<!-- The build's commit, for the stamp in the bottom-right corner: build.sh writes this file before it renders. -->
 <script src="frames/build.js"></script>
 <script>
 /*
@@ -56,8 +56,6 @@
     let s = text(50, 76, 'Who Gets the Keys?', { size: 52, bold: true });
     s += text(50, 114, 'Trust and Authority in Software Factories', { size: 26, fill: C.muted });
     s += text(2350, 46, 'Paul Duvall  ·  AI Native DevCon 2026', { size: 18, fill: C.muted, anchor: 'end' });
-    // The build's commit, from frames/build.js: its first 7 characters.
-    if (window.FACTORY_BUILD) s += text(2350, 84, `Built from ${window.FACTORY_BUILD}`, { size: 24, fill: C.muted, anchor: 'end' });
     s += text(2350, 130, 'Receipt values (16/16, 91%) and IDs are illustrative.', { size: 15, italic: true, fill: C.muted, anchor: 'end' });
     return s;
   }
@@ -119,9 +117,9 @@
   // ------------------------------------------------------ bottom band
   function takeaways() {
     const items = [
-      ['1', 'Check', 'Write each control as a check a machine runs.', 'A review after the code exists does not count.'],
+      ['1', 'Check', 'Write each control as a check a machine runs.', 'Code review after the code exists does not count as a control.'],
       ['2', 'Trace', 'Trace each change to the signed spec and to', 'the customer request behind it.'],
-      ['3', 'Prove', 'Add checks for what agents get wrong.', 'Deploy only when the evidence is complete.'],
+      ['3', 'Prove', 'Let complete evidence authorize each deploy.', 'A deploy with missing evidence stops.'],
     ];
     const titleW = Math.max(...items.map((it) => measure(it[1], 22, true)));
     let s = '';
@@ -168,7 +166,9 @@
     );
   }
 
-  const over = header() + authorityPanel() + before() + takeaways() + incidents() + closing();
+  // The build's commit, from frames/build.js: its first 7 characters, small in the bottom-right corner.
+  const stamp = window.FACTORY_BUILD ? text(2350, 1336, `Built from ${window.FACTORY_BUILD}`, { size: 18, fill: C.muted, anchor: 'end' }) : '';
+  const over = header() + authorityPanel() + before() + takeaways() + incidents() + closing() + stamp;
   const svg = document.getElementById('poster');
   svg.innerHTML = Scene.drawScene(S, { poster: true, over });
   if (window.__RENDER_MODE__) document.documentElement.classList.add('render');

@@ -58,9 +58,9 @@ gh workflow run factory-video.yml --repo PaulDuvall/who-gets-the-keys --ref main
 | `factory-guided-clean.mp4` | 1920×900, the same video with no burned-in captions, and the captions as a soft `mov_text` track: for platforms that draw their own |
 | `factory-guided.srt` | The captions as SubRip cues, a sentence or half-sentence at a time, timed to the voice: to upload alongside the clean video |
 | `claims-report.md` | Every claim the video makes, with its status in this repository at the build commit: built, partly built, planned, open or illustrative |
-| `factory-guided.mp4` | 1920×1080, H.264, yuv420p, 30 fps, AAC voiceover, 124.7 s: one narrated, captioned pass with a camera, for video rather than the deck. The caption strip's bottom-right corner says "Built from" and the build's commit in every frame. See [The guided video](#the-guided-video) |
+| `factory-guided.mp4` | 1920×1080, H.264, yuv420p, 30 fps, AAC voiceover, 124.7 s: one narrated, captioned pass with a camera, for video rather than the deck. Every frame says "Built from" and the build's commit in the caption strip's bottom-right corner; `factory-guided-clean.mp4`, cropped above the strip, has none. See [The guided video](#the-guided-video) |
 | `contact-sheet.png` | Six frames of one loop, at 0, 3, 6, 9, 12 and 15 s, with what each shows |
-| `poster.png`, `poster.pdf` | 3840×2160 static poster and a one-page vector PDF with every font embedded. Its top-right corner says "Built from" and the build's commit |
+| `poster.png`, `poster.pdf` | 3840×2160 static poster and a one-page vector PDF with every font embedded. Its bottom-right corner says "Built from" and the build's commit |
 | `probe/t-*.png` | Local only. Frames at each story beat, written by `verify.mjs` for review |
 
 ## Source
@@ -185,7 +185,7 @@ For the guided video, `verify.mjs` checks:
 | Captions stay in the safe area | Every caption keeps to the middle 80% of the width and to its strip, in at most three lines, so a player that crops the sides still shows all of it |
 | The clean MP4 matches the page | 1920×900, H.264, 30 fps, the AAC voiceover, a `mov_text` caption track, and a duration within 0.05 s of the page's |
 | The captions file is right | The SubRip cues are in order, never overlap, end inside the video, have at most two lines each, and together are exactly the narration's words |
-| The build's commit shows | `build.sh` writes the first 7 characters of the commit it builds, with `-dirty` when a tracked file differs from it, to `frames/build.js`. Every guided frame shows "Built from" and that value in the caption strip's bottom-right corner, where no caption touches it, and the poster shows it in its top-right corner |
+| The build's commit shows | `build.sh` writes the first 7 characters of the commit it builds, with `-dirty` when a tracked file differs from it, to `frames/build.js`. The guided page, which every frame of `factory-guided.mp4` is rendered from, shows "Built from" and that value in the caption strip's bottom-right corner, where no caption touches it, and the poster shows it in its bottom-right corner |
 
 It also checks the labels, the 12 story beats (with a PNG of each in `probe/`), determinism, layout over every frame, that Production opens only while a verified change enters, that nothing is fetched, and the GIF, contact sheet and poster files.
 
@@ -337,7 +337,7 @@ Revision 4, the factory model:
 | 20 | Moved to who-gets-the-keys: built by the `factory-video` workflow, one artifact kept, no new dependency |
 | 21 | A silent end card: what is built and what is left, from `scripts/progress.ts`; 124.8 s |
 | 22 | New wording on screen, on the poster and in the narration (2026-11-15). The scene and poster no longer quote the deck word for word: "No evidence, no deploy." is "Every deploy needs evidence.", "The agent can write anything. It can't ship anything." is "The agent drafts code and tests. It holds no deploy key.", "The agent advises. The pipeline acts." is "Only the pipeline deploys here.", and the poster's headings, closing lines and takeaways are reworded; 124.7 s |
-| 23 | The build's commit, small and grey, in a corner of every guided frame and of the poster (2026-11-15); the scene and the narration are unchanged |
+| 23 | The build's commit, small and grey, in a corner of every guided frame and of the poster (2026-11-15). The poster's Check and Prove takeaways follow the deck more closely: "Code review after the code exists does not count as a control." and "Let complete evidence authorize each deploy. A deploy with missing evidence stops." The scene and the narration are unchanged |
 
 ## Poster sources
 

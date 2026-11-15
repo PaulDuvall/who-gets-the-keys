@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Rebuild every deliverable in out/ from source, then verify.
-# Needs: node with playwright (Chromium), ffmpeg. Intermediate frames go to frames/ (gitignored).
+# Needs: node with playwright (Chromium), ffmpeg, and git, as the video and poster name the commit they are built from.
+# Intermediate frames go to frames/ (gitignored).
 set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p frames/f30 frames/f20 out
 
-# The build's commit, which the guided video shows in a corner of every frame and the poster in its top-right corner:
+# The build's commit, which the guided video shows in a corner of every frame and the poster in its bottom-right corner:
 # its first 7 characters, as the artifact's name and the published page give it, and -dirty when a tracked file
 # differs from it.
 build_id="$(git rev-parse HEAD | cut -c1-7)"
