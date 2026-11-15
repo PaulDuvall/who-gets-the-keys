@@ -1,5 +1,6 @@
 # who-gets-the-keys
 
+[![watch: the factory video, 2 min](https://img.shields.io/badge/watch-the%20factory%20video%2C%202%20min-blue)](https://paulduvall.github.io/who-gets-the-keys/)
 [![pipeline](https://img.shields.io/github/actions/workflow/status/PaulDuvall/who-gets-the-keys/pipeline.yml?branch=main&label=pipeline)](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/pipeline.yml?query=branch%3Amain)
 [![bad changes stopped](https://img.shields.io/github/actions/workflow/status/PaulDuvall/who-gets-the-keys/scenarios.yml?branch=main&label=bad%20changes%20stopped)](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/scenarios.yml)
 [![mutation floor](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FPaulDuvall%2Fwho-gets-the-keys%2Fmain%2Fstryker.config.json&query=%24.thresholds.break&label=mutation%20floor&suffix=%25)](stryker.config.json)
@@ -11,6 +12,10 @@
 [![licence: MIT](https://img.shields.io/github/license/PaulDuvall/who-gets-the-keys)](LICENSE)
 
 Companion repo to the talk “Who Gets the Keys?”: an AI agent writes the code, the pipeline holds the keys, and 22 deliberately bad changes are stopped before they ship.
+
+**[Watch the factory video](https://paulduvall.github.io/who-gets-the-keys/)**: 2 minutes, narrated and captioned, no sign-in. It walks through the software factory this repo builds toward, then ends on what is built and what is left, counted on `main`. The `factory-video` workflow rebuilds it whenever that changes ([more below](#factory-video)).
+
+[![The software factory: the agent sandbox, the pipeline and its checks, the receipt and production. Click to watch the guided video.](https://paulduvall.github.io/who-gets-the-keys/poster.png)](https://paulduvall.github.io/who-gets-the-keys/)
 
 | | |
 |---|---|
