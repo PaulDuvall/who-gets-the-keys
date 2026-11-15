@@ -63,7 +63,7 @@
   function authorityPanel() {
     const b = { x: 2050, y: 340, w: 300, h: 360 };
     let s = card(b.x, b.y, b.w, b.h, { name: 'authority' });
-    s += text(b.x + 18, 372, 'Authorship is not authority', { size: 18, bold: true });
+    s += text(b.x + 18, 372, 'What the agent may do', { size: 18, bold: true });
     s += text(b.x + 18, 404, 'The agent can', { size: 16, bold: true, fill: C.red });
     Scene.CAN_FULL.forEach((t, i) => {
       const y = 425 + 20 * i;
@@ -105,19 +105,19 @@
       rect(-88, -21, 176, 42, { rx: 6, stroke: C.red, sw: 3.5 }) +
       text(0, 9, 'APPROVED', { size: 24, bold: true, fill: C.red, anchor: 'middle', ls: 3 }) +
       '</g>';
-    s += text(p.x, 1012, 'Evidence used to be paperwork', { size: 17, bold: true });
-    s += text(p.x, 1034, 'a human skimmed.', { size: 17, bold: true });
-    s += text(p.x, 1068, 'Now the evidence is', { size: 15, bold: true, fill: C.red });
-    s += text(p.x, 1088, 'the control itself.', { size: 15, bold: true, fill: C.red });
+    s += text(p.x, 1012, 'A person skimmed this form', { size: 17, bold: true });
+    s += text(p.x, 1034, 'and approved the change.', { size: 17, bold: true });
+    s += text(p.x, 1068, 'Here the pipeline checks', { size: 15, bold: true, fill: C.red });
+    s += text(p.x, 1088, 'the evidence and decides.', { size: 15, bold: true, fill: C.red });
     return s;
   }
 
   // ------------------------------------------------------ bottom band
   function takeaways() {
     const items = [
-      ['1', 'Check', 'Make controls machine-checkable. Stop treating', 'downstream review as a control.'],
-      ['2', 'Trace', 'Verify intent, not only behavior. Trace every', 'change back to what the customer wanted.'],
-      ['3', 'Prove', 'Add agent-specific checks to the ones you run.', 'Let the evidence authorize every deploy.'],
+      ['1', 'Check', 'Write each control as a check a machine runs.', 'A review after the code exists does not count.'],
+      ['2', 'Trace', 'Trace each change to the signed spec and to', 'the customer request behind it.'],
+      ['3', 'Prove', 'Add checks for what agents get wrong.', 'Deploy only when the evidence is complete.'],
     ];
     const titleW = Math.max(...items.map((it) => measure(it[1], 22, true)));
     let s = '';
@@ -154,13 +154,13 @@
     return s;
   }
 
-  // Under "No evidence, no deploy." (scene space is 1:1 on the poster).
+  // Under "Every deploy needs evidence." (scene space is 1:1 on the poster).
   function closing() {
     const x = L.noEvidenceX;
     return (
-      text(x, 1132, 'Not the agent.', { size: 26, bold: true }) +
-      text(x, 1164, 'Not the human.', { size: 26, bold: true }) +
-      text(x, 1196, 'The pipeline.', { size: 26, bold: true, fill: C.red })
+      text(x, 1132, 'The pipeline checks', { size: 26, bold: true }) +
+      text(x, 1164, 'the evidence and', { size: 26, bold: true }) +
+      text(x, 1196, 'holds the deploy key.', { size: 26, bold: true, fill: C.red })
     );
   }
 

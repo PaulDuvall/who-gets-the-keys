@@ -475,7 +475,7 @@
   function upstream() {
     const A = L.rowA;
     let s = card(L.upstream.x, A.y, L.upstream.w, A.h, { name: 'upstream' });
-    const title = 'Judgment belongs upstream';
+    const title = 'People decide what to build';
     s += text(80, 204, title, { size: 30, bold: true });
     const chips = upstreamLayout();
     chips.forEach((c, i) => {
@@ -503,7 +503,7 @@
     const A = L.rowA;
     const w = L.watch;
     let s = card(w.x, A.y, w.w, A.h, { name: 'watchtower' });
-    const title = 'Who watches the pipeline?';
+    const title = 'Watching the pipeline';
     s += text(1270, 204, title, { size: 30, bold: true });
     // The slide drops the subtitle (revision 2.1); the poster keeps it.
     if (P) s += text(1270 + measure(title, 30, true) + 20, 204, "Detection runs in a security account the pipeline can't touch.", { size: 20, fill: C.muted });
@@ -621,9 +621,9 @@
     s += rect(68, 346, 236, 32, { card: 'tab', rx: 6, fill: C.red, stroke: C.red, sw: 2 });
     s += text(186, 369, 'AGENT SANDBOX', { size: 21, bold: true, fill: C.white, anchor: 'middle', ls: 1.6 });
 
-    s += text(80, 428, 'The agent can', { size: 28, bold: true });
-    s += text(80, 462, 'write anything.', { size: 28, bold: true });
-    s += text(80, 496, "It can't ship anything.", { size: 28, bold: true, fill: C.red });
+    s += text(80, 428, 'The agent drafts', { size: 28, bold: true });
+    s += text(80, 462, 'code and tests.', { size: 28, bold: true });
+    s += text(80, 496, 'It holds no deploy key.', { size: 28, bold: true, fill: C.red });
 
     const al = S.tele.alarm || 0;
     // The content is untrusted: a quarantined reader passes on only fixed schema fields. Only the
@@ -658,7 +658,7 @@
   }
 
   function pipelineHeader(P) {
-    const head = 'Enforcement belongs in the deployment pipeline';
+    const head = 'The deployment pipeline enforces the rules';
     let s = P ? text(L.minutes[0], 372, head, { size: 24, bold: true }) : '';
     // Two engineers sign the factory: the sandbox's rules, triage, the pipeline and the policy. On
     // the slide its chip hangs from the factory frame's top edge, over the seam between the sandbox
@@ -1042,7 +1042,7 @@
 
   function noEvidence() {
     const x = L.noEvidenceX;
-    return text(x, 1030, 'No evidence,', { size: 38, bold: true, fill: C.red }) + text(x, 1076, 'no deploy.', { size: 38, bold: true, fill: C.red });
+    return text(x, 1030, 'Every deploy', { size: 38, bold: true, fill: C.red }) + text(x, 1076, 'needs evidence.', { size: 38, bold: true, fill: C.red });
   }
 
   function production(S) {
@@ -1055,8 +1055,8 @@
     s += text(cx, 524, 'locked', { size: 22, fill: C.muted, anchor: 'middle' });
     if (open < 0.999) s += icon('lock', cx, 612, 104, C.ink, { sw: 1.7, opacity: 1 - open });
     if (open > 0.001) s += icon('lock-open', cx, 612, 104, C.red, { sw: 1.7, opacity: open });
-    s += text(cx, 712, 'The agent advises.', { size: 23, bold: true, anchor: 'middle' });
-    s += text(cx, 742, 'The pipeline acts.', { size: 23, bold: true, anchor: 'middle' });
+    s += text(cx, 712, 'Only the pipeline', { size: 23, bold: true, anchor: 'middle' });
+    s += text(cx, 742, 'deploys here.', { size: 23, bold: true, anchor: 'middle' });
     return `<g ${attrs({ 'data-production': open > 0.5 ? 'open' : 'closed' })}>${s}</g>`;
   }
 

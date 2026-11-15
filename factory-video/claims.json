@@ -25,8 +25,8 @@
     },
     {
       "id": "C03",
-      "claim": "The agent can write anything but ship nothing: it holds no keys and cannot commit, push to main, tag or sign",
-      "labels": ["AGENT SANDBOX", "The agent can write anything.", "It can't ship anything."],
+      "claim": "The agent drafts code and tests and holds no keys: it cannot commit, push to main, tag or sign",
+      "labels": ["AGENT SANDBOX", "The agent drafts code and tests.", "It holds no deploy key."],
       "built": ["SPEC-001-R12", "SPEC-001-R85", "SPEC-001-R88", "SPEC-001-R89", "SPEC-001-R208"]
     },
     {
@@ -172,7 +172,7 @@
     {
       "id": "C24",
       "claim": "Production opens only for a change whose evidence is complete",
-      "labels": ["locked", "The agent advises. The pipeline acts.", "No evidence, no deploy."],
+      "labels": ["locked", "Only the pipeline deploys here.", "Every deploy needs evidence."],
       "narration": [16],
       "built": ["SPEC-001-R17", "SPEC-001-R56", "SPEC-001-R190", "SPEC-001-R40"]
     },

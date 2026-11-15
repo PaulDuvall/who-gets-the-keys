@@ -271,7 +271,7 @@ The script it calls is [`scripts/bootstrap/cloud-session-setup.sh`](scripts/boot
 | The guided video in a browser | Open [https://paulduvall.github.io/who-gets-the-keys/](https://paulduvall.github.io/who-gets-the-keys/). It plays `factory-guided.mp4` with its captions file beside it |
 | Every file of the newest build, in a browser | Open the [factory-video runs on `main`](https://github.com/PaulDuvall/who-gets-the-keys/actions/workflows/factory-video.yml?query=branch%3Amain). Open the newest run whose Artifacts section lists a `factory-video-…` artifact, and download it. Runs that only checked the claims list a `factory-claims-…` artifact instead. GitHub asks you to sign in to download |
 | Every file of the newest build, from a terminal | The command below, with the GitHub CLI signed in |
-| The one to watch | `factory-guided.mp4`: 124.8 s, 1920×1080, narrated and captioned. It shows the whole target, then ends on a card of what is built and what is left. [factory-video/README.md](factory-video/README.md#outputs) lists the other files |
+| The one to watch | `factory-guided.mp4`: 124.7 s, 1920×1080, narrated and captioned. It shows the whole target, then ends on a card of what is built and what is left. [factory-video/README.md](factory-video/README.md#outputs) lists the other files |
 
 ```bash
 gh run download --repo PaulDuvall/who-gets-the-keys --pattern 'factory-video-*'

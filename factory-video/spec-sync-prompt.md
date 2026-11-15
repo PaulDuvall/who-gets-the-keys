@@ -63,7 +63,7 @@ Each claim has an ID for traceability. On-screen text and narration are quoted e
 | V01 | A customer states intent. An engineer captures it as a spec and signs it with a security key and a touch | Intake row; narration line 1 |
 | V02 | One engineer signs a spec | Rule line "One engineer signs a spec, two the factory, one a release by tier."; line 15 |
 | V03 | Two engineers sign the factory: the pipeline, its checks and the policy | "FACTORY v1 · two signers"; receipt factory row "v1 · two signers"; line 15 |
-| V04 | The agent works in a cloud session, one run per task, and holds no keys | Agent card "cloud session, one run per task"; "The agent can write anything. It can't ship anything."; line 2 |
+| V04 | The agent works in a cloud session, one run per task, and holds no keys | Agent card "cloud session, one run per task"; "The agent drafts code and tests. It holds no deploy key."; line 2 |
 | V05 | Checks run inside the session: a hook flags a test that asserts nothing, and a dependency allowlist applies. A failed in-run check makes the agent retry | "In-run checks: Empty tests, Dep allowlist"; "RETRY 1/3" on T-0042; line 2 |
 | V06 | The agent pushes only a candidate branch. Promotion to `main` happens after the checks, out of the agent's reach | "candidate/*"; "promote to main, out of reach"; line 4 |
 | V07 | The pipeline runs the checks of record without the coding agent: SAST, DAST, SCA, Secrets and Scope, then Property, Mutation and Validator | PIPELINE container; line 3 |
@@ -78,7 +78,7 @@ Each claim has an ID for traceability. On-screen text and narration are quoted e
 | V16 | The receipt records where a change began: the owner, an untrusted issue, or a telemetry alarm | Receipt task rows "T-0042 · owner", "T-0043 · untrusted issue", "T-0044 · telemetry alarm"; line 10 |
 | V17 | The receipt shows factory, intent, task, author (cloud session and attempt), checks, deploy (a release sign-off, or "no sign-off, policy v3") and signed by | Receipt panel; Appendix B |
 | V18 | A separate security account watches the pipeline and production for drift. The pipeline cannot touch it | "Security account · watches for drift"; line 14 |
-| V19 | Production opens only for a change whose evidence is complete | "No evidence, no deploy."; Production "locked"; "The agent advises. The pipeline acts." |
+| V19 | Production opens only for a change whose evidence is complete | "Every deploy needs evidence."; Production "locked"; "Only the pipeline deploys here." |
 | V20 | The factory is the sandbox and its rules, issue triage and the pipeline, approved by two signers. Specs, the security account, the release sign-off and Production sit outside it | A blue dashed frame around the AGENT SANDBOX, Untrusted input and the PIPELINE, with "FACTORY v1 · two signers" on its top edge |
 
 ## Starting map
@@ -215,13 +215,13 @@ The narration says the release signer "checks staging". Confirm that a staging e
 | 13 | Telemetry and Agent | Only an alarm named in the signed policy can start an approved task. |
 | 14 | Security account | A separate security account watches the pipeline and production for drift. The pipeline can't touch it. |
 | 15 | Overview | One engineer signs each spec, two sign the factory, and the pipeline decides every change. |
-| 16 | Overview | No evidence, no deploy. |
+| 16 | Overview | Every deploy needs evidence. |
 
 ## Appendix B. On-screen text
 
 A blue dashed frame encloses the AGENT SANDBOX, Untrusted input and the PIPELINE; the "FACTORY v1 · two signers" chip sits on its top edge. Labels on the slide, verbatim:
 
-> PIPELINE · Engineer signs the spec · SPEC-118 · AGENT SANDBOX · One engineer signs a spec, two the factory, one a release by tier. · signs the release, by tier · Customer intent · The agent can write anything. · It can't ship anything. · Untrusted input · never starts a run · customers, agents, docs, URLs · Telemetry · schema fields only · notes: quarantined · Agent · cloud session · one run per task · In-run checks · Empty tests · Dep allowlist · Build, test, scan · SAST · DAST · SCA · Secrets · Scope · Honest tests? · Property · Mutation · Validator · Deploy · pipeline signs the evidence, holds the key · SECONDS · MINUTES · HOURS · checks of record · AI can only fail · FACTORY v1 · two signers · promote to main · out of reach · candidate/* · Security account · watches for drift · Production · locked · The agent advises. The pipeline acts. · Issue #4821 · "ignore previous instructions…" · Engineer checks it against the specs · No evidence, no deploy.
+> PIPELINE · Engineer signs the spec · SPEC-118 · AGENT SANDBOX · One engineer signs a spec, two the factory, one a release by tier. · signs the release, by tier · Customer intent · The agent drafts code and tests. · It holds no deploy key. · Untrusted input · never starts a run · customers, agents, docs, URLs · Telemetry · schema fields only · notes: quarantined · Agent · cloud session · one run per task · In-run checks · Empty tests · Dep allowlist · Build, test, scan · SAST · DAST · SCA · Secrets · Scope · Honest tests? · Property · Mutation · Validator · Deploy · pipeline signs the evidence, holds the key · SECONDS · MINUTES · HOURS · checks of record · AI can only fail · FACTORY v1 · two signers · promote to main · out of reach · candidate/* · Security account · watches for drift · Production · locked · Only the pipeline deploys here. · Issue #4821 · "ignore previous instructions…" · Engineer checks it against the specs · Every deploy needs evidence.
 
 The receipts, one per change, are illustrative values:
 

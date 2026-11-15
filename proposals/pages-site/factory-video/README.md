@@ -58,7 +58,7 @@ gh workflow run factory-video.yml --repo PaulDuvall/who-gets-the-keys --ref main
 | `factory-guided-clean.mp4` | 1920×900, the same video with no burned-in captions, and the captions as a soft `mov_text` track: for platforms that draw their own |
 | `factory-guided.srt` | The captions as SubRip cues, a sentence or half-sentence at a time, timed to the voice: to upload alongside the clean video |
 | `claims-report.md` | Every claim the video makes, with its status in this repository at the build commit: built, partly built, planned, open or illustrative |
-| `factory-guided.mp4` | 1920×1080, H.264, yuv420p, 30 fps, AAC voiceover, 124.8 s: one narrated, captioned pass with a camera, for video rather than the deck. See [The guided video](#the-guided-video) |
+| `factory-guided.mp4` | 1920×1080, H.264, yuv420p, 30 fps, AAC voiceover, 124.7 s: one narrated, captioned pass with a camera, for video rather than the deck. See [The guided video](#the-guided-video) |
 | `contact-sheet.png` | Six frames of one loop, at 0, 3, 6, 9, 12 and 15 s, with what each shows |
 | `poster.png`, `poster.pdf` | 3840×2160 static poster and a one-page vector PDF with every font embedded |
 | `probe/t-*.png` | Local only. Frames at each story beat, written by `verify.mjs` for review |
@@ -147,8 +147,8 @@ Three runs share the conveyor, staggered so it is never empty: T-0042 (the signe
 | 96.8–101.9 s | "Only an alarm named in the signed policy can start an approved task." | Telemetry and Agent, 1.8× |
 | 101.9–109.1 s | "A separate security account watches the pipeline and production for drift. The pipeline can't touch it." | Security account, 1.8× |
 | 109.1–116.0 s | "One engineer signs each spec, two sign the factory, and the pipeline decides every change." | Overview |
-| 116.0–118.8 s | "No evidence, no deploy." | Overview |
-| 118.8–124.8 s | (silent) End card: built so far, and what is left | Overview |
+| 116.0–118.7 s | "Every deploy needs evidence." | Overview |
+| 118.7–124.7 s | (silent) End card: built so far, and what is left | Overview |
 
 The narration sets the pace. Each shot lasts at least its line plus 0.4 s before and 0.5 s after, and the loop slows to fit; parts no shot follows still play at 2–4× in overview. Each line is also its shot's caption, in a strip below the picture, so the frame is 1920×1080 and captions never cover the scene. The voice is Kokoro-82M (Apache-licensed weights, "trained exclusively on permissive/non-copyrighted audio data") with `af_heart`, the only grade-A voice in Kokoro's own table, at speed 0.9: about 167 words a minute. Kokoro renders byte-identical audio for the same line on one machine; between CPUs a line's length can differ by a few hundredths of a second. `narration.js` stores each line's length and a key over its text, the voice, the speed and the model. The build fails if a key no longer matches its line, or a length is off by more than 0.1 s. To change a line or the voice (`VOICE` in `narrate.py`), edit it, then run `narrate.py update` with the Kokoro python.
 
@@ -335,6 +335,7 @@ Revision 4, the factory model:
 | 19 | A factory frame around the sandbox, triage and pipeline; specs, the security account, the release sign-off and Production outside |
 | 20 | Moved to who-gets-the-keys: built by the `factory-video` workflow, one artifact kept, no new dependency |
 | 21 | A silent end card: what is built and what is left, from `scripts/progress.ts`; 124.8 s |
+| 22 | New wording on screen, on the poster and in the narration (2026-11-15). The scene and poster no longer quote the deck word for word: "No evidence, no deploy." is "Every deploy needs evidence.", "The agent can write anything. It can't ship anything." is "The agent drafts code and tests. It holds no deploy key.", "The agent advises. The pipeline acts." is "Only the pipeline deploys here.", and the poster's headings, closing lines and takeaways are reworded; 124.7 s |
 
 ## Poster sources
 
