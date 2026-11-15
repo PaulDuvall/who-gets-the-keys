@@ -4,8 +4,8 @@
 #      and refuses any file whose SHA-256 differs. Nothing else is downloaded.
 #   2. render.mjs writes out/: the PDF, a PNG per page, a contact sheet and the one-page poster.
 #   3. verify.mjs runs every check and writes out/report.md. It exits nonzero on any failure, so this script does too.
-# Needs: node, curl, the root node_modules (for yaml), Playwright with Chromium (factory-video/playwright.mjs), and
-# pdfinfo, pdffonts and pdftotext from poppler.
+# Needs: node, curl, git (the poster names the commit it is built from), the root node_modules (for yaml), Playwright
+# with Chromium (factory-video/playwright.mjs), and pdfinfo, pdffonts and pdftotext from poppler.
 set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p fonts

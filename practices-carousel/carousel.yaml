@@ -222,7 +222,7 @@ sections:
           - { name: CloudWatch Synthetics, url: "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries.html" }
 
   - name: Evidence
-    tag: Recorded at each step and checked before deploy
+    tag: Made at each step, checked before main moves and again at deploy
     blurb: Made where each fact happens, from signed intent to the build, and checked before main moves and again at deploy.
     # The poster draws this section as a band across the flow; each stop of its thread sits under one arrow.
     thread:
@@ -483,10 +483,10 @@ close:
   items:
     - verb: Check
       what: Write each control as a check a machine runs.
-      how: A review after the code exists does not count.
+      how: Code review after the code exists does not count as a control.
     - verb: Trace
       what: Trace each change to the signed spec.
-      how: The spec records the customer request behind it.
+      how: The customer confirms its acceptance criteria before code exists.
     - verb: Prove
-      what: Add checks for what agents get wrong.
-      how: Deploy only when the evidence is complete.
+      what: Let complete evidence authorize each deploy.
+      how: A deploy with missing evidence stops.

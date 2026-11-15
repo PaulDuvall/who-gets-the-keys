@@ -30,7 +30,7 @@ Every row cites the `practices.yaml` IDs it shows, or cites none and names its s
 practices-carousel/build.sh
 ```
 
-It downloads the fonts `fonts.json` pins into `fonts/`, refusing any file whose SHA-256 differs, then runs `render.mjs` and `verify.mjs`. A clean build takes about 5 s. It needs Node.js, `curl`, the root `node_modules` (`npm ci --ignore-scripts`, for `yaml`), Playwright with Chromium, and poppler (`brew install poppler` or `apt-get install poppler-utils`).
+It downloads the fonts `fonts.json` pins into `fonts/`, refusing any file whose SHA-256 differs, then runs `render.mjs` and `verify.mjs`. A clean build takes about 5 s. It needs Node.js, `curl`, git, which gives the commit the poster names, the root `node_modules` (`npm ci --ignore-scripts`, for `yaml`), Playwright with Chromium, and poppler (`brew install poppler` or `apt-get install poppler-utils`).
 
 Playwright comes from `video/record`'s pinned package, through `factory-video/playwright.mjs`, so this kit adds no dependency. Outside CI, where `video/record` has no `node_modules`, it uses a Playwright the machine already has.
 
