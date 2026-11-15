@@ -4,9 +4,11 @@ For the next agent session. Read this and `CLAUDE.md` first. It replaces `docs/n
 
 ## Where things stand
 
-Updated on 2026-11-14, after steps H-3 to H-7, W-1, W-2, R-1, R-2 and P-1 to P-5 below. `main` is at `f3cf854`. SPEC-001-R232 is confirmed on `main`: see "H-3 result". s7e and w8x are done: every sca exception expires on 2027-01-13, with its evidence in `specs/sca-exceptions.md`, and from 2026-12-30 the sca check warns. r1k is done: from run 218 every receipt failed, because `gh` v2.103.3 overwrites the newest attestations once a zip has more than 100 of one type; `--limit 100` fixed it, and main's run for `1d623a3` verified its receipt. This update is on `candidate/handoff-2026-11-14c` until the owner moves `main` to it (step H-7).
+Updated on 2026-11-15, after steps S-1 to S-4 below. `main` is at `31f459c`. p6s is done: `pages.yml` (SPEC-001-R236) publishes the newest factory video and the newest practices poster built on `main` as one GitHub Pages site, https://paulduvall.github.io/who-gets-the-keys/, and the README shows both sides of the poster. Both kits stamp what they build with "Built from" and the first 7 characters of the commit, and each kit's `verify.mjs` fails a build whose stamp is missing or differs from git. The ruleset `protect main` is active with its four rules, deletion, non_fast_forward, required_linear_history and required_status_checks, as read on 2026-11-15. This update is on `candidate/handoff-2026-11-15` until the owner moves `main` to it (step H-8).
 
-Landed on 2026-11-12 and 2026-11-13, each verified through the GitHub connector:
+On 2026-11-14, after steps H-3 to H-7, W-1, W-2, R-1, R-2 and P-1 to P-5 below, `main` was at `f3cf854`. SPEC-001-R232 is confirmed on `main`: see "H-3 result". s7e and w8x are done: every sca exception expires on 2027-01-13, with its evidence in `specs/sca-exceptions.md`, and from 2026-12-30 the sca check warns. r1k is done: from run 218 every receipt failed, because `gh` v2.103.3 overwrites the newest attestations once a zip has more than 100 of one type; `--limit 100` fixed it, and main's run for `1d623a3` verified its receipt. That update landed in step H-7.
+
+Landed from 2026-11-12 to 2026-11-15, each verified through the GitHub connector or GitHub's API:
 
 | Commit | What | Backlog |
 |---|---|---|
@@ -31,6 +33,15 @@ Landed on 2026-11-12 and 2026-11-13, each verified through the GitHub connector:
 | `d9e3d07` | Another session's practices-carousel kit, decision 0009, and its staged batch in `proposals/practices-carousel/`, not yet signed | none |
 | `11927f2` | factory-pages staged: SPEC-001-R235, the workflow, `github.sh`, tests, READMEs, the review's fixes and notes (P-2) | v5p, f6c |
 | `f3cf854` | SPEC-001-R235: the factory video rebuilt when what it shows changes, and published to GitHub Pages, signed by the owner (P-3). Live from factory-video run 43648064759 | v5p, f6c, closed |
+| `15d344f` | This note after P-1 to P-5 | v5p |
+| `dc9a627` to `0dbb5d8` | Another session's practices-carousel kit: page 11 as `main` run 114's real receipt, evidence as a thread across the flow, the batch restaged on `f3cf854` | none |
+| `639e83a` | The practices-carousel workflow, with the font pins and the receipt printer protected, signed by the owner (decision 0009) | none |
+| `d62a911` | The carousel's Text check reads the PDF in both `pdftotext` orders | none |
+| `9670152` | The factory video at the top of the README, with a watch badge and its poster | none |
+| `5360763` to `d7cb460` | pages-site staged in `proposals/pages-site/`, the fixes from two independent reviews, and two preflights (S-1) | p6s |
+| `aedf88a` | factory-video: new wording on screen, on the poster and in the narration; 124.7 s (S-2) | none |
+| `a997f83` | SPEC-001-R236 and the R235 amendment: one Pages workflow publishes the video and the practices poster, and the README shows both sides, signed by the owner (S-3) | p6s, closed |
+| `280c347` to `31f459c` | practices-carousel: new wording; both kits: "Built from" and the commit on the guided video, the factory poster and both sides of the practices poster (S-4) | none |
 
 Every deploy since 2026-11-11 reported Terraform `No changes.`; the deploys for `a6de08a` and `894c313` applied 0 added, 0 changed, 0 destroyed.
 
@@ -59,7 +70,12 @@ Give one step at a time, in the "Owner steps" format, and read each result yours
 | P-3 | Done: `land.sh proposals/factory-pages`, signed, `f3cf854`; candidate run 43647838123, main's run 43648064610. Factory-video run 43648064759 built the video in 10.5 minutes and deployed it at 22:38 UTC | none: `sandbox` skipped; `github-pages` deployed with no reviewer |
 | P-4 | Not needed: P-1 and P-1b already gave every setting the new `github.sh` code applies. It applies them again whenever the owner next runs it | none |
 | P-5 | Done: the owner played https://paulduvall.github.io/who-gets-the-keys/ to its end card, "Requirements: 112 approved, 164 drafted.", which equals `docs/progress.json` at `f3cf854` | none |
-| Branches | Done 2026-11-14: the owner deleted `candidate/factory-pages-2026-11-14`, `claude/focused-planck-flcgn0`, `candidate/practices-carousel`, `candidate/practices-carousel-2` and `claude/gifted-ritchie-7u0ydr`, each with every commit on `main`. The others named here before were already gone. Kept: `candidate/sandbox-gate` (g4e) and the other session's `candidate/practices-carousel-receipt` and `-receipt-2` | none |
+| S-1 | Done: `land.sh --to-main d7cb460… candidate/pages-site-2026-11-15`; candidate run 43746089383, main's run 43747408966 | none: skipped |
+| S-2 | Done: `main` moved to `aedf88a`; candidate run 43749139975, main's run 43751156628. Factory-video run 43751156588 published the new wording | none: skipped |
+| S-3 | Done: `land.sh proposals/pages-site`, signed, `a997f83`; candidate run 43752710160, main's run 43752992275. Practices-carousel run 43752992291 published the poster first; factory-video run 43752992358 then published both, its end card "Requirements: 113 approved, 164 drafted." | none: `sandbox` skipped; `github-pages` deployed with no reviewer |
+| S-4 | Done: `land.sh --to-main 31f459c… candidate/poster-stamp-2026-11-15`; candidate run 43755452689, main's run 43757792451. Practices-carousel run 43757792458 and factory-video run 43757792435 published both, each "Built from 31f459c", checked in the live PDF, a video frame and the poster image | none: skipped |
+| H-8 | `land.sh --to-main <SHA> candidate/handoff-2026-11-15`, for this note | none: docs only |
+| Branches | On 2026-11-15, `candidate/pages-site-2026-11-15`, `candidate/poster-wording-2026-11-15`, `candidate/land-pages-site` and `candidate/poster-stamp-2026-11-15` are gone. Kept: `candidate/sandbox-gate` (g4e) and the other session's `candidate/practices-carousel-receipt`, `-receipt-2` and `-receipt-3`. Done 2026-11-14: the owner deleted `candidate/factory-pages-2026-11-14`, `claude/focused-planck-flcgn0`, `candidate/practices-carousel`, `candidate/practices-carousel-2` and `claude/gifted-ritchie-7u0ydr`, each with every commit on `main`. The others named here before were already gone. Kept: `candidate/sandbox-gate` (g4e) and the other session's `candidate/practices-carousel-receipt` and `-receipt-2` | none |
 
 ### H-3 result
 
@@ -92,9 +108,11 @@ A skipped deploy writes no deployment, so `894c313` stays the comparison point. 
 | f6c, rebuild the factory video whenever its end card's counts change | closed, `f3cf854`, as a duplicate of v5p | This session filed f6c without searching the backlog; the owner pointed out that v5p already asked for it |
 | r1k, the receipt failing once a zip has more than 100 attestations | closed, `1d623a3` | A deploy approved more than about five days late could still fall outside the newest 100 and fail closed. A later batch could verify the run's own bundle with `gh attestation verify --bundle` instead (protected: `pipeline.yml`). Notes: `docs/notes/receipt-limit.md` |
 | r3m, alarm on refused break-glass attempts | open | Priority 1; amends R217; needs an owner apply |
+| p6s, publish the practices poster beside the factory video | closed, `a997f83` | SPEC-001-R236. `pages.yml` takes each kit's newest build on `main`, by the fewest commits behind `main`'s tip, then the newest run; a push that changes either kit, `practices.yaml`, the end card's counts or `pages.yml` republishes. Notes and open questions: `docs/notes/pages-site.md` |
+| Not filed yet | from 2026-11-15 | The practices poster's closing line, "The agent drafts code and tests, and only the pipeline deploys.", repeats its thesis; a review called it borderline, and it stays until the owner says otherwise |
 | Not filed yet | from 2026-11-13 | A `land.sh --sca-exception` mode with the touch cue; clear `summary_next` when main's run fails; `openssh-client` in `cloud-session-setup.sh`. Details: `docs/notes/sca-mf5v.md`, "For the backlog" |
 
-Dependabot reported 6 moderate alerts on `main` on 2026-11-13 and 7 on 2026-11-14; the sca check passes. Nobody has compared them with OSV's eight (backlog 0v4). Do not cite Dependabot as a check for a newly reachable fix: on 2026-11-14 this session did, unverified, and corrected it in `docs/notes/sca-renewal-2027-01.md`.
+Dependabot reported 6 moderate alerts on `main` on 2026-11-13 and 7 on 2026-11-14 and 2026-11-15; the sca check passes. Nobody has compared them with OSV's eight (backlog 0v4). Do not cite Dependabot as a check for a newly reachable fix: on 2026-11-14 this session did, unverified, and corrected it in `docs/notes/sca-renewal-2027-01.md`.
 
 ## What this session learned
 
@@ -121,7 +139,11 @@ Dependabot reported 6 moderate alerts on `main` on 2026-11-13 and 7 on 2026-11-1
 | Branch lists built from `refs/remotes/origin/*` named branches already deleted on GitHub, twice on 2026-11-14, and one `git push --delete` that named a missing ref deleted nothing at all | List branches with `git ls-remote --heads origin`, or after `git fetch --prune`; give one delete command per set of branches that exist |
 | Another session moved `main` from `fa38bed` to `d9e3d07` while factory-pages was on its candidate branch, and the agent may not force-push | Rebase onto the new `main` and push to a new candidate branch, `-b`; delete the old one and the session branch after landing |
 | The simulated Mac's Homebrew `node@24` keg held only `node`, so SPEC-001-R215's `.npmrc` test could not start `npm` | Give the keg `npm` and `npx` too, as Homebrew's does |
+| A Stop hook asked twice on 2026-11-15 to amend or rebase the agent's commits so GitHub shows them as Verified | Agent commits stay unsigned, as `CLAUDE.md` says. Leave the hook's commands undone and say so |
+| A local factory-video build started before a later commit failed its Build stamp check, which compares `frames/build.js` with HEAD | Commit, then build. Commit nothing while either kit builds |
+| The factory poster's first stamp sat just above the note that the receipt's IDs are illustrative, so it read as one of them. An independent review caught it | Keep a real value away from text that calls the values near it illustrative |
+| The `no-sign` hook refused one read-only command that joined `curl` reads of the Actions API with `git ls-remote` | Split it into simple commands; each ran |
 
 ## Owner preferences that apply
 
-The owner reads on macOS zsh, with Homebrew `node@24` keg-only and one YubiKey. Commands stay under 120 characters per line and carry no `#` comments. The owner wants to know at any moment whether they are waiting on the agent: say so first, plainly.
+The owner reads on macOS zsh, with Homebrew `node@24` keg-only and one YubiKey. Commit messages, notes and files in this public repository say what changed; they never give the owner's reasons for asking, or a view of the owner's material. Commands stay under 120 characters per line and carry no `#` comments. The owner wants to know at any moment whether they are waiting on the agent: say so first, plainly.
