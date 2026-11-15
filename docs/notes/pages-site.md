@@ -35,7 +35,9 @@ No deployable path changes, so main's `sandbox` deploy is skipped (SPEC-001-R232
 |---|---|
 | One reusable workflow, called by both kits, in one concurrency group with `cancel-in-progress: true` | The newest call wins, and every call takes the newest build of both kits, so no order of runs can leave one kit's files off the site. A workflow triggered by `workflow_run` would do the same, but zizmor reports that trigger as dangerous, and the workflows check fails on any zizmor finding |
 | A build counts only if its run is the kit's own workflow, started by a push or by hand on `main` in this repository, and `main`'s tip holds its commit | An artifact's `workflow_run.head_branch` names a branch, not a ref: a pull request from a branch named `main`, or a tag named `main`, reports `main` too, and any job can upload an artifact of any name. Found by the review (H1). The compare is against `main`'s tip, not the calling run's commit, so a call from an older commit still takes a newer kit's build |
-| Newest means the newest workflow run, then the newest upload | A re-run keeps its run ID, so re-running an old run cannot replace a newer build (review, L1) |
+| Newest means the build whose commit is fewest commits behind `main`'s tip, then the newest run | A dispatch on a tag named `main`, or a re-run, is a newer run at an older commit. Ordering by run let it outrank the newest build and roll the poster back (second review, M1). Ordering by upload, the first version, let a re-run do the same (review, L1). The claims job measures the same distance from the pushed commit with `git` |
+| Prune only runs on a branch ref, and deletes only what earlier runs on that branch uploaded | Keeping "the newest run on the branch" let a newer pull request run whose head is named `main`, or a tag dispatch, make `main`'s prune delete `main`'s real build (second review, M1, M2). Comparing run IDs with this run's needs no judgement of which build is real |
+| A run or commit that GitHub answers with HTTP 404 is skipped; any other error stops the publish | One unreachable candidate, such as a tag at an orphan commit, no longer blocks every publish (second review, L1), and an outage still deploys nothing |
 | The artifact list is read only through a `jq` filter that prints fields of a fixed form, with names of the kit's own pattern | Artifact names may hold spaces, which shifted the fields the scripts split on (review, M1) |
 | Every script sets `pipefail` itself | A step with no `shell:` runs as `bash -e`, without it; the tests run the scripts the same way (review, L2) |
 | Download from artifacts, not from the live site | Pages serves through a CDN that may hold a file for minutes after a deploy, so a copy taken from the site can be older than the build |
@@ -62,6 +64,8 @@ Read on 2026-11-15 from GitHub's documentation:
 | A run's `event`, `path`, `head_branch` and `head_repository.full_name`; `compare/<base>...<head>` reports `ahead` when head is ahead of base; `branches/main` gives the tip | Read from this repository's public API on 2026-11-15: run 43736505973 is `push .github/workflows/practices-carousel.yml main PaulDuvall/who-gets-the-keys`, and `compare/d62a911...9670152` is `ahead` |
 
 Not verified until a run shows it: that the `github-pages` environment's `main` rule passes a deploy job inside a called workflow. The `github` context there is the caller's, so the job's ref is `refs/heads/main`.
+
+Not verified, and outside what this batch can control: whether GitHub Pages accepts a deployment from a job that names no environment. Its API asks for `pages: write` and an OIDC token, and a candidate branch's own workflow can request both. If it does, such a workflow could publish to the site directly, or join the `github-pages-site` concurrency group, whatever `pages.yml` checks. That is the gap SPEC-001's "Checks before `main`" accepts: a commit on a candidate branch defines its own workflows. R236 says its rules hold for the workflows on `main`. A probe needs a candidate workflow that requests `pages: write`, so it is the owner's call; it is in the owner's open questions below.
 
 ## Owner steps
 
@@ -103,3 +107,27 @@ A subagent got the staged files, SPEC-001-R235 and R236 and the rows they must n
 | Info | `candidate/sandbox-gate` (g4e) stages the same SPEC-001, README, backlog and `github.sh` | It must be rebuilt on whichever lands first |
 
 The reviewer could not run anything only GitHub can show: a pull request or tag run's `head_branch`, a name with spaces at upload, the environment rule for a deploy job inside a called workflow, or cancellation across workflows.
+
+## Second review, 2026-11-15
+
+A second subagent reviewed only how the scripts choose what is published, after `6c4b35d`, against an attacker who can push any branch but `main`, open pull requests, make tags and run a candidate branch's own workflows. It found no way to publish a file the attacker wrote through these scripts, and two medium findings and seven low. All are fixed in `SECOND_FIX`, except where the table says otherwise.
+
+| Severity | Finding | Done |
+|---|---|---|
+| Medium | A dispatch on a tag named `main` at an older `main` commit passes every check and has the newest run ID, so it outranked the newest build; its own prune then deleted that build | Newest is now the build fewest commits behind `main`'s tip, then the newest run. Prune runs only for `refs/heads/*`. The review suggested a tag ruleset in `github.sh` instead: not needed with these two, and it would need the owner to run `github.sh` |
+| Medium | A prune kept the newest run whose head branch was its own, so a pull request from a fork's branch named `main` made `main`'s prune delete `main`'s build, blocking every publish | Prune deletes only artifacts of lower run IDs than its own run, so its own build and any newer run's stay |
+| Low | One candidate whose commit or run GitHub cannot find aborted the whole publish | HTTP 404 skips that candidate; any other error still stops the job. Comparisons ask for `per_page=1` |
+| Low | The claims job read past a failed list page or run lookup and judged by an older build | It returns at the first failed read, so the video rebuilds |
+| Low | The `github-pages-site` group is shared across every workflow, so a candidate branch's workflow can cancel `main`'s publish | Cannot be closed in YAML; R236 now says its rules hold for the workflows on `main`, and the notes name the accepted gap |
+| Low | A re-run of an old `main` run, plus a candidate workflow with `actions: write` deleting newer artifacts, rolls back the site; for a while after landing, re-running an old `factory-video` run would also deploy the video alone | Re-runs can no longer outrank a newer commit. The deletion needs the accepted candidate-workflow gap. The old-run window is recorded here, not fixed |
+| Low | R236 said the calling job holds `actions: read`, `pages: write` and `id-token: write`; it also holds `contents: read` | Corrected |
+| Low | Mutants survived: accepting `behind`, any repository in the run check, `pull_request_target`; the prune fixtures had no newer pull request or tag run | Decoys for each, including builds that claim the pushed commit itself; 35 hand mutations, all caught |
+| Low | GitHub's documentation shows a run `path` with an `@ref` suffix; the live API returns none for the 452 runs here | Kept: a suffix would make every candidate fail the check, which fails closed |
+| Info | The stand-in uses jq, and `gh` uses gojq, whose `$` anchor differs before a newline | Artifact names cannot hold a newline; production is the stricter |
+
+## Open, for the owner
+
+| Question | Recommendation |
+|---|---|
+| Should a probe check whether GitHub Pages accepts a deployment from a job that names no environment? It needs a candidate workflow that requests `pages: write`, aimed at an artifact that does not exist so that nothing deploys | Yes, as its own backlog item after this lands. If Pages accepts it, the site's real control is the same as every candidate workflow's: the gap "Checks before `main`" accepts |
+| A monthly build of each kit, so neither artifact expires after 90 quiet days | Not now: either kit's next change rebuilds it, and an expiry fails closed |

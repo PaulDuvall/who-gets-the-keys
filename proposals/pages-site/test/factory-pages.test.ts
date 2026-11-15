@@ -48,12 +48,15 @@ describe("SPEC-001-R235 the factory video follows main", () => {
     const progress = (approved: number, built: number, open: number) =>
       `${JSON.stringify({ requirements: { approved, drafted: 2 }, claims: { built, open: 1 }, backlog: { open, closed: 0 } }, null, 2)}\n`;
     git("init", "-q", "-b", "main");
-    for (const [f, body] of [["factory-video/kit.txt", "a\n"], [".github/workflows/factory-video.yml", "a\n"], ["docs/notes/n.md", "a\n"], ["docs/progress.json", progress(1, 1, 1)]] as const) {
+    for (const [f, body] of [["factory-video/kit.txt", "a\n"], [".github/workflows/factory-video.yml", "a\n"], ["docs/notes/n.md", "a\n"], ["docs/progress.json", progress(0, 1, 1)]] as const) {
       mkdirSync(join(repo, f, ".."), { recursive: true });
       writeFileSync(join(repo, f), body);
     }
     git("add", "-A");
-    git("commit", "-q", "-m", "built");
+    git("commit", "-q", "-m", "older");
+    const older = git("rev-parse", "HEAD");
+    writeFileSync(join(repo, "docs/progress.json"), progress(1, 1, 1));
+    git("commit", "-q", "-am", "built");
     const built = git("rev-parse", "HEAD");
     git("checkout", "-q", "-b", "side");
     writeFileSync(join(repo, "docs/notes/n.md"), "side\n");
@@ -65,16 +68,20 @@ describe("SPEC-001-R235 the factory video follows main", () => {
 
     // Commits `changes` on top of the built commit and runs the step with the stand-in gh, whose artifact list is
     // `artifacts`, by default one video built on main at the built commit, and whose runs are pushes to main running this
-    // workflow unless `runs` says otherwise.
-    const decide = (changes: Record<string, string>, artifacts: Artifact[] = [video(built)], env: Record<string, string> = {}, runs: Record<string, Partial<Run>> = {}) => {
+    // workflow unless `runs` says otherwise; the runs in `gone` are unknown to GitHub.
+    // `artifacts` may be a function of the pushed commit, for a build that claims to be of it.
+    const decide = (changes: Record<string, string>, artifacts: Artifact[] | ((pushed: string) => Artifact[]) = [video(built)], env: Record<string, string> = {}, runs: Record<string, Partial<Run>> = {}, gone: string[] = []) => {
       git("checkout", "-q", "--detach", built);
       for (const [f, body] of Object.entries(changes)) writeFileSync(join(repo, f), body);
       git("commit", "-q", "--allow-empty", "-am", "pushed");
       const work = tempDir("factory-decide-");
       const out = join(work, "output"), list = join(work, "artifacts.json"), runList = join(work, "runs.json");
       writeFileSync(out, "");
-      writeFileSync(list, artifactList(artifacts));
-      writeFileSync(runList, runsFor(artifacts, runs));
+      const all = typeof artifacts === "function" ? artifacts(git("rev-parse", "HEAD")) : artifacts;
+      writeFileSync(list, artifactList(all));
+      const known = JSON.parse(runsFor(all, runs)) as Record<string, Run>;
+      for (const id of gone) delete known[id];
+      writeFileSync(runList, JSON.stringify(known));
       const r = runWithGh(script, repo, { EVENT: "push", GITHUB_SHA: git("rev-parse", "HEAD"), GITHUB_OUTPUT: out, STUB_ARTIFACTS: list, STUB_RUNS: runList, ...env });
       expect(r.status).toBe(0);
       return { video: readFileSync(out, "utf8").trim(), calls: r.calls };
@@ -119,7 +126,7 @@ describe("SPEC-001-R235 the factory video follows main", () => {
       ];
       const runs = { "85": { event: "pull_request" }, "86": { path: ".github/workflows/evil.yml" } };
       expect(decide({}, [...decoys, video(built)], {}, runs).video).toBe("video=false");
-      expect(decide({}, [...decoys, video(built, { run: 50 })], {}, runs).video).toBe("video=true");
+      expect(decide({}, [...decoys, video(built, { run: 50 })], {}, runs).video).toBe("video=false");
       // When the counts changed, a newer pull request run from a branch named main, or a name with spaces that claims a
       // branch and a commit, must not stand in for the built commit.
       const counts = { "docs/progress.json": progress(2, 1, 1) };
@@ -128,6 +135,30 @@ describe("SPEC-001-R235 the factory video follows main", () => {
       expect(decide(counts, [video(built), crafted]).video).toBe("video=true");
       // Two pages of artifacts: the only real build is on the second.
       expect(decide({}, [video(side, { run: 81, branch: "side" }), video(side, { run: 82, expired: true }), video(built)], { STUB_PAGE_SIZE: "2" }).video).toBe("video=false");
+    });
+
+    it.each([
+      ["a pull request run from a branch named main", (p: string) => video(p, { run: 90, id: 30 }), { "90": { event: "pull_request" } }, "video=true"],
+      ["a fork's run", (p: string) => video(p, { run: 91, id: 31 }), { "91": { head_repository: { full_name: "fork/r" } } }, "video=true"],
+      ["another workflow's run", (p: string) => video(p, { run: 92, id: 32 }), { "92": { path: ".github/workflows/evil.yml" } }, "video=true"],
+      ["a name of another form", (p: string) => ({ ...video(p, { run: 93, id: 33 }), name: "factory-video-x y z" }), {}, "video=true"],
+      ["a run of this workflow, as the control", (p: string) => video(p, { run: 94, id: 34 }), {}, "video=false"],
+    ])("SPEC-001-R235 when the counts changed, a build of the pushed commit itself from %s", (_title, decoy, runs, expected) => {
+      expect(decide({ "docs/progress.json": progress(2, 1, 1) }, (pushed) => [video(built), decoy(pushed)], {}, runs).video).toBe(expected);
+    });
+
+    it("SPEC-001-R235 takes the build closest to the pushed commit, so a newer run at an older commit cannot outrank it", () => {
+      // A dispatch on a tag named main at the older commit, or a re-run of an older run: a newer run, an older commit.
+      const tagged = video(older, { run: 95, id: 40, created: "2026-11-16T12:00:00Z" });
+      expect(decide({}, [video(built), tagged], {}, { "95": { event: "workflow_dispatch" } }).video).toBe("video=false");
+      expect(decide({ "docs/progress.json": progress(0, 1, 1) }, [video(built), tagged], {}, { "95": { event: "workflow_dispatch" } }).video).toBe("video=true");
+    });
+
+    it("SPEC-001-R235 builds when any run of a candidate cannot be read, rather than judging by an older build", () => {
+      // The pushed commit matches the older build, not the newest; reading on past the newest build's lost run would skip.
+      const back = { "docs/progress.json": progress(0, 1, 1) };
+      expect(decide(back, [video(built), video(older, { run: 60, id: 41 })], {}, {}, ["70"]).video).toBe("video=true");
+      expect(decide(back, [video(built), video(older, { run: 60, id: 41 })], { STUB_RUN_ERROR: "1" }).video).toBe("video=true");
     });
 
     it("SPEC-001-R235 counts a build started by hand, and builds when the build's run cannot be read", () => {

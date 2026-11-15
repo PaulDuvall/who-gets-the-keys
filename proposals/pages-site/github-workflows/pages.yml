@@ -24,11 +24,13 @@ jobs:
       actions: read # lists the two kits' artifacts and their runs, and downloads the chosen ones
       contents: read # reads main's tip and compares each candidate's commit with it; nothing is checked out
     steps:
-      # For each kit, the newest build that its own workflow made on main: the artifact list gives the candidates, newest
-      # run first, and each candidate's run must be that workflow, started by a push or by hand on main in this repository,
-      # at a commit that main's tip holds. A pull request from a branch named main, or a tag named main, reports the same
-      # head branch, so the branch alone proves nothing. The jq filter prints only fields of a fixed form, and only names of
-      # the form the kit writes, so no artifact name can shift a field. A kit uploads only after its checks pass.
+      # For each kit, the newest build that its own workflow made on main: of the candidates the artifact list gives, those
+      # whose run is that workflow, started by a push or by hand, reporting head branch main, in this repository, at a commit
+      # main's tip holds; and of those, the one whose commit is closest to main's tip, then the newest run. A pull request
+      # from a branch named main, or a tag named main, reports the same head branch, so the branch alone proves nothing, and
+      # a newer run at an older commit, such as a dispatch on a tag or a re-run, cannot outrank a newer build. The jq filter
+      # prints only fields of a fixed form, and only names of the form the kit writes, so no artifact name can shift a field.
+      # A run or commit GitHub no longer knows (HTTP 404) is skipped; any other error stops the job, so nothing is deployed.
       - name: Download the newest factory video and practices carousel built on main
         env:
           GH_TOKEN: ${{ github.token }}
@@ -36,6 +38,7 @@ jobs:
         run: |
           set -o pipefail
           builds="$RUNNER_TEMP/builds"
+          err="$RUNNER_TEMP/gh-error"
           mkdir -p "$builds"
           tip="$(gh api "repos/${REPO}/branches/main" --jq '.commit.sha')"
           if ! [[ "$tip" =~ ^[0-9a-f]{40}$ ]]; then
@@ -54,18 +57,36 @@ jobs:
               | "\(.workflow_run.id) \(.created_at) \(.workflow_run.head_sha) \(.name)"'
             candidates="$(gh api --paginate "repos/${REPO}/actions/artifacts?per_page=100" --jq "$filter" | sort -k1,1nr -k2,2r)"
             found=""
+            nearest=""
             while read -r run created sha name; do
               [ -n "$run" ] || continue
-              run_of="$(gh api "repos/${REPO}/actions/runs/${run}" --jq '"\(.event) \(.path) \(.head_branch) \(.head_repository.full_name)"')"
+              if ! run_of="$(gh api "repos/${REPO}/actions/runs/${run}" --jq '"\(.event) \(.path) \(.head_branch) \(.head_repository.full_name)"' 2>"$err")"; then
+                if grep -q '(HTTP 404)' "$err"; then echo "Skipped ${name}: run ${run} is gone"; continue; fi
+                cat "$err" >&2
+                exit 1
+              fi
               case "$run_of" in
                 "push .github/workflows/${kind}.yml main ${REPO}" | "workflow_dispatch .github/workflows/${kind}.yml main ${REPO}") ;;
                 *) echo "Skipped ${name}: run ${run} is ${run_of}"; continue ;;
               esac
-              on_main="$(gh api "repos/${REPO}/compare/${sha}...${tip}" --jq '.status')"
-              case "$on_main" in
-                ahead | identical) found="$run $sha $created $name"; break ;;
-                *) echo "Skipped ${name}: main's tip does not hold commit ${sha} (${on_main})" ;;
+              if ! compared="$(gh api "repos/${REPO}/compare/${sha}...${tip}?per_page=1" --jq '"\(.status) \(.ahead_by)"' 2>"$err")"; then
+                if grep -q '(HTTP 404)' "$err"; then echo "Skipped ${name}: main's tip does not hold commit ${sha} (not found)"; continue; fi
+                cat "$err" >&2
+                exit 1
+              fi
+              read -r status behind <<<"$compared"
+              case "$status" in
+                ahead | identical) ;;
+                *) echo "Skipped ${name}: main's tip does not hold commit ${sha} (${status})"; continue ;;
               esac
+              if ! [[ "$behind" =~ ^[0-9]+$ ]]; then
+                echo "::error::GitHub gave no distance from ${sha} to main's tip: ${compared}"
+                exit 1
+              fi
+              if [ -z "$found" ] || [ "$behind" -lt "$nearest" ]; then
+                found="$run $sha $created $name"
+                nearest="$behind"
+              fi
             done <<<"$candidates"
             if [ -z "$found" ]; then
               echo "::error::No ${kind}- artifact that a run of ${kind}.yml on main uploaded. Run the ${kind} workflow on main; it publishes the site when it ends."

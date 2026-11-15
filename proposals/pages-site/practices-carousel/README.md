@@ -43,7 +43,7 @@ Playwright comes from `video/record`'s pinned package, through `factory-video/pl
 | `report.md` | The checks, each section page's and the receipt's `--k`, the practices no row cites, and what the repository demonstrates for each row |
 | `render-log.json` | Every request the page made, and any error |
 
-The `practices-carousel` workflow builds the same files in GitHub Actions on a push to `main` that changes this folder or `practices.yaml`, and on demand. It uploads `out/` as one artifact, `practices-carousel-<short SHA>-<UTC time>`, kept 90 days, and deletes the earlier ones of the same branch. On `main` it then calls `.github/workflows/pages.yml`, which publishes the poster's front and back, and its PDF, beside the factory video at https://paulduvall.github.io/who-gets-the-keys/#poster (SPEC-001-R236).
+The `practices-carousel` workflow builds the same files in GitHub Actions on a push to `main` that changes this folder or `practices.yaml`, and on demand. It uploads `out/` as one artifact, `practices-carousel-<short SHA>-<UTC time>`, kept 90 days, and deletes the ones that earlier runs on the same branch uploaded. On `main` it then calls `.github/workflows/pages.yml`, which publishes the poster's front and back, and its PDF, beside the factory video at https://paulduvall.github.io/who-gets-the-keys/#poster (SPEC-001-R236).
 
 ## Checks
 

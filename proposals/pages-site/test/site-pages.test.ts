@@ -42,7 +42,9 @@ const tempDir = (prefix: string): string => {
 };
 
 const TIP = "d".repeat(40), VIDEO_SHA = "a".repeat(40), POSTER_SHA = "b".repeat(40), OTHER_SHA = "c".repeat(40);
-const ON_MAIN = [VIDEO_SHA, POSTER_SHA, "e".repeat(40)].join(" ");
+const OLDER_SHA = "e".repeat(40), AHEAD_SHA = "f".repeat(40), UNKNOWN_SHA = "0".repeat(40);
+// Commits main's tip holds, each with how many commits it is behind the tip.
+const ON_MAIN = `${VIDEO_SHA}:1 ${POSTER_SHA}:1 ${OLDER_SHA}:5`;
 const VIDEO_FILES = ["factory-guided.mp4", "factory-guided.srt", "poster.png", "factory-guided-clean.mp4"];
 const POSTER_FILES = ["poster.png", "poster-back.png", "poster.pdf", "who-gets-the-keys-carousel.pdf"];
 const video = (over: Partial<Artifact> = {}): Artifact =>
@@ -63,16 +65,28 @@ const DECOYS: Artifact[] = [
   poster({ name: "practices-carousel-ccccccc-20261115T1900Z", id: 12, run: 910, branch: "main-x", sha: OTHER_SHA }), // branch main-x
   video({ name: "factory-video-ccccccc-20261115T2000Z", id: 13, run: "abc", sha: OTHER_SHA }), // a run ID that is no number
   poster({ name: "practices-carousel-ccccccc-20261115T2000Z", id: 14, run: 911, created: "<b>", sha: OTHER_SHA }), // a time of another form
-  video({ name: "factory-video-eeeeeee-20261116T0900Z", id: 15, run: 100, created: "2026-11-16T09:00:00Z", sha: "e".repeat(40) }), // an older run, uploaded later by a re-run
+  video({ name: "factory-video-eeeeeee-20261116T0900Z", id: 15, run: 100, created: "2026-11-16T09:00:00Z", sha: OLDER_SHA }), // an older run at an older commit, uploaded later by a re-run
+  video({ name: "factory-video-eeeeeee-20261116T1000Z", id: 16, run: 950, sha: OLDER_SHA }), // a newer dispatch on a tag named main, at an older commit
+  poster({ name: "practices-carousel-fffffff-20261116T1000Z", id: 17, run: 951, sha: AHEAD_SHA }), // a commit ahead of main's tip, which main does not hold
+  video({ name: "factory-video-ccccccc-20261116T1100Z", id: 18, run: 952, sha: OTHER_SHA }), // a fork's run
+  poster({ name: "practices-carousel-ccccccc-20261116T1100Z", id: 19, run: 953, sha: OTHER_SHA }), // a pull_request_target run
+  video({ name: "factory-video-0000000-20261116T1200Z", id: 20, run: 954, sha: UNKNOWN_SHA }), // a commit GitHub does not know
+  poster({ name: "practices-carousel-ccccccc-20261116T1200Z", id: 21, run: 955, sha: OTHER_SHA }), // a run GitHub no longer knows
 ];
 const DECOY_RUNS: Record<string, Partial<Run>> = {
   "905": { event: "pull_request" },
   "906": { path: ".github/workflows/evil.yml" },
+  "950": { event: "workflow_dispatch" },
+  "952": { head_repository: { full_name: "fork/r" } },
+  "953": { event: "pull_request_target" },
 };
+const GONE = ["955"];
 
 // Builds stand-in artifacts named as `artifacts` says, each holding `files` whose content is the file's own name, and
 // runs the assemble job's two scripts. Returns the run and the laid-out site's directory.
 function assemble(artifacts: Artifact[], files: Record<string, string[]> = {}, env: Record<string, string> = {}, runs: Record<string, Partial<Run>> = DECOY_RUNS) {
+  const known = JSON.parse(runsFor(artifacts, runs)) as Record<string, Run>;
+  for (const id of GONE) delete known[id];
   const work = tempDir("pages-assemble-");
   const builds = join(work, "artifacts"), runnerTemp = join(work, "runner");
   mkdirSync(runnerTemp);
@@ -82,14 +96,14 @@ function assemble(artifacts: Artifact[], files: Record<string, string[]> = {}, e
     for (const f of names) writeFileSync(join(builds, a.name, f), `${a.name}/${f}`);
   }
   writeFileSync(join(work, "artifacts.json"), artifactList(artifacts));
-  writeFileSync(join(work, "runs.json"), runsFor(artifacts, runs));
+  writeFileSync(join(work, "runs.json"), JSON.stringify(known));
   const script = [
     step(pages, "assemble", "Download the newest factory video and practices carousel built on main").run ?? "",
     step(pages, "assemble", "Lay out the page for GitHub Pages").run ?? "",
   ].join("\n");
   const r = runWithGh(script, work, {
     RUNNER_TEMP: runnerTemp, STUB_ARTIFACTS: join(work, "artifacts.json"), STUB_RUNS: join(work, "runs.json"), STUB_BUILDS: builds,
-    STUB_TIP: TIP, STUB_ON_MAIN: ON_MAIN, ...env,
+    STUB_TIP: TIP, STUB_ON_MAIN: ON_MAIN, STUB_BEHIND: AHEAD_SHA, STUB_UNKNOWN: UNKNOWN_SHA, ...env,
   });
   return { ...r, site: join(runnerTemp, "site") };
 }
@@ -155,12 +169,21 @@ describe("SPEC-001-R236 one workflow publishes the factory video and the practic
       `run download 202 --repo o/r --name ${poster().name} --dir ${join(r.site, "..", "builds", "practices-carousel")}`,
     ]);
     expect(r.calls.filter((c) => c.includes("actions/artifacts?per_page=100")).every((c) => c.startsWith("api --paginate "))).toBe(true);
-    // The artifact filter alone excludes the other decoys: only these candidates' runs are looked up, newest run first.
-    const looked = r.calls.filter((c) => c.startsWith("api repos/o/r/actions/runs/")).map((c) => c.split(" ")[1]?.split("/").pop());
-    expect(looked).toEqual(["907", "905", "101", "906", "202"]);
+    // The artifact filter alone excludes the other decoys: only these candidates' runs are looked up, newest run first,
+    // and only those whose run passed are compared with main's tip, which is read once.
+    const id = (c: string) => c.split(" ")[1]?.split("/").pop()?.split("...")[0];
+    expect(r.calls.filter((c) => c.startsWith("api repos/o/r/actions/runs/")).map(id)).toEqual(["954", "952", "950", "907", "905", "101", "100", "955", "953", "951", "906", "202"]);
+    expect(r.calls.filter((c) => c.startsWith("api repos/o/r/compare/")).map(id)).toEqual([UNKNOWN_SHA, OLDER_SHA, OTHER_SHA, VIDEO_SHA, OLDER_SHA, AHEAD_SHA, POSTER_SHA]);
+    expect(r.calls.filter((c) => c.startsWith("api repos/o/r/compare/")).every((c) => c.includes(`...${TIP}?per_page=1 `))).toBe(true);
+    expect(r.calls.filter((c) => c.startsWith("api repos/o/r/branches/main"))).toHaveLength(1);
     expect(r.stdout).toContain("Skipped factory-video-ccccccc-20261115T1700Z: run 905 is pull_request .github/workflows/factory-video.yml main o/r");
     expect(r.stdout).toContain("Skipped practices-carousel-ccccccc-20261115T1700Z: run 906 is push .github/workflows/evil.yml main o/r");
     expect(r.stdout).toContain(`Skipped factory-video-ccccccc-20261115T1800Z: main's tip does not hold commit ${OTHER_SHA} (diverged)`);
+    expect(r.stdout).toContain(`Skipped practices-carousel-fffffff-20261116T1000Z: main's tip does not hold commit ${AHEAD_SHA} (behind)`);
+    expect(r.stdout).toContain("Skipped factory-video-ccccccc-20261116T1100Z: run 952 is push .github/workflows/factory-video.yml main fork/r");
+    expect(r.stdout).toContain("Skipped practices-carousel-ccccccc-20261116T1100Z: run 953 is pull_request_target .github/workflows/practices-carousel.yml main o/r");
+    expect(r.stdout).toContain(`Skipped factory-video-0000000-20261116T1200Z: main's tip does not hold commit ${UNKNOWN_SHA} (not found)`);
+    expect(r.stdout).toContain("Skipped practices-carousel-ccccccc-20261116T1200Z: run 955 is gone");
     const files = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(dir, e.name)).map((f) => `${e.name}/${f}`) : [e.name])).sort();
     expect(files(r.site)).toEqual(["factory-guided.mp4", "factory-guided.srt", "index.html", "poster.png", "practices/poster-back.png", "practices/poster-front.png", "practices/poster.pdf"]);
     expect(content(r.site, "factory-guided.mp4")).toBe(`${video().name}/factory-guided.mp4`);
@@ -181,11 +204,17 @@ describe("SPEC-001-R236 one workflow publishes the factory video and the practic
     expect(html).not.toContain(OTHER_SHA);
   });
 
-  it("SPEC-001-R236 takes a build started by hand on main, and prefers the newest run to the newest upload", () => {
-    const rerun = video({ name: "factory-video-eeeeeee-20261116T0900Z", id: 20, run: 299, created: "2026-11-16T09:00:00Z", sha: "e".repeat(40) });
-    const r = assemble([video({ run: 300 }), rerun, poster()], {}, {}, { "300": { event: "workflow_dispatch" } });
+  it("SPEC-001-R236 takes a build started by hand on main, and the build closest to main's tip over a newer run at an older commit", () => {
+    const newerRun = video({ name: "factory-video-eeeeeee-20261116T0900Z", id: 20, run: 400, created: "2026-11-16T09:00:00Z", sha: OLDER_SHA });
+    const r = assemble([video({ run: 300 }), newerRun, poster()], {}, {}, { "300": { event: "workflow_dispatch" } });
     expect(r.status).toBe(0);
     expect(content(r.site, "factory-guided.mp4")).toBe(`${video().name}/factory-guided.mp4`);
+    const atTip = video({ name: "factory-video-ddddddd-20261116T0800Z", id: 21, run: 250, sha: TIP });
+    const tipped = assemble([video({ run: 300 }), atTip, poster()]);
+    expect(content(tipped.site, "factory-guided.mp4")).toBe(`${atTip.name}/factory-guided.mp4`);
+    const tie = video({ name: "factory-video-aaaaaaa-20261116T0700Z", id: 22, run: 350, sha: VIDEO_SHA });
+    const tied = assemble([video({ run: 300 }), tie, poster()]);
+    expect(content(tied.site, "factory-guided.mp4")).toBe(`${tie.name}/factory-guided.mp4`);
   });
 
   it("SPEC-001-R236 finds the files whether gh extracts an artifact into the directory or into a folder named for it", () => {
@@ -196,7 +225,7 @@ describe("SPEC-001-R236 one workflow publishes the factory video and the practic
 
   it.each([
     ["no poster was built on main", [video()], {}, "No practices-carousel- artifact that a run of practices-carousel.yml on main uploaded. Run the practices-carousel workflow on main"],
-    ["only decoys hold a video", [...DECOYS.filter((a) => a.run !== 100), poster()], {}, "No factory-video- artifact that a run of factory-video.yml on main uploaded. Run the factory-video workflow on main"],
+    ["only decoys hold a video", [...DECOYS.filter((a) => a.run !== 100 && a.run !== 950), poster()], {}, "No factory-video- artifact that a run of factory-video.yml on main uploaded. Run the factory-video workflow on main"],
     ["the poster build lacks its back", [video(), poster()], { [poster().name]: ["poster.png", "poster.pdf"] }, `${poster().name} holds no poster-back.png. Run the practices-carousel workflow on main`],
     ["the video build lacks its captions", [video(), poster()], { [video().name]: ["factory-guided.mp4", "poster.png"] }, `${video().name} holds no factory-guided.srt. Run the factory-video workflow on main`],
   ])("SPEC-001-R236 fails and lays out nothing when %s", (_title, artifacts, files, message) => {
@@ -211,7 +240,8 @@ describe("SPEC-001-R236 one workflow publishes the factory video and the practic
   it.each([
     ["the artifacts cannot be listed", { STUB_FAIL_LIST: "1" }, "(HTTP 500)"],
     ["main's tip cannot be read", { STUB_TIP: "" }, "::error::Could not read main's tip commit"],
-    ["a candidate's run cannot be read", { STUB_RUNS: "/dev/null" }, ""],
+    ["a candidate's run cannot be read", { STUB_RUN_ERROR: "1" }, "(HTTP 500)"],
+    ["a candidate's commit cannot be compared", { STUB_COMPARE_ERROR: "1" }, "(HTTP 500)"],
   ])("SPEC-001-R236 fails and lays out nothing when %s", (_title, env, error) => {
     const r = assemble([video(), poster()], {}, env);
     expect(r.status).not.toBe(0);
@@ -227,45 +257,50 @@ describe("SPEC-001-R236 one workflow publishes the factory video and the practic
     expect(step(load(file), "build", name).with?.["retention-days"]).toBe(90);
   });
 
-  describe("SPEC-001-R236 each prune job deletes only its own branch's older artifacts, keeping the newest run's", () => {
+  describe("SPEC-001-R236 each prune job deletes only what earlier runs on its own branch uploaded", () => {
+    // This run is 2000. Its own builds, and a newer run's, must stay whatever they claim.
     const list: Artifact[] = [
-      video({ id: 11, run: 1100, created: "2026-11-15T10:00:00Z" }), video({ id: 12, run: 1200, created: "2026-11-15T09:00:00Z" }),
-      video({ id: 13, run: 1300, created: "2026-11-15T12:00:00Z", branch: "feature" }), video({ id: 14, run: 1000, created: "2026-11-15T13:00:00Z", branch: "feature" }),
-      video({ id: 15, run: 1500, created: "2026-11-15T08:00:00Z", name: "factory-claims-x" }), video({ id: 16, run: 1400, created: "2026-11-15T07:00:00Z", name: "factory-claims-y" }),
-      video({ id: 17, run: 1700, created: "2026-11-15T14:00:00Z", expired: true }),
-      video({ id: 18, run: 1800, created: "2026-11-15T15:00:00Z", name: `factory-video-x main ${OTHER_SHA}`, branch: "candidate/x" }),
-      poster({ id: 21, run: 2100, created: "2026-11-15T10:00:00Z" }), poster({ id: 22, run: 2200, created: "2026-11-15T09:00:00Z" }),
-      poster({ id: 23, run: 2300, created: "2026-11-15T12:00:00Z", branch: "feature" }), poster({ id: 24, run: 2000, created: "2026-11-15T13:00:00Z", branch: "feature" }),
-      poster({ id: 25, run: 2500, created: "2026-11-15T14:00:00Z", expired: true }),
-      poster({ id: 26, run: 2600, created: "2026-11-15T15:00:00Z", name: `practices-carousel-x main ${OTHER_SHA}`, branch: "candidate/x" }),
+      video({ id: 11, run: 1100 }), video({ id: 12, run: 1200 }), video({ id: 19, run: 2000 }),
+      video({ id: 31, run: 2500 }), // a newer pull request run whose head branch is named main
+      video({ id: 17, run: 1700, expired: true }),
+      video({ id: 13, run: 1300, branch: "feature" }), video({ id: 14, run: 1000, branch: "feature" }),
+      video({ id: 15, run: 1500, name: "factory-claims-x" }), video({ id: 16, run: 1400, name: "factory-claims-y" }), video({ id: 32, run: 2000, name: "factory-claims-z" }),
+      video({ id: 18, run: 1800, name: `factory-video-x main ${OTHER_SHA}`, branch: "candidate/x" }),
+      poster({ id: 21, run: 1100 }), poster({ id: 22, run: 1200 }), poster({ id: 29, run: 2000 }),
+      poster({ id: 27, run: 2600 }), poster({ id: 25, run: 1500, expired: true }),
+      poster({ id: 23, run: 1300, branch: "feature" }), poster({ id: 24, run: 1000, branch: "feature" }),
+      poster({ id: 26, run: 1800, name: `practices-carousel-x main ${OTHER_SHA}`, branch: "candidate/x" }),
     ];
-    const prune = (file: string, branch: string, env: Record<string, string> = {}) => {
+    const prune = (file: string, ref: string, env: Record<string, string> = {}) => {
       const work = tempDir("pages-prune-");
       writeFileSync(join(work, "artifacts.json"), artifactList(list));
       const s = (job(load(file), "prune").steps ?? [])[0];
-      const r = runWithGh(s?.run ?? "", work, { STUB_ARTIFACTS: join(work, "artifacts.json"), BRANCH: branch, ...env });
+      const r = runWithGh(s?.run ?? "", work, { STUB_ARTIFACTS: join(work, "artifacts.json"), REF: ref, RUN_ID: "2000", ...env });
       expect(r.status).toBe(0);
       expect(r.calls.filter((c) => c.includes("actions/artifacts?per_page=100")).every((c) => c.startsWith("api --paginate "))).toBe(true);
       return r.calls.filter((c) => c.startsWith("api -X DELETE")).map((c) => Number(c.split("/").pop())).sort((x, y) => x - y);
     };
 
     it.each([
-      ["factory-video.yml", "main", { BUILT: "success" }, [11, 16]],
-      ["factory-video.yml", "feature", { BUILT: "success" }, [14]],
-      ["factory-video.yml", "main", { BUILT: "skipped" }, [16]],
-      ["factory-video.yml", "candidate/x", { BUILT: "success" }, []],
-      ["factory-video.yml", 'main" or true or "', { BUILT: "success" }, []],
-      ["practices-carousel.yml", "main", {}, [21]],
-      ["practices-carousel.yml", "feature", {}, [24]],
-      ["practices-carousel.yml", "candidate/x", {}, []],
-      ["practices-carousel.yml", 'main" or true or "', {}, []],
-    ])("SPEC-001-R236 %s on %s", (file, branch, env, deleted) => {
-      expect(prune(file, branch, env)).toEqual(deleted);
+      ["factory-video.yml", "refs/heads/main", { BUILT: "success" }, [11, 12, 15, 16]],
+      ["factory-video.yml", "refs/heads/main", { BUILT: "skipped" }, [15, 16]],
+      ["factory-video.yml", "refs/heads/feature", { BUILT: "success" }, [13, 14]],
+      ["factory-video.yml", "refs/heads/candidate/x", { BUILT: "success" }, [18]],
+      ["factory-video.yml", "refs/tags/main", { BUILT: "success" }, []],
+      ["factory-video.yml", "refs/pull/5/merge", { BUILT: "success" }, []],
+      ["factory-video.yml", 'refs/heads/main" or true or "', { BUILT: "success" }, []],
+      ["factory-video.yml", "refs/heads/main", { BUILT: "success", RUN_ID: "2000 or true" }, []],
+      ["practices-carousel.yml", "refs/heads/main", {}, [21, 22]],
+      ["practices-carousel.yml", "refs/heads/feature", {}, [23, 24]],
+      ["practices-carousel.yml", "refs/tags/main", {}, []],
+      ["practices-carousel.yml", 'refs/heads/main" or true or "', {}, []],
+    ])("SPEC-001-R236 %s for %s", (file, ref, env, deleted) => {
+      expect(prune(file, ref, env)).toEqual(deleted);
     });
 
-    it.each(["factory-video.yml", "practices-carousel.yml"])("SPEC-001-R236 %s takes its branch from the run's ref and sets pipefail", (file) => {
+    it.each(["factory-video.yml", "practices-carousel.yml"])("SPEC-001-R236 %s takes the ref and this run's ID from the run, and sets pipefail", (file) => {
       const s = (job(load(file), "prune").steps ?? [])[0];
-      expect(s?.env?.["BRANCH"]).toBe("${{ github.ref_name }}");
+      expect([s?.env?.["REF"], s?.env?.["RUN_ID"]]).toEqual(["${{ github.ref }}", "${{ github.run_id }}"]);
       expect(s?.run?.startsWith("set -o pipefail\n")).toBe(true);
     });
   });

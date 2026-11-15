@@ -6,8 +6,8 @@
 # this workflow or the end card's counts in docs/progress.json changed since the newest video a run on main built, or
 # that build cannot be read, so the end card counts main (SPEC-001-R235), and on demand. On main, the pages job then
 # calls pages.yml, which publishes that video and the practices poster to https://paulduvall.github.io/who-gets-the-keys/
-# (SPEC-001-R236). No job reads a secret, uses AWS or a cache. The prune job keeps only the newest artifact of each kind
-# for the run's branch. Nothing is committed and no release is made, so no job needs contents: write.
+# (SPEC-001-R236). No job reads a secret, uses AWS or a cache. The prune job deletes the artifacts that earlier runs on
+# the run's branch uploaded. Nothing is committed and no release is made, so no job needs contents: write.
 name: factory-video
 
 on:
@@ -53,9 +53,11 @@ jobs:
       - name: Check that every on-screen claim cites evidence that exists
         run: node factory-video/verify.mjs --only claims
       # Compared with the newest video this workflow built on main, not the previous push, so a build that failed, or a
-      # run that a newer push cancelled, is built by the next run. A candidate counts only if its run is this workflow,
-      # started by a push or by hand on main in this repository; the jq filter prints only fields of a fixed form, so no
-      # artifact name can shift one. Any doubt builds (SPEC-001-R235, as SPEC-001-R232 does for sandbox).
+      # run that a newer push cancelled, is built by the next run. Of the candidates whose run is this workflow, started by
+      # a push or by hand, reporting head branch main, in this repository, at a commit the pushed one descends from, the
+      # newest is the one whose commit is closest to the pushed one, as pages.yml chooses against main's tip. The jq filter
+      # prints only fields of a fixed form, so no artifact name can shift one. Any failed read, or any doubt, builds
+      # (SPEC-001-R235, as SPEC-001-R232 does for sandbox).
       - name: Decide whether the video needs a rebuild, against the newest video built on main
         id: paths
         env:
@@ -71,16 +73,24 @@ jobs:
               and (.workflow_run.id | type) == "number" and (.workflow_run.head_sha | test("^[0-9a-f]{40}$"))
               and (.name | test("^factory-video-[0-9a-f]{7}-[0-9]{8}T[0-9]{4}Z$")))
               | "\(.workflow_run.id) \(.created_at) \(.workflow_run.head_sha)"'
-            candidates="$(gh api --paginate "repos/${REPO}/actions/artifacts?per_page=100" --jq "$filter" | sort -k1,1nr -k2,2r)"
+            candidates="$(gh api --paginate "repos/${REPO}/actions/artifacts?per_page=100" --jq "$filter" | sort -k1,1nr -k2,2r)" || return 1
+            best=""
+            nearest=""
             while read -r run _ sha; do
               [ -n "$run" ] || continue
-              run_of="$(gh api "repos/${REPO}/actions/runs/${run}" --jq '"\(.event) \(.path) \(.head_branch) \(.head_repository.full_name)"')"
+              run_of="$(gh api "repos/${REPO}/actions/runs/${run}" --jq '"\(.event) \(.path) \(.head_branch) \(.head_repository.full_name)"')" || return 1
               case "$run_of" in
-                "push .github/workflows/factory-video.yml main ${REPO}" | "workflow_dispatch .github/workflows/factory-video.yml main ${REPO}")
-                  echo "$sha"
-                  return 0 ;;
+                "push .github/workflows/factory-video.yml main ${REPO}" | "workflow_dispatch .github/workflows/factory-video.yml main ${REPO}") ;;
+                *) continue ;;
               esac
+              git cat-file -e "${sha}^{commit}" 2>/dev/null && git merge-base --is-ancestor "$sha" "$GITHUB_SHA" || continue
+              behind="$(git rev-list --count "${sha}..${GITHUB_SHA}")" || return 1
+              if [ -z "$best" ] || [ "$behind" -lt "$nearest" ]; then
+                best="$sha"
+                nearest="$behind"
+              fi
             done <<<"$candidates"
+            [ -n "$best" ] && echo "$best"
           }
           if [ "$EVENT" = push ]; then
             last="$(newest_built)" || last=""
@@ -202,13 +212,13 @@ jobs:
       cancel-in-progress: true
     permissions:
       actions: read # pages.yml's assemble job reads the kits' artifacts and their runs
-      contents: read # pages.yml's assemble job reads main's tip; nothing is checked out
+      contents: read # pages.yml's assemble job reads main's tip and compares commits; nothing is checked out
       pages: write # pages.yml's deploy job creates the Pages deployment
       id-token: write # pages.yml's deploy job proves to GitHub Pages which workflow, ref and run it is
     uses: $/.github/workflows/pages.yml # the self-repository form: pages.yml at this run's commit
 
   prune:
-    name: keep only the newest factory video and claims report
+    name: delete earlier runs' factory videos and claims reports
     needs: [claims, build]
     if: always() && needs.claims.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-24.04
@@ -219,34 +229,36 @@ jobs:
     permissions:
       actions: write # deletes earlier factory-video artifacts; nothing else in this job
     steps:
-      # Only this branch's artifacts: a run on another branch must not delete the newest build on main, which pages.yml
-      # publishes (SPEC-001-R236).
-      - name: Delete every factory-video and factory-claims artifact of this branch except the newest of each
+      # Only artifacts that earlier runs on this run's own branch uploaded: this run's build, which it just uploaded, and any
+      # newer run's, stay, so a run on another branch, a tag or a pull request whose head is named main cannot remove the
+      # build pages.yml publishes (SPEC-001-R236). Every field printed has a fixed form, so no artifact name can shift one.
+      - name: Delete the factory-video and factory-claims artifacts that earlier runs on this branch uploaded
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           BUILT: ${{ needs.build.result }}
-          BRANCH: ${{ github.ref_name }}
+          REF: ${{ github.ref }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           set -o pipefail
-          if ! [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+          case "$REF" in
+            refs/heads/*) branch="${REF#refs/heads/}" ;;
+            *) echo "${REF} is not a branch; nothing deleted."; exit 0 ;;
+          esac
+          if ! [[ "$branch" =~ ^[A-Za-z0-9._/-]+$ && "$RUN_ID" =~ ^[0-9]+$ ]]; then
             echo "This prunes only branches named with letters, digits, '.', '_', '/' and '-'; nothing deleted."
             exit 0
           fi
           prefixes="factory-claims-"
           [ "$BUILT" = success ] && prefixes="factory-video- factory-claims-"
           for prefix in $prefixes; do
-            # Newest run first; every field printed has a fixed form, so no artifact name can shift one.
             list="$(gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
-              --jq '.artifacts[] | select((.expired | not) and .workflow_run != null and .workflow_run.head_branch == "'"$BRANCH"'"
-                and (.workflow_run.id | type) == "number" and (.name | startswith("'"$prefix"'")))
-                | "\(.workflow_run.id) \(.created_at) \(.id)"' | sort -k1,1nr -k2,2r)"
-            keep="$(printf '%s\n' "$list" | awk 'NF && !n {print $3; n = 1}')"
-            [ -n "$keep" ] || { echo "No ${prefix} artifact from ${BRANCH} found; nothing deleted."; continue; }
+              --jq '.artifacts[] | select((.expired | not) and .workflow_run != null and .workflow_run.head_branch == "'"$branch"'"
+                and (.workflow_run.id | type) == "number" and .workflow_run.id < '"$RUN_ID"' and (.name | startswith("'"$prefix"'")))
+                | "\(.workflow_run.id) \(.created_at) \(.id)"')"
+            [ -n "$list" ] || { echo "No ${prefix} artifact from an earlier run on ${branch}; nothing deleted."; continue; }
             printf '%s\n' "$list" | while read -r run created id; do
-              { [ -z "$id" ] || [ "$id" = "$keep" ]; } && continue
               gh api -X DELETE "repos/$REPO/actions/artifacts/$id"
               echo "Deleted ${prefix} artifact ${id} (run ${run}, ${created})"
             done
-            echo "Kept ${prefix} artifact ${keep} from ${BRANCH}."
           done

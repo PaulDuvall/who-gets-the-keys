@@ -2,8 +2,8 @@
 # a PNG per page, a contact sheet and the one-page poster, with verify.mjs's checks and report. It runs on a push to
 # main that changes the kit, practices.yaml (every row cites its IDs), the files page 11's Receipt check reads or this
 # workflow, and on demand. That check verifies signatures over commits in the history, so the checkout fetches all of it. The build job
-# uploads out/ as one artifact, practices-carousel-<short SHA>-<UTC time>, kept 90 days. The prune job then deletes every
-# earlier one of the run's branch, so only the newest build per branch is kept. On main, the pages job calls pages.yml,
+# uploads out/ as one artifact, practices-carousel-<short SHA>-<UTC time>, kept 90 days. The prune job then deletes the
+# ones that earlier runs on the run's branch uploaded. On main, the pages job calls pages.yml,
 # which publishes the poster's front and back beside the factory video at https://paulduvall.github.io/who-gets-the-keys/
 # (SPEC-001-R236). No job reads a secret, uses AWS or a cache. Nothing is committed and no release is made, so no job
 # needs contents: write.
@@ -96,13 +96,13 @@ jobs:
       cancel-in-progress: true
     permissions:
       actions: read # pages.yml's assemble job reads the kits' artifacts and their runs
-      contents: read # pages.yml's assemble job reads main's tip; nothing is checked out
+      contents: read # pages.yml's assemble job reads main's tip and compares commits; nothing is checked out
       pages: write # pages.yml's deploy job creates the Pages deployment
       id-token: write # pages.yml's deploy job proves to GitHub Pages which workflow, ref and run it is
     uses: $/.github/workflows/pages.yml # the self-repository form: pages.yml at this run's commit
 
   prune:
-    name: keep only the newest practices carousel
+    name: delete earlier runs' practices carousels
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -112,33 +112,35 @@ jobs:
     permissions:
       actions: write # deletes earlier practices-carousel artifacts; nothing else in this job
     steps:
-      # Only this branch's artifacts: a run on another branch must not delete the newest build on main, which pages.yml
-      # publishes (SPEC-001-R236).
-      - name: Delete every practices-carousel artifact of this branch except the newest
+      # Only artifacts that earlier runs on this run's own branch uploaded: this run's build, which it just uploaded, and any
+      # newer run's, stay, so a run on another branch, a tag or a pull request whose head is named main cannot remove the
+      # build pages.yml publishes (SPEC-001-R236). Every field printed has a fixed form, so no artifact name can shift one.
+      - name: Delete the practices-carousel artifacts that earlier runs on this branch uploaded
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          BRANCH: ${{ github.ref_name }}
+          REF: ${{ github.ref }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           set -o pipefail
-          if ! [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+          case "$REF" in
+            refs/heads/*) branch="${REF#refs/heads/}" ;;
+            *) echo "${REF} is not a branch; nothing deleted."; exit 0 ;;
+          esac
+          if ! [[ "$branch" =~ ^[A-Za-z0-9._/-]+$ && "$RUN_ID" =~ ^[0-9]+$ ]]; then
             echo "This prunes only branches named with letters, digits, '.', '_', '/' and '-'; nothing deleted."
             exit 0
           fi
           prefix="practices-carousel-"
-          # Newest run first; every field printed has a fixed form, so no artifact name can shift one.
           list="$(gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
-            --jq '.artifacts[] | select((.expired | not) and .workflow_run != null and .workflow_run.head_branch == "'"$BRANCH"'"
-              and (.workflow_run.id | type) == "number" and (.name | startswith("'"$prefix"'")))
-              | "\(.workflow_run.id) \(.created_at) \(.id)"' | sort -k1,1nr -k2,2r)"
-          keep="$(printf '%s\n' "$list" | awk 'NF && !n {print $3; n = 1}')"
-          if [ -z "$keep" ]; then
-            echo "No ${prefix} artifact from ${BRANCH} found; nothing deleted."
+            --jq '.artifacts[] | select((.expired | not) and .workflow_run != null and .workflow_run.head_branch == "'"$branch"'"
+              and (.workflow_run.id | type) == "number" and .workflow_run.id < '"$RUN_ID"' and (.name | startswith("'"$prefix"'")))
+              | "\(.workflow_run.id) \(.created_at) \(.id)"')"
+          if [ -z "$list" ]; then
+            echo "No ${prefix} artifact from an earlier run on ${branch}; nothing deleted."
             exit 0
           fi
           printf '%s\n' "$list" | while read -r run created id; do
-            { [ -z "$id" ] || [ "$id" = "$keep" ]; } && continue
             gh api -X DELETE "repos/$REPO/actions/artifacts/$id"
             echo "Deleted ${prefix} artifact ${id} (run ${run}, ${created})"
           done
-          echo "Kept ${prefix} artifact ${keep} from ${BRANCH}."

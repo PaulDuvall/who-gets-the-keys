@@ -8,10 +8,13 @@ import { join } from "node:path";
 // - `gh api [--paginate] repos/o/r/actions/artifacts?per_page=100 --jq <filter>`: the list in $STUB_ARTIFACTS, served
 //   in pages of $STUB_PAGE_SIZE (2 by default), the first page alone without --paginate, as gh does. It applies the
 //   script's own filter to each page with jq, so the filter itself is tested. STUB_FAIL_LIST fails the call.
-// - `gh api repos/o/r/actions/runs/<id> --jq <filter>`: run <id> of the object in $STUB_RUNS, or a 404.
+// - `gh api repos/o/r/actions/runs/<id> --jq <filter>`: run <id> of the object in $STUB_RUNS, or a 404; a 500 for every
+//   run when STUB_RUN_ERROR is set.
 // - `gh api repos/o/r/branches/main --jq <filter>`: a branch whose tip is $STUB_TIP.
-// - `gh api repos/o/r/compare/<base>...<head> --jq <filter>`: status `identical` when base is head, `ahead` when base
-//   is listed in $STUB_ON_MAIN, and `diverged` otherwise.
+// - `gh api repos/o/r/compare/<base>...<head>[?per_page=1] --jq <filter>`: `identical`, 0 behind, when base is head;
+//   `ahead` when base is listed in $STUB_ON_MAIN as `<sha>` (1 behind) or `<sha>:<n>` (n behind); `behind` when listed in
+//   $STUB_BEHIND; a 404 when listed in $STUB_UNKNOWN; a 500 for every comparison when STUB_COMPARE_ERROR is set; and
+//   `diverged` otherwise.
 // - `gh api -X DELETE <path>`: success, so a test reads what was deleted from the log.
 // - `gh run download <run> --repo <repo> --name <name> --dir <dir>`: copies $STUB_BUILDS/<name>/ into <dir>, or into
 //   <dir>/<name>/ when STUB_SUBDIR is set; a name it has no build for fails.
@@ -32,14 +35,21 @@ export const STUB_GH = [
   '        page=$((page + 1))',
   '      done ;;',
   '    "repos/o/r/actions/runs/"*)',
+  '      [ -z "${STUB_RUN_ERROR:-}" ] || { echo \'{"message":"Server Error"}\'; echo "gh: Server Error (HTTP 500)" >&2; exit 1; }',
   '      id="${path#repos/o/r/actions/runs/}"',
   '      jq -e --arg id "$id" \'has($id)\' "$STUB_RUNS" > /dev/null || { echo \'{"message":"Not Found"}\'; echo "gh: Not Found (HTTP 404)" >&2; exit 1; }',
   '      jq --arg id "$id" \'.[$id]\' "$STUB_RUNS" | jq -r "$filter" ;;',
   '    "repos/o/r/branches/main") printf \'{"commit":{"sha":"%s"}}\' "$STUB_TIP" | jq -r "$filter" ;;',
   '    "repos/o/r/compare/"*)',
-  '      range="${path#repos/o/r/compare/}"; base="${range%%...*}"; head="${range#*...}"; status=diverged',
-  '      if [ "$base" = "$head" ]; then status=identical; else case " ${STUB_ON_MAIN:-} " in *" $base "*) status=ahead ;; esac; fi',
-  '      printf \'{"status":"%s"}\' "$status" | jq -r "$filter" ;;',
+  '      range="${path#repos/o/r/compare/}"; range="${range%%[?]*}"; base="${range%%...*}"; head="${range#*...}"',
+  '      case " ${STUB_UNKNOWN:-} " in *" $base "*) echo \'{"message":"Not Found"}\'; echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;; esac',
+  '      [ -z "${STUB_COMPARE_ERROR:-}" ] || { echo \'{"message":"Server Error"}\'; echo "gh: Server Error (HTTP 500)" >&2; exit 1; }',
+  '      status=diverged; by=3',
+  '      if [ "$base" = "$head" ]; then status=identical; by=0; else',
+  '        for e in ${STUB_ON_MAIN:-}; do if [ "${e%%:*}" = "$base" ]; then status=ahead; by=1; [ "$e" = "${e#*:}" ] || by="${e#*:}"; fi; done',
+  '        case " ${STUB_BEHIND:-} " in *" $base "*) status=behind; by=0 ;; esac',
+  '      fi',
+  '      printf \'{"status":"%s","ahead_by":%s}\' "$status" "$by" | jq -r "$filter" ;;',
   '    *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;',
   '  esac',
   '  exit 0',
