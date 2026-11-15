@@ -77,6 +77,8 @@ Not verified, and outside what this batch can control: whether GitHub Pages acce
 
 The first run, at `5360763`, failed three steps, each fixed in `52a455c`: the workflows check, on zizmor's `self-repository` audit of the `./` call; ESLint, on an `expect` inside a condition in the new test; and Vitest, on SPEC-001-R86's test, which read `steps` of every job. The second run's results follow.
 
+Rerun at `6c4b35d` after the first review's fixes, 420 tests, and at `d0f203d` after the second review's, 431 tests; both passed every step below, here and on the simulated Mac. The table gives the run at `52a455c`.
+
 In a scratch worktree outside the checkout at `52a455c`, every move and the `LAND.txt` removal applied as `land.sh` does them, a hard-linked `node_modules`, `GIT_LITERAL_PATHSPECS` unset:
 
 | Step | Result |
