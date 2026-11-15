@@ -50,7 +50,7 @@ One picture for the talk. The pipeline is an assembly line inside a factory. Eac
 
 ## Where the picture is not literal
 
-- The release dock shows the design. Today the owner still approves each `sandbox` deploy that changes a deployable path (SPEC-001-R232), until backlog `who-gets-the-keys-s3p` lands. By working practice, not by the ruleset, the owner also pushes each change to `main`.
+- The release dock shows the design. Today the owner still approves each `sandbox` deploy that changes a deployable path (SPEC-001-R232). Backlog `who-gets-the-keys-g4e` removes that reviewer, after `who-gets-the-keys-s3p` lands. By working practice, not by the ruleset, the owner also pushes each change to `main`.
 - An unsigned commit that also rewrites the check code can pass, because the checks run from the pushed commit. SPEC-001, "Checks before `main`", accepts that gap until the signer moves out of the agent's reach.
 - Hooks read only command text, so a script the agent writes can pass them (SPEC-001, "Local sessions"). The approver's key is the control.
 - An attestation proves who signed a claim, not that the claim is true. The receipt's SIGNED line says so: `editable by the agent`.
