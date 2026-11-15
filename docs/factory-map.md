@@ -25,7 +25,7 @@ One picture for the talk. The pipeline is an assembly line inside a factory. Eac
 
 | Control | Factory picture | In this repository |
 |---|---|---|
-| Spec | Released engineering drawing | `specs/`, changed only by an approver-signed commit. B4 fails the signatures check |
+| Spec | Signed drawing, approved before anything is built | `specs/`, changed only by an approver-signed commit. B4 fails the signatures check |
 | Task file | Kanban card: build exactly what's on it | `tasks/<ID>.task.md` (SPEC-001-R64). B24 fails the task check on an unapproved requirement |
 | Agent | Robot cell: builds the part, never releases it | Claude Code. The runner producer, `producer.yml`, runs it with no allowed network host |
 | Hooks | Error-proofing fixture: blocks mistakes, not intent | `.claude/hooks/hook.mjs`: `no-sign`, `no-session-link`, `no-inner-worktree`, `gitleaks-staged`, `expect-expect` (SPEC-001-R39, R214, R230) |
