@@ -66,7 +66,18 @@ Not verified until a run shows it: that the `github-pages` environment's `main` 
 
 The first run, at `5360763`, failed three steps, each fixed in `52a455c`: the workflows check, on zizmor's `self-repository` audit of the `./` call; ESLint, on an `expect` inside a condition in the new test; and Vitest, on SPEC-001-R86's test, which read `steps` of every job. The second run's results follow.
 
-SECOND_RUN
+In a scratch worktree outside the checkout at `52a455c`, every move and the `LAND.txt` removal applied as `land.sh` does them, a hard-linked `node_modules`, `GIT_LITERAL_PATHSPECS` unset:
+
+| Step | Result |
+|---|---|
+| `tsc --noEmit` | pass |
+| ESLint on the three changed or new test files and the helper | pass |
+| `node scripts/checks.ts`, the ordered fifteen, zizmor among them | all pass |
+| `node scripts/checks.ts task`, then `scope` | pass |
+| Vitest, every test | 25 files, 410 tests, pass |
+| `node scripts/progress.ts` on the landed tree | equals the staged copies: 113 approved, 164 drafted, 13 backlog items closed |
+| `git apply --check` on all 19 scenario patches | all apply |
+| The owner's Mac, simulated: a BSD-style `seq` first on PATH and Homebrew's keg-only `node@24` with its `npm` | 25 files, 410 tests, pass |
 
 ## Independent review
 
