@@ -110,7 +110,7 @@ The reviewer could not run anything only GitHub can show: a pull request or tag 
 
 ## Second review, 2026-11-15
 
-A second subagent reviewed only how the scripts choose what is published, after `6c4b35d`, against an attacker who can push any branch but `main`, open pull requests, make tags and run a candidate branch's own workflows. It found no way to publish a file the attacker wrote through these scripts, and two medium findings and seven low. All are fixed in `SECOND_FIX`, except where the table says otherwise.
+A second subagent reviewed only how the scripts choose what is published, after `6c4b35d`, against an attacker who can push any branch but `main`, open pull requests, make tags and run a candidate branch's own workflows. It found no way to publish a file the attacker wrote through these scripts, and two medium findings and seven low. All are fixed in `584cd0c`, except where the table says otherwise.
 
 | Severity | Finding | Done |
 |---|---|---|
