@@ -19,7 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
 import { RECEIPT, RECEIPT_ROWS, segmentText } from './receipt-proof.mjs';
-import { DIR, FONT_DIR, HEIGHT, OUT, PDF, POSTER, POSTER_PDF, ROOT, WIDTH, loadCarousel, loadFonts, offlineProblems, openCarousel, pageCount, printedReceipt, rowsOf, sha256 } from './lib.mjs';
+import { DIR, FONT_DIR, HEIGHT, OUT, PDF, POSTER, POSTER_PDF, ROOT, WIDTH, buildId, loadCarousel, loadFonts, offlineProblems, openCarousel, pageCount, printedReceipt, rowsOf, sha256 } from './lib.mjs';
 
 const results = [];
 function record(name, pass, detail) {
@@ -78,9 +78,10 @@ function schemaCheck() {
   if (!isObj(doc.where) || !Object.values(doc.where).every((v) => typeof v === 'string')) bad.push('where is not a map of labels');
   need(doc.legend, ['windows', 'untagged', 'diy', 'tools', 'owasp'], 'legend');
   need(doc.labels, ['diy', 'ref', 'page', 'pages'], 'labels');
-  need(doc.poster, ['view', 'count', 'back', 'back_count'], 'poster');
+  need(doc.poster, ['view', 'count', 'back', 'back_count', 'built'], 'poster');
   if (isObj(doc.poster) && !String(doc.poster.count || '').includes('{count}')) bad.push('poster.count has no {count}');
   if (isObj(doc.poster) && !String(doc.poster.back_count || '').includes('{count}')) bad.push('poster.back_count has no {count}');
+  if (isObj(doc.poster) && !String(doc.poster.built || '').includes('{commit}')) bad.push('poster.built has no {commit}');
   need(doc.factory, ['heading', 'lede', 'account'], 'factory');
   const boxes = [
     ...list(doc.factory?.flow).map((b, i) => [`factory.flow[${i}]`, b]),
@@ -682,7 +683,9 @@ function textCheck() {
   // The poster holds every row, the title, thesis and windows of page 1, the headings and lines of pages 9 and 10, and
   // the spec, pipeline and production boxes of page 2. It leaves out the cover's subtitle, each section's blurb, page
   // 9's notes, the other boxes' text on page 2 and the seconds and minutes window labels.
-  const poster = [m.title, doc.poster.view, `${m.thesis_key} ${m.thesis_rest}`, String(doc.poster.count).replace('{count}', String(ROWS.length)), m.byline,
+  // Both sides name the commit this build ran on, in the header's top-right corner.
+  const built = String(doc.poster.built).replace('{commit}', buildId());
+  const poster = [built, m.title, doc.poster.view, `${m.thesis_key} ${m.thesis_rest}`, String(doc.poster.count).replace('{count}', String(ROWS.length)), m.byline,
     doc.legend.windows, doc.windows.always, doc.legend.untagged, doc.legend.diy, doc.legend.tools, doc.legend.owasp, f.account, f.flow[0].name, f.flow[0].text, f.flow[2].name, f.flow[2].mark, f.flow[3].name, f.flow[3].text,
     ...doc.sections.flatMap((s) => [s.name, s.tag, ...list(s.thread).flatMap((t) => [t.label, t.text]), ...s.rows.flatMap((r) => [r.text, r.lead, r.ref, ...list(r.tools).map((t) => t.name), doc.where[r.where]].filter(Boolean))]),
     h.heading, ...h.rows.flatMap((r) => [r.label, r.text]), h.day_one.heading, ...h.day_one.items, h.day_one.end,
@@ -709,7 +712,7 @@ function textCheck() {
     }
   };
   for (const [page, strings] of Object.entries(expect)) look(PDF, page, strings, `page ${page}`);
-  const back = [m.title, doc.poster.back, String(doc.poster.back_count).replace('{count}', String(ROWS.length)), doc.legend.windows, doc.windows.always, doc.legend.owasp,
+  const back = [built, m.title, doc.poster.back, String(doc.poster.back_count).replace('{count}', String(ROWS.length)), doc.legend.windows, doc.windows.always, doc.legend.owasp,
     ...doc.sections.flatMap((x) => [x.name, x.tag, ...x.rows.flatMap((r) => [r.text, r.lead].filter(Boolean))]), `${m.close_line_plain} ${m.close_line_key}`, ...m.sites];
   if (fs.existsSync(POSTER_PDF)) {
     look(POSTER_PDF, 1, poster, 'poster front');

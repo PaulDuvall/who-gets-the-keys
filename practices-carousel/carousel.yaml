@@ -21,6 +21,9 @@ poster:
   # The back of the poster: every practice with a box to tick, section by section.
   back: Checklist
   back_count: "{count} practices to work through, section by section"
+  # Both sides, in the header's top-right corner: {commit} is the first 7 characters of the commit the build ran on,
+  # with -dirty when a tracked file differs from it.
+  built: "Built from {commit}"
 
 windows:
   before: Before code

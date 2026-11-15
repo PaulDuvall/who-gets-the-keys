@@ -11,7 +11,7 @@ Edit `carousel.yaml` and nothing else. It holds every word on every page and on 
 | Key | Page | What it holds |
 |---|---|---|
 | `meta` | 1, 10, poster | Title, thesis, subtitle (`{count}` becomes the number of rows), byline, closing line, sites |
-| `poster` | poster | The front's and the back's names beside the title, and their count lines (`{count}` again) |
+| `poster` | poster | The front's and the back's names beside the title, their count lines (`{count}` again), and `built`, the line in each side's top-right corner, where `{commit}` becomes the first 7 characters of the commit the build runs on, with `-dirty` when a tracked file differs from it |
 | `windows` | 1, 3 to 8, poster | The four timing windows and `always` |
 | `where` | 3 to 8 | The tag a row shows for where it runs. `pipeline` is empty, so a pipeline row shows no tag |
 | `legend` | 3 to 8 | The legend at the foot of each section page, and the poster's |
@@ -62,7 +62,7 @@ The `practices-carousel` workflow builds the same files in GitHub Actions on a p
 | Offline | The carousel or the poster requests anything that is not `file://`, or raises or logs an error |
 | Count | The rows pages 3 to 8 show, counted in the page, the poster's cards, the cover's number and the poster's number differ, or a PDF does not print the number where the subtitle or the poster's count line puts it, or page 11 does not print the receipt's count of rows covered in full and in part |
 | Receipt | A proof in `receipt-proof.mjs` fails, so a line prints NOT VERIFIED: the approver's SSH signature, a DSSE signature, a certificate's chain, validity, usage or identity, a Rekor timestamp, inclusion proof, UUID or checkpoint, the trusted root's pinned SHA-256, the diff, or a quoted run-log line. A row a line claims is not a row in `carousel.yaml`. The stub's line or a number in it is in none of its git quotes, or does not match its scenario |
-| Text | A string `carousel.yaml` puts on a page or the poster is not in that PDF's text |
+| Text | A string `carousel.yaml` puts on a page or the poster is not in that PDF's text, including each side's `built` line with the commit `git` reports |
 
 A check that throws is reported as a FAIL with the error, so the table always prints. `--only` with a name it does not know exits 2.
 

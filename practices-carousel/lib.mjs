@@ -1,5 +1,6 @@
 // Shared by render.mjs and verify.mjs: the content, the font pins and the one way the page is opened, so the
 // checks measure the same layout the PDF is printed from.
+import { execFileSync, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,6 +24,12 @@ const CAROUSEL = { file: 'carousel.html', width: WIDTH, height: HEIGHT };
 export const pageUrl = (file) => pathToFileURL(path.join(DIR, file)).href;
 
 export const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+
+/** The commit the build runs on, for the poster's corner: its first 7 characters, and -dirty when a tracked file differs. */
+export function buildId() {
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: DIR, encoding: 'utf8' }).trim().slice(0, 7);
+  return spawnSync('git', ['diff', '--quiet', 'HEAD', '--'], { cwd: DIR }).status === 0 ? head : `${head}-dirty`;
+}
 
 /** carousel.yaml as text and as data. Throws when it does not parse. */
 export function loadCarousel() {
@@ -60,6 +67,8 @@ export async function openCarousel(browser, doc, template = CAROUSEL, deviceScal
     count: rowsOf(doc).length,
     pages: pageCount(doc),
     fonts: fonts.map((f) => ({ family: f.family, weight: f.weight, stretch: f.stretch, file: f.file })),
+    // The poster's corner: the commit this build runs on.
+    commit: buildId(),
     // Page 11's lines, printed from verified evidence: the template shows them as they are.
     receipt: printedReceipt(),
   };
