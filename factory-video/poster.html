@@ -14,6 +14,8 @@
 <body>
 <svg id="poster" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1350" width="2400" height="1350"></svg>
 <script src="scene.js"></script>
+<!-- The build's commit, for the stamp in the top-right corner: build.sh writes this file before it renders. -->
+<script src="frames/build.js"></script>
 <script>
 /*
  * Static, full-detail poster of the software factory. Same components as
@@ -54,6 +56,8 @@
     let s = text(50, 76, 'Who Gets the Keys?', { size: 52, bold: true });
     s += text(50, 114, 'Trust and Authority in Software Factories', { size: 26, fill: C.muted });
     s += text(2350, 46, 'Paul Duvall  ·  AI Native DevCon 2026', { size: 18, fill: C.muted, anchor: 'end' });
+    // The build's commit, from frames/build.js: its first 7 characters.
+    if (window.FACTORY_BUILD) s += text(2350, 84, `Built from ${window.FACTORY_BUILD}`, { size: 24, fill: C.muted, anchor: 'end' });
     s += text(2350, 130, 'Receipt values (16/16, 91%) and IDs are illustrative.', { size: 15, italic: true, fill: C.muted, anchor: 'end' });
     return s;
   }

@@ -5,6 +5,13 @@ set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p frames/f30 frames/f20 out
 
+# The build's commit, which the guided video shows in a corner of every frame and the poster in its top-right corner:
+# its first 7 characters, as the artifact's name and the published page give it, and -dirty when a tracked file
+# differs from it.
+build_id="$(git rev-parse HEAD | cut -c1-7)"
+git diff --quiet HEAD -- || build_id="${build_id}-dirty"
+printf 'window.FACTORY_BUILD = "%s";\n' "$build_id" > frames/build.js
+
 node render.mjs slide.html frames/f30 30
 node render.mjs slide.html frames/f20 20
 

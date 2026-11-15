@@ -695,6 +695,55 @@ async function posterChecks(browser) {
   await ctx.close();
 }
 
+// The build's commit as build.sh writes it to frames/build.js: its first 7 characters, and -dirty when a tracked file
+// differs from it.
+function buildId() {
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: DIR, encoding: 'utf8' }).trim().slice(0, 7);
+  return spawnSync('git', ['diff', '--quiet', 'HEAD', '--'], { cwd: DIR }).status === 0 ? head : `${head}-dirty`;
+}
+
+// Stamp: every guided frame shows the build's commit in the caption strip's bottom-right corner, where no caption
+// touches it, and the poster shows it in its top-right corner.
+async function stampCheck(browser) {
+  const id = buildId();
+  const label = `Built from ${id}`;
+  const bad = [];
+  const file = path.join(DIR, 'frames', 'build.js');
+  const written = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  if (written !== `window.FACTORY_BUILD = "${id}";\n`) bad.push(`frames/build.js does not name ${id}: run build.sh`);
+  const g = await openPage(browser, GUIDED_URL, { width: 2400, height: 1350 });
+  const r = await g.page.evaluate(() => {
+    const b = document.getElementById('build');
+    const strip = document.getElementById('caption').getBoundingClientRect();
+    const box = b && b.getBoundingClientRect();
+    const touching = [];
+    if (box && window.GUIDED_SHOTS && typeof window.render === 'function') {
+      for (const s of window.GUIDED_SHOTS) {
+        if (!s.text && !s.caption) continue;
+        window.render((s.g0 + s.g1) / 2);
+        const range = document.createRange();
+        range.selectNodeContents(document.querySelector('#caption span'));
+        const hit = [...range.getClientRects()].some((q) => q.width > 0 && q.left < box.right && q.right > box.left && q.top < box.bottom && q.bottom > box.top);
+        if (hit) touching.push(s.cam);
+      }
+    }
+    return {
+      text: b ? b.textContent : null,
+      inCorner: !!box && box.width > 0 && box.right <= strip.right && box.bottom <= strip.bottom && box.top >= strip.top && box.left >= strip.left + strip.width / 2,
+      touching,
+    };
+  });
+  await g.ctx.close();
+  if (r.text !== label) bad.push(`the guided frames say "${r.text}", not "${label}"`);
+  if (!r.inCorner) bad.push("the guided frames' stamp is not in the right half of the caption strip");
+  if (r.touching.length) bad.push(`a caption touches the stamp: ${short(r.touching)}`);
+  const p = await openPage(browser, POSTER_URL, { width: 2400, height: 1350 });
+  const txt = await p.page.evaluate(domText);
+  await p.ctx.close();
+  if (!txt.includes(label)) bad.push(`the poster does not say "${label}"`);
+  record('Build stamp', !bad.length, bad.length ? bad.join('; ') : `"${label}" in the bottom-right corner of every guided frame, clear of every caption, and in the poster's top-right corner`);
+}
+
 // ---------------------------------------------------------- render logs
 function renderLogCheck() {
   const logs = ['frames/f30/render-log.json', 'frames/f20/render-log.json', 'frames/guided/render-log.json', 'frames/sheet-log.json', 'frames/poster-log.json']
@@ -869,7 +918,7 @@ function posterFileCheck() {
 // ------------------------------------------------------------------- main
 // Only these checks need Chromium. Playwright is imported only when one of them is wanted, so
 // `--only claims` runs with no packages installed (the claims job in factory-video.yml).
-const BROWSER_CHECKS = ['beats', 'determinism', 'errors', 'guided', 'labels', 'layout', 'loop', 'minfont', 'model', 'offline', 'posterlabels', 'posterlayout'];
+const BROWSER_CHECKS = ['beats', 'determinism', 'errors', 'guided', 'labels', 'layout', 'loop', 'minfont', 'model', 'offline', 'posterlabels', 'posterlayout', 'stamp'];
 if (BROWSER_CHECKS.some((k) => want(k))) {
   const { chromium } = await import('./playwright.mjs');
   const browser = await chromium.launch();
@@ -877,6 +926,7 @@ if (BROWSER_CHECKS.some((k) => want(k))) {
     await slideChecks(browser);
     await posterChecks(browser);
     if (want('guided')) await guidedChecks(browser);
+    if (want('stamp')) await stampCheck(browser);
   } finally {
     await browser.close();
   }

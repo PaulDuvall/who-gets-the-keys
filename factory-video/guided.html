@@ -15,15 +15,22 @@
   html.render #caption { width: 2400px; height: 225px; padding: 0 300px; font-size: 46px; line-height: 1.32; }
   html:not(.render) #caption { width: 100vw; min-height: 9vw; padding: 0 6vw; font-size: 1.9vw; line-height: 1.32; }
   #caption span { transition: none; }
+  /* The build's commit, small in the strip's bottom-right corner. verify.mjs checks that no caption touches it. */
+  #caption { position: relative; }
+  #build { position: absolute; color: #8f8778; font-family: 'Liberation Mono', Menlo, monospace; line-height: 1; white-space: nowrap; }
+  html.render #build { right: 24px; bottom: 16px; font-size: 22px; }
+  html:not(.render) #build { right: 1.2vw; bottom: 0.7vw; font-size: 1vw; }
 </style>
 </head>
 <body>
 <svg id="stage" xmlns="http://www.w3.org/2000/svg" viewBox="0 135 2400 1125" width="2400" height="1125"></svg>
-<div id="caption"><span></span></div>
+<div id="caption"><span></span><div id="build"></div></div>
 <script src="scene.js"></script>
 <script src="narration.js"></script>
 <!-- The end card's counts: build.sh writes this file with scripts/progress.ts before it renders (SPEC-001-R229). -->
 <script src="frames/progress.js"></script>
+<!-- The build's commit, for the stamp in the corner: build.sh writes this file before it renders. -->
+<script src="frames/build.js"></script>
 <script>window.__EMBED_LOOP__ = true;</script>
 <script src="loop.js"></script>
 <script>
@@ -206,6 +213,8 @@
   window.GUIDED_TIMING = { lead: LEAD, tail: TAIL };
   window.FRAME_SIZE = { width: 2400, height: 1350 }; // render.js sets this viewport: scene plus captions
   const caption = document.querySelector('#caption span');
+  // The stamp in the corner of every frame: the first 7 characters of the build's commit, from frames/build.js.
+  document.getElementById('build').textContent = window.FACTORY_BUILD ? `Built from ${window.FACTORY_BUILD}` : '';
 
   // The end card (SPEC-001-R229). Labels are found in the frame the loop just drew, so no position is copied
   // from scene.js. A label drawn as one text element matches by its text; one split over lines matches as up
