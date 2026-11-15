@@ -88,7 +88,7 @@ In a scratch worktree outside the checkout at `52a455c`, every move and the `LAN
 
 ## Independent review, 2026-11-15
 
-A subagent got the staged files, SPEC-001-R235 and R236 and the rows they must not break, the owner's request, the two kit workflows on `main` and GitHub's documentation, not these notes' conclusions. It built the landed tree, ran the checks and every test, probed the scripts with crafted artifact lists, read `gh`'s source, and mutated the workflows by hand. It found one high finding, one medium and five low. All are fixed in `PAGES_FIX`, except where the table says otherwise.
+A subagent got the staged files, SPEC-001-R235 and R236 and the rows they must not break, the owner's request, the two kit workflows on `main` and GitHub's documentation, not these notes' conclusions. It built the landed tree, ran the checks and every test, probed the scripts with crafted artifact lists, read `gh`'s source, and mutated the workflows by hand. It found one high finding, one medium and five low. All are fixed in `6c4b35d`, except where the table says otherwise.
 
 | Severity | Finding | Done |
 |---|---|---|
