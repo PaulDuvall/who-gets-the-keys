@@ -25,7 +25,7 @@ One picture for the talk. The pipeline is an assembly line inside a factory. Eac
 
 | Control | Factory picture | In this repository |
 |---|---|---|
-| Spec | Signed drawing, approved before anything is built | `specs/`, changed only by an approver-signed commit. B4 fails the signatures check |
+| Spec | One small drawing per change, signed before that part is built | `specs/`, changed only by an approver-signed commit. SPEC-014-R7, one row for one feature, was signed with its task file in `c7c6b4d`, then built and deployed: tracer slice T4, landed 2026-11-08 (`docs/notes/tracer-2.md`). B4 fails the signatures check |
 | Task file | Kanban card: build exactly what's on it | `tasks/<ID>.task.md` (SPEC-001-R64). B24 fails the task check on an unapproved requirement |
 | Agent | Robot cell: builds the part, never releases it | Claude Code. The runner producer, `producer.yml`, runs it with no allowed network host |
 | Hooks | Error-proofing fixture: blocks mistakes, not intent | `.claude/hooks/hook.mjs`: `no-sign`, `no-session-link`, `no-inner-worktree`, `gitleaks-staged`, `expect-expect` (SPEC-001-R39, R214, R230) |
@@ -50,6 +50,7 @@ One picture for the talk. The pipeline is an assembly line inside a factory. Eac
 
 ## Where the picture is not literal
 
+- A factory approves a product's drawings before the line starts. Here a drawing is one spec row for one change, signed just before that part is built, and amended as customer feedback comes in.
 - The release dock shows the design. Today the owner still approves each `sandbox` deploy that changes a deployable path (SPEC-001-R232). Backlog `who-gets-the-keys-g4e` removes that reviewer, after `who-gets-the-keys-s3p` lands. By working practice, not by the ruleset, the owner also pushes each change to `main`.
 - An unsigned commit that also rewrites the check code can pass, because the checks run from the pushed commit. SPEC-001, "Checks before `main`", accepts that gap until the signer moves out of the agent's reach.
 - Hooks read only command text, so a script the agent writes can pass them (SPEC-001, "Local sessions"). The approver's key is the control.
