@@ -1,6 +1,6 @@
 # 0005. Signatures and triggers
 
-- Status: Proposed
+- Status: Proposed. Superseded in part by the owner decision of 2026-11-16 in decision 0004, "Signed intent, checked delivery": the checks decide the deploy, so the release signature (decision row 2, R120 to R124, and the release scenarios, R136 among them) is no longer planned. Irreversible changes keep the approver signature on the commit (SPEC-001-R18)
 - Date: 2026-11-06; the owner's revision of the design notes and the owner refinement on risk-based approval recorded 2026-11-06
 - Requirements: proposed SPEC-001-R111 to SPEC-001-R143. None is in the signed spec yet. They follow SPEC-001-R110, the highest ID used in `specs/`, `proposals/` and `docs/` (decision 0004). R111 to R119 add approval tiers, co-signs and the ORIGIN and TRIGGER lines. R120 to R124 add release signatures. R125 to R129 add alarm-started runs. R130 to R139 are scenarios B36 to B45, and R140 adds their harness modes. R141 to R143 are release scenarios B46 to B48
 - Builds on: decision 0004 (proposed), whose Phases A to D it extends. Decision 0002 (proposed), whose policy file (Phase 1) and signer repository (Phase 3) it needs. Decision 0003 (proposed), whose signature flags co-signs and release tags must assert

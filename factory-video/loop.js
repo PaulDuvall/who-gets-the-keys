@@ -433,7 +433,7 @@
       { where: 'issue panel', signing: S.tray.human > 0.5 },
       { where: 'factory', signing: false },
       { where: 'rule', signing: false },
-      { where: 'release', signing: false }, // the optional release sign-off: shown, never performed
+      { where: 'irreversible', signing: false }, // the irreversible-change signature: shown, never performed here
     ];
     const badges = [...S.items, ...(iss ? [iss] : [])].flatMap((it) => it.badges.filter(([, a]) => a > 0.01).map(([b]) => b));
     const iconOf = (it) => it.icons.reduce((m, c) => (c[1] > m[1] ? c : m))[0];

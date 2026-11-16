@@ -39,6 +39,9 @@
  * Revision 19 (2026-11-07): the factory is more than the pipeline. A blue dashed frame holds the
  * sandbox's rules, issue triage and the pipeline, under the "FACTORY v1 · two signers" chip.
  * Specs (the intake row), the security account, the release sign-off and Production sit outside.
+ * Revision 24 (2026-11-16): the owner's decision of 2026-11-16 in decision 0004: the checks decide
+ * the deploy, and an engineer signs only specs, the factory and irreversible changes. The dashed
+ * engineer before Production now signs irreversible changes (SPEC-001-R18), not the release.
  * Rows B and C are drawn in "scene space": the slide scales it to fill the frame,
  * the poster draws it 1:1 under its upstream and watchtower rows.
  */
@@ -104,7 +107,7 @@
     belt: { x1: 425, x2: 1750, y: 748, h: 22, tread: 25 },
     item: { size: 70, cy: 710, dropFrom: 662 },
     prod: { x: 1725, y: 440, w: 300, h: 320 },
-    // The optional release sign-off: between Deploy and Production, after the evidence exists.
+    // The irreversible-change signature: between Deploy and Production, checked before the apply.
     reviewGate: { x: 1707, y: [682, 788] },
     promoteX: 1432, // between Honest tests and Pipeline: out of the agent's reach
     tray: { x: 400, y: 940, w: 600, h: 200, slotX: 660, slotY: 1040, slot: 84 },
@@ -552,7 +555,7 @@
   }
 
   // The rule, right-aligned on the intake row (slide only): who signs what, and how many.
-  const RULE = 'One engineer signs a spec, two the factory, one a release by tier.';
+  const RULE = 'An engineer signs specs and irreversible changes; two sign the factory.';
   function ruleLine(cy) {
     const size = 22;
     const x = L.content.x2 - measure(RULE, size, true);
@@ -806,15 +809,15 @@
     return s;
   }
 
-  // An optional release sign-off between Deploy and Production. The pipeline has already signed
-  // the evidence; where the policy tier requires it, an engineer who did not write the spec checks
-  // the change in staging and signs the release, attesting intent and outcome, not code. Dashed
-  // because it is optional, and never shown as having happened.
+  // The irreversible-change signature between Deploy and Production. The checks decide the deploy;
+  // a change that deletes stored data deploys only if an engineer signed it upstream, which the
+  // deploy job checks before the apply (SPEC-001-R18). Dashed because most changes need none, and
+  // never shown as happening, since the signature was made before the change reached the pipeline.
   function reviewGate() {
     const g = L.reviewGate;
     let s = pathEl(`M${g.x} ${g.y[0]}V${g.y[1]}`, { stroke: C.human, sw: 3, dash: '4 6' });
-    s += iconCircle(g.x, 812, 'user', 'optional', { r: 14, human: 'release' });
-    s += text(g.x + 24, 820, 'signs the release, by tier', { size: 21, fill: C.human });
+    s += iconCircle(g.x, 812, 'user', 'optional', { r: 14, human: 'irreversible' });
+    s += text(g.x + 24, 820, 'signs irreversible changes', { size: 21, fill: C.human });
     return s;
   }
 

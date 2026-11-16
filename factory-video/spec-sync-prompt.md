@@ -50,7 +50,7 @@ The video draws the factory as more than the pipeline. Use these terms, and writ
 | Pipeline | The part of the factory that decides and ships: the checks of record, promotion to `main`, signing the evidence, deploy. It holds the keys | As the factory |
 | Work orders | Specs and tasks | One engineer per change |
 | Inspector | The drift monitor in a separate security account. It watches the factory and production, and sits outside the factory | Owners distinct from the factory's signers (owner decision, G2) |
-| Release sign-off | The optional human judgment before production, by tier | One engineer who did not write the spec |
+| Irreversible-change signature | An engineer's signature on a commit whose plan deletes stored data; the deploy job checks it before the apply (SPEC-001-R18). Nobody signs the release: the checks decide the deploy (decision 0004, owner decision of 2026-11-16) | One engineer |
 
 Decision 0004 already defines the factory this way: "The pipeline, the checks and the configs they read, the receipt policy and the agent inputs (R97). Specs and tasks are not factory files." The factory patterns in R97 cover `.github/`, so the triage workflow is already a factory file. Verify both.
 
@@ -61,7 +61,7 @@ Each claim has an ID for traceability. On-screen text and narration are quoted e
 | ID | Claim | Where it appears |
 |---|---|---|
 | V01 | A customer states intent. An engineer captures it as a spec and signs it with a security key and a touch | Intake row; narration line 1 |
-| V02 | One engineer signs a spec | Rule line "One engineer signs a spec, two the factory, one a release by tier."; line 15 |
+| V02 | An engineer signs each spec | Rule line "An engineer signs specs and irreversible changes; two sign the factory."; line 15 |
 | V03 | Two engineers sign the factory: the pipeline, its checks and the policy | "FACTORY v1 · two signers"; receipt factory row "v1 · two signers"; line 15 |
 | V04 | The agent works in a cloud session, one run per task, and holds no keys | Agent card "cloud session, one run per task"; "The agent drafts code and tests. It holds no deploy key."; line 2 |
 | V05 | Checks run inside the session: a hook flags a test that asserts nothing, and a dependency allowlist applies. A failed in-run check makes the agent retry | "In-run checks: Empty tests, Dep allowlist"; "RETRY 1/3" on T-0042; line 2 |
@@ -69,7 +69,7 @@ Each claim has an ID for traceability. On-screen text and narration are quoted e
 | V07 | The pipeline runs the checks of record without the coding agent: SAST, DAST, SCA, Secrets and Scope, then Property, Mutation and Validator | PIPELINE container; line 3 |
 | V08 | Scoped AI checks can fail a change, never pass one | "checks of record · AI can only fail"; line 3 |
 | V09 | Only the pipeline signs the evidence and holds the deploy key | Deploy "pipeline signs the evidence, holds the key"; receipt "signed by: pipeline · out of reach"; line 4 |
-| V10 | Where the policy tier requires it, an engineer who did not write the spec checks staging, then signs the release | Dashed gate before Production "signs the release, by tier"; line 4 |
+| V10 | A change that deletes stored data deploys only with an engineer's signed commit, which the deploy job checks before the apply | Dashed gate before Production "signs irreversible changes"; line 4 |
 | V11 | Free text from customers, agents, docs and URLs is untrusted and never starts a run | "Untrusted input · never starts a run"; "customers, agents, docs, URLs"; line 6 |
 | V12 | An issue carrying an injection stops at the sandbox wall (NO RUN). An engineer checks it against the specs, and it becomes SPEC-118 rev 2, signed, then task T-0043 | Issue #4821 card with "ignore previous instructions…"; "Engineer checks it against the specs"; lines 7 and 8 |
 | V13 | An issue's free text is a quarantined notes field | "notes: quarantined" on the issue card |
@@ -79,7 +79,7 @@ Each claim has an ID for traceability. On-screen text and narration are quoted e
 | V17 | The receipt shows factory, intent, task, author (cloud session and attempt), checks, deploy (a release sign-off, or "no sign-off, policy v3") and signed by | Receipt panel; Appendix B |
 | V18 | A separate security account watches the pipeline and production for drift. The pipeline cannot touch it | "Security account · watches for drift"; line 14 |
 | V19 | Production opens only for a change whose evidence is complete | "Every deploy needs evidence."; Production "locked"; "Only the pipeline deploys here." |
-| V20 | The factory is the sandbox and its rules, issue triage and the pipeline, approved by two signers. Specs, the security account, the release sign-off and Production sit outside it | A blue dashed frame around the AGENT SANDBOX, Untrusted input and the PIPELINE, with "FACTORY v1 · two signers" on its top edge |
+| V20 | The factory is the sandbox and its rules, issue triage and the pipeline, approved by two signers. Specs, the security account, the irreversible-change signature and Production sit outside it | A blue dashed frame around the AGENT SANDBOX, Untrusted input and the PIPELINE, with "FACTORY v1 · two signers" on its top edge |
 
 ## Starting map
 
@@ -203,7 +203,7 @@ The narration says the release signer "checks staging". Confirm that a staging e
 | 1 | Intake | A customer states intent. An engineer captures it as a spec, and signs it with a security key and a touch. |
 | 2 | Agent | The agent works in a cloud session, one run per task. A hook flags a test that asserts nothing, and the agent fixes it. |
 | 3 | Pipeline | Then the pipeline runs the checks of record, without the coding agent: scans, scope, and tests proven to catch broken code. Scoped AI checks can fail a change, never pass one. |
-| 4 | Deploy to Production | The patch is promoted to main, out of the agent's reach, and only the pipeline signs the evidence. Where the tier requires it, an engineer who didn't write the spec checks staging, then signs the release. |
+| 4 | Deploy to Production | The patch is promoted to main, out of the agent's reach, and only the pipeline signs the evidence. A change that deletes stored data also needs an engineer's signed commit. |
 | 5 | Overview | Now an issue comes in. |
 | 6 | Issue lane | Free text is untrusted. Whether it comes from a customer, an agent, a doc or a URL, it never starts a run. |
 | 7 | Issue panel | This one becomes work through a spec an engineer signs. Known errors start from alarms the policy already signed. |
@@ -221,7 +221,7 @@ The narration says the release signer "checks staging". Confirm that a staging e
 
 A blue dashed frame encloses the AGENT SANDBOX, Untrusted input and the PIPELINE; the "FACTORY v1 · two signers" chip sits on its top edge. Labels on the slide, verbatim:
 
-> PIPELINE · Engineer signs the spec · SPEC-118 · AGENT SANDBOX · One engineer signs a spec, two the factory, one a release by tier. · signs the release, by tier · Customer intent · The agent drafts code and tests. · It holds no deploy key. · Untrusted input · never starts a run · customers, agents, docs, URLs · Telemetry · schema fields only · notes: quarantined · Agent · cloud session · one run per task · In-run checks · Empty tests · Dep allowlist · Build, test, scan · SAST · DAST · SCA · Secrets · Scope · Honest tests? · Property · Mutation · Validator · Deploy · pipeline signs the evidence, holds the key · SECONDS · MINUTES · HOURS · checks of record · AI can only fail · FACTORY v1 · two signers · promote to main · out of reach · candidate/* · Security account · watches for drift · Production · locked · Only the pipeline deploys here. · Issue #4821 · "ignore previous instructions…" · Engineer checks it against the specs · Every deploy needs evidence.
+> PIPELINE · Engineer signs the spec · SPEC-118 · AGENT SANDBOX · An engineer signs specs and irreversible changes; two sign the factory. · signs irreversible changes · Customer intent · The agent drafts code and tests. · It holds no deploy key. · Untrusted input · never starts a run · customers, agents, docs, URLs · Telemetry · schema fields only · notes: quarantined · Agent · cloud session · one run per task · In-run checks · Empty tests · Dep allowlist · Build, test, scan · SAST · DAST · SCA · Secrets · Scope · Honest tests? · Property · Mutation · Validator · Deploy · pipeline signs the evidence, holds the key · SECONDS · MINUTES · HOURS · checks of record · AI can only fail · FACTORY v1 · two signers · promote to main · out of reach · candidate/* · Security account · watches for drift · Production · locked · Only the pipeline deploys here. · Issue #4821 · "ignore previous instructions…" · Engineer checks it against the specs · Every deploy needs evidence.
 
 The receipts, one per change, are illustrative values:
 

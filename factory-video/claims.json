@@ -17,11 +17,11 @@
     },
     {
       "id": "C02",
-      "claim": "One engineer signs a spec, two sign the factory, and one signs a release where the tier requires it",
-      "labels": ["One engineer signs a spec, two the factory, one a release by tier.", "FACTORY v1 · two signers"],
+      "claim": "An engineer signs specs and irreversible changes, and two sign the factory",
+      "labels": ["An engineer signs specs and irreversible changes; two sign the factory.", "FACTORY v1 · two signers"],
       "narration": [15],
-      "built": ["SPEC-001-R12"],
-      "planned": ["SPEC-001-R111", "SPEC-001-R112", "SPEC-001-R115", "SPEC-001-R120"]
+      "built": ["SPEC-001-R12", "SPEC-001-R18"],
+      "planned": ["SPEC-001-R111", "SPEC-001-R112", "SPEC-001-R115"]
     },
     {
       "id": "C03",
@@ -107,9 +107,10 @@
     },
     {
       "id": "C15",
-      "claim": "Where the tier requires it, an engineer who did not write the spec checks staging, then signs the release",
-      "labels": ["signs the release, by tier"],
-      "planned": ["SPEC-001-R120", "SPEC-001-R122", "SPEC-001-R136", "SPEC-001-R165"]
+      "claim": "A change that deletes stored data deploys only with an engineer's signed commit, which the deploy job checks before the apply",
+      "labels": ["signs irreversible changes"],
+      "narration": [4],
+      "built": ["SPEC-001-R18", "SPEC-001-R33"]
     },
     {
       "id": "C16",

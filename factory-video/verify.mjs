@@ -49,7 +49,7 @@ const POSTER_VIEW = { x: 0, y: 0, w: 2400, h: 1350 };
 const DOT = '\u00b7';
 const SLIDE_LABELS = [
   'PIPELINE', 'Engineer signs the spec', 'SPEC-118', 'AGENT SANDBOX',
-  'One engineer signs a spec, two the factory, one a release by tier.', 'signs the release, by tier', 'Customer intent',
+  'An engineer signs specs and irreversible changes; two sign the factory.', 'signs irreversible changes', 'Customer intent',
   'The agent drafts code and tests.', 'It holds no deploy key.',
   'Untrusted input', 'never starts a run', 'customers, agents, docs, URLs', 'Telemetry', 'schema fields only', 'notes: quarantined',
   'Agent', 'cloud session one run per task', 'In-run checks', 'Empty tests', 'Dep allowlist',
@@ -88,6 +88,8 @@ const SLIDE_CUT = [
   'read-only, untrusted', `checks of record ${DOT} no agent`,
   // Revision 22: new wording on screen and on the poster (2026-11-15).
   'The agent can write anything.', "It can't ship anything.", 'The agent advises.', 'The pipeline acts.', 'No evidence, no deploy.',
+  // Revision 24: the engineer before Production signs irreversible changes, not the release (2026-11-16).
+  'One engineer signs a spec, two the factory, one a release by tier.', 'signs the release, by tier',
 ];
 
 const POSTER_LABELS = [
@@ -372,7 +374,7 @@ async function slideChecks(browser) {
     const n = Math.round((loop || LOOP) * MP4_FPS);
     const r = await page.evaluate((n) => {
       // The only places a human may appear, and every one of them, in every frame.
-      const HUMAN_AT = ['intake', 'issue panel', 'factory', 'rule', 'release'];
+      const HUMAN_AT = ['intake', 'issue panel', 'factory', 'rule', 'irreversible'];
       const HUMAN_COLOUR = window.Scene.C.human;
       const out = { humanSigningElsewhere: [], humanStray: [], humanMissing: [], prodNotOptional: [], userBadge: [], issueInSandbox: [], issueAtAgent: [], unchecked: [], commitWord: [], humanFix: [], lock: [], empty: [], entries: new Set() };
       for (let i = 0; i < n; i++) {
@@ -409,15 +411,15 @@ async function slideChecks(browser) {
           else seen.add(where);
         }
         if (seen.size !== HUMAN_AT.length || !customer) out.humanMissing.push(t);
-        // The deploy approval is optional: always drawn dashed, never as a decision being made.
-        if (!document.querySelector('[data-human="release"] circle[stroke-dasharray]') || d.humans.some((h) => h.where === 'release' && h.signing)) out.prodNotOptional.push(t);
+        // The irreversible-change signature applies to some changes only: always drawn dashed, never as a decision being made.
+        if (!document.querySelector('[data-human="irreversible"] circle[stroke-dasharray]') || d.humans.some((h) => h.where === 'irreversible' && h.signing)) out.prodNotOptional.push(t);
       }
       out.entries = [...out.entries];
       return out;
     }, n);
     const f2 = (a) => (a.length ? `${a.length} frames from t=${(+a[0]).toFixed(2)}` : '');
     const humanOk = !r.humanSigningElsewhere.length && !r.humanStray.length && !r.humanMissing.length && !r.prodNotOptional.length && !r.userBadge.length;
-    record('Human at every human decision, nowhere else', humanOk, humanOk ? `${n} frames: an engineer shows at all 5 places (intake, issue panel, factory, rule, optional release sign-off) and nowhere else; customer glyphs (intent, untrusted sources) always shown and never blue; signing only at the intake and issue panel; the reviewer always dashed; no human-badged token` : `signing elsewhere: ${f2(r.humanSigningElsewhere)} | stray human icon: ${f2(r.humanStray)} | a decision missing its human: ${f2(r.humanMissing)} | deploy approval not optional: ${f2(r.prodNotOptional)} | user badge: ${f2(r.userBadge)}`);
+    record('Human at every human decision, nowhere else', humanOk, humanOk ? `${n} frames: an engineer shows at all 5 places (intake, issue panel, factory, rule, irreversible-change signature) and nowhere else; customer glyphs (intent, untrusted sources) always shown and never blue; signing only at the intake and issue panel; the reviewer always dashed; no human-badged token` : `signing elsewhere: ${f2(r.humanSigningElsewhere)} | stray human icon: ${f2(r.humanStray)} | a decision missing its human: ${f2(r.humanMissing)} | deploy approval not optional: ${f2(r.prodNotOptional)} | user badge: ${f2(r.userBadge)}`);
     const issueOk = !r.issueInSandbox.length && !r.issueAtAgent.length;
     record('Issue never reaches the Agent', issueOk, issueOk ? `${n} frames: issue #4821 never enters the sandbox or touches the Agent card` : `in sandbox: ${f2(r.issueInSandbox)} | at Agent: ${f2(r.issueAtAgent)}`);
     const prodOk = !r.unchecked.length && r.entries.length === 3;

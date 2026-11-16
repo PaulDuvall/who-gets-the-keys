@@ -15,7 +15,7 @@ window.NARRATION =
   {"cam": "intake", "text": "A customer states intent. An engineer captures it as a spec, and signs it with a security key and a touch.", "seconds": 7.467, "digest": "344c075cb7e9"},
   {"cam": "agent", "text": "The agent works in a cloud session, one run per task. A hook flags a test that asserts nothing, and the agent fixes it.", "seconds": 7.915, "digest": "d6c208236a9e"},
   {"cam": "checks", "text": "Then the pipeline runs the checks of record, without the coding agent: scans, scope, and tests proven to catch broken code. Scoped AI checks can fail a change, never pass one.", "seconds": 12.501, "digest": "3a09544cfed8"},
-  {"cam": "verify", "text": "The patch is promoted to main, out of the agent's reach, and only the pipeline signs the evidence. Where the tier requires it, an engineer who didn't write the spec checks staging, then signs the release.", "seconds": 12.949, "digest": "6237e2f7d294"},
+  {"cam": "verify", "text": "The patch is promoted to main, out of the agent's reach, and only the pipeline signs the evidence. A change that deletes stored data also needs an engineer's signed commit.", "seconds": 11.627, "digest": "cb64f5a493b7"},
   {"cam": "overview", "text": "Now an issue comes in.", "seconds": 1.493, "digest": "1f5be04d6662"},
   {"cam": "issue", "text": "Free text is untrusted. Whether it comes from a customer, an agent, a doc or a URL, it never starts a run.", "seconds": 7.957, "digest": "e3a89d5cb7cc"},
   {"cam": "tray", "text": "This one becomes work through a spec an engineer signs. Known errors start from alarms the policy already signed.", "seconds": 7.232, "digest": "3a46f760c9df"},
