@@ -58,7 +58,7 @@ gh workflow run factory-video.yml --repo PaulDuvall/who-gets-the-keys --ref main
 | `factory-guided-clean.mp4` | 1920×900, the same video with no burned-in captions, and the captions as a soft `mov_text` track: for platforms that draw their own |
 | `factory-guided.srt` | The captions as SubRip cues, a sentence or half-sentence at a time, timed to the voice: to upload alongside the clean video |
 | `claims-report.md` | Every claim the video makes, with its status in this repository at the build commit: built, partly built, planned, open or illustrative |
-| `factory-guided.mp4` | 1920×1080, H.264, yuv420p, 30 fps, AAC voiceover, 124.7 s: one narrated, captioned pass with a camera, for video rather than the deck. Every frame says "Built from" and the build's commit in the caption strip's bottom-right corner; `factory-guided-clean.mp4`, cropped above the strip, has none. See [The guided video](#the-guided-video) |
+| `factory-guided.mp4` | 1920×1080, H.264, yuv420p, 30 fps, AAC voiceover, 123.4 s: one narrated, captioned pass with a camera, for video rather than the deck. Every frame says "Built from" and the build's commit in the caption strip's bottom-right corner; `factory-guided-clean.mp4`, cropped above the strip, has none. See [The guided video](#the-guided-video) |
 | `contact-sheet.png` | Six frames of one loop, at 0, 3, 6, 9, 12 and 15 s, with what each shows |
 | `poster.png`, `poster.pdf` | 3840×2160 static poster and a one-page vector PDF with every font embedded. Its bottom-right corner says "Built from" and the build's commit |
 | `probe/t-*.png` | Local only. Frames at each story beat, written by `verify.mjs` for review |
@@ -135,20 +135,20 @@ Three runs share the conveyor, staggered so it is never empty: T-0042 (the signe
 | 5.5–13.9 s | "A customer states intent. An engineer captures it as a spec, and signs it with a security key and a touch." | Intake, 1.8× |
 | 13.9–22.7 s | "The agent works in a cloud session, one run per task. A hook flags a test that asserts nothing, and the agent fixes it." | Agent, 1.7× |
 | 22.7–36.1 s | "Then the pipeline runs the checks of record, without the coding agent: scans, scope, and tests proven to catch broken code. Scoped AI checks can fail a change, never pass one." | PIPELINE, 1.6× |
-| 36.1–50.0 s | "The patch is promoted to main, out of the agent's reach, and only the pipeline signs the evidence. Where the tier requires it, an engineer who didn't write the spec checks staging, then signs the release." | Deploy to Production, 1.18× |
-| 50.0–52.8 s | "Now an issue comes in." | Overview |
-| 52.8–61.7 s | "Free text is untrusted. Whether it comes from a customer, an agent, a doc or a URL, it never starts a run." | Issue lane, 1.7× |
-| 61.7–69.8 s | "This one becomes work through a spec an engineer signs. Known errors start from alarms the policy already signed." | Issue panel, 2.0× |
-| 69.8–72.9 s | "The signed spec queues as a new task." | Follows the spec, 1.5× |
-| 72.9–76.5 s | "It runs the same checks as every other change." | Overview |
-| 76.5–83.6 s | "Its receipt records that it began as an untrusted issue, and traces it through the spec to the deploy." | Deploy to Production, 1.18× |
-| 83.6–87.2 s | (silent) | Overview |
-| 87.2–96.8 s | "Production telemetry is untrusted too. A quarantined reader fills a fixed schema, and its free text never reaches the agent." | HOURS band, 1.1× |
-| 96.8–101.9 s | "Only an alarm named in the signed policy can start an approved task." | Telemetry and Agent, 1.8× |
-| 101.9–109.1 s | "A separate security account watches the pipeline and production for drift. The pipeline can't touch it." | Security account, 1.8× |
-| 109.1–116.0 s | "One engineer signs each spec, two sign the factory, and the pipeline decides every change." | Overview |
-| 116.0–118.7 s | "Every deploy needs evidence." | Overview |
-| 118.7–124.7 s | (silent) End card: built so far, and what is left | Overview |
+| 36.1–48.6 s | "The patch is promoted to main, out of the agent's reach, and only the pipeline signs the evidence. A change that deletes stored data also needs an engineer's signed commit." | Deploy to Production, 1.18× |
+| 48.6–51.5 s | "Now an issue comes in." | Overview |
+| 51.5–60.4 s | "Free text is untrusted. Whether it comes from a customer, an agent, a doc or a URL, it never starts a run." | Issue lane, 1.7× |
+| 60.4–68.5 s | "This one becomes work through a spec an engineer signs. Known errors start from alarms the policy already signed." | Issue panel, 2.0× |
+| 68.5–71.5 s | "The signed spec queues as a new task." | Follows the spec, 1.5× |
+| 71.5–75.2 s | "It runs the same checks as every other change." | Overview |
+| 75.2–82.3 s | "Its receipt records that it began as an untrusted issue, and traces it through the spec to the deploy." | Deploy to Production, 1.18× |
+| 82.3–85.9 s | (silent) | Overview |
+| 85.9–95.4 s | "Production telemetry is untrusted too. A quarantined reader fills a fixed schema, and its free text never reaches the agent." | HOURS band, 1.1× |
+| 95.4–100.6 s | "Only an alarm named in the signed policy can start an approved task." | Telemetry and Agent, 1.8× |
+| 100.6–107.8 s | "A separate security account watches the pipeline and production for drift. The pipeline can't touch it." | Security account, 1.8× |
+| 107.8–114.7 s | "One engineer signs each spec, two sign the factory, and the pipeline decides every change." | Overview |
+| 114.7–117.4 s | "Every deploy needs evidence." | Overview |
+| 117.4–123.4 s | (silent) End card: built so far, and what is left | Overview |
 
 The narration sets the pace. Each shot lasts at least its line plus 0.4 s before and 0.5 s after, and the loop slows to fit; parts no shot follows still play at 2–4× in overview. Each line is also its shot's caption, in a strip below the picture, so the frame is 1920×1080 and captions never cover the scene. The voice is Kokoro-82M (Apache-licensed weights, "trained exclusively on permissive/non-copyrighted audio data") with `af_heart`, the only grade-A voice in Kokoro's own table, at speed 0.9: about 167 words a minute. Kokoro renders byte-identical audio for the same line on one machine; between CPUs a line's length can differ by a few hundredths of a second. `narration.js` stores each line's length and a key over its text, the voice, the speed and the model. The build fails if a key no longer matches its line, or a length is off by more than 0.1 s. To change a line or the voice (`VOICE` in `narrate.py`), edit it, then run `narrate.py update` with the Kokoro python.
 
@@ -338,6 +338,7 @@ Revision 4, the factory model:
 | 21 | A silent end card: what is built and what is left, from `scripts/progress.ts`; 124.8 s |
 | 22 | New wording on screen, on the poster and in the narration (2026-11-15). The scene and poster no longer quote the deck word for word: "No evidence, no deploy." is "Every deploy needs evidence.", "The agent can write anything. It can't ship anything." is "The agent drafts code and tests. It holds no deploy key.", "The agent advises. The pipeline acts." is "Only the pipeline deploys here.", and the poster's headings, closing lines and takeaways are reworded; 124.7 s |
 | 23 | The build's commit, small and grey, in a corner of every guided frame and of the poster (2026-11-15). The poster's Check and Prove takeaways follow the deck more closely: "Code review after the code exists does not count as a control." and "Let complete evidence authorize each deploy. A deploy with missing evidence stops." The scene and the narration are unchanged |
+| 24 | The engineer before Production signs irreversible changes, not the release (2026-11-16): the gate reads "signs irreversible changes", the rule line "An engineer signs specs and irreversible changes; two sign the factory.", and narration line 4 ends "A change that deletes stored data also needs an engineer's signed commit."; 123.4 s |
 
 ## Poster sources
 
