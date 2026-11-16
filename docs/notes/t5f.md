@@ -87,7 +87,6 @@ A subagent reviewed the diff, `LAND.txt`, the spec rows and the backlog item, wi
 
 ## Not done, and why
 
-- The backlog's third criterion, 20 passes in a row on a GitHub-hosted runner, can only be measured once this is on `main`. A failure in any of the next 20 pipeline runs now names its test.
 - `ssh-keygen` is still missing from the cloud environment, so ten tests in five files fail in a cloud session. That is a change to the claude.ai setup script, an owner setting, and out of this item's scope.
 - The check still prints the last 4,000 characters of Vitest's console output, unescaped, as before. R15's escaping covers the lines this batch adds.
 - The review's second pass found two nits, left as they are. `shown()` does not double a backslash, so the text `\u001b` reads the same as an escaped character: doubling every backslash would make paths and patterns in messages harder to read, and the ambiguity is not a safety problem. The guard accepts a `|| true` anywhere on a line, not only on the pipeline it judges: it is a tripwire behind review, and scoping it would mean parsing shell.
@@ -97,3 +96,31 @@ A subagent reviewed the diff, `LAND.txt`, the spec rows and the backlog item, wi
 Until this lands, `main`'s `doctor.sh` still has the race. If `land.sh` stops at the doctor with "lists no security-key type", nothing has changed: run it again.
 
 `land.sh` replaces itself with `git mv`, a rename, so the copy that is running keeps reading its old file to the end. That was tried on 2026-11-15.
+
+## After landing
+
+The batch landed on 2026-11-16 as `46d402d`, approver-signed. Its candidate run 43860517594 on `candidate/land-t5f` and `main`'s run 43860994026 passed, and the deploy was skipped (SPEC-001-R232).
+
+### A failing test, named in the run
+
+Commit `6b1a8b9` on `candidate/t5f-fail-demo` added one test that fails on purpose. It never lands. Its run, 43862764890, stopped at the test check and printed, on standard error:
+
+```text
+FAIL test/fail-demo.test.ts > SPEC-001-R15 fail demo > SPEC-001-R15 fails on purpose so the run summary names this test (5 ms)
+  | AssertionError: expected 1 to be 2 // Object.is equality
+  |     at test/fail-demo.test.ts:7:15
+```
+
+Standard output held one line, `CHECK test FAILED: test/fail-demo.test.ts`. The log has no `could not append the failing tests to the run summary` line, so the summary was written. GitHub's API does not return a job's summary, so the summary itself was read only on the run's page.
+
+### 20 runs of one commit
+
+`main`'s run 43860994026 was re-run 20 times, attempts 2 to 21, from 12:01 to 13:13 UTC. Each attempt ran the same commit, `46d402d`, on a fresh GitHub-hosted `ubuntu-24.04` runner. GitHub documents that a re-run uses "the same GITHUB_SHA (commit SHA) and GITHUB_REF (git ref) of the original event" and that "a workflow run can be re-run a maximum of 50 times" (https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs, read 2026-11-16).
+
+| Attempts | Checks job | Run | Deploy |
+|---|---|---|---|
+| 2 to 21 | 20 of 20 passed | 20 of 20 `success` | Skipped. The job lists for attempts 2 and 17 to 21 show it skipped, and no attempt waited for an approval |
+
+Each passing run passed every test file, `test/land.test.ts`, `test/land-presign.test.ts` and `test/land-owner.test.ts` among them. Each attempt also signed two attestations for the same zip, 40 in all. The receipt check reads the newest 100 (SPEC-001-R50).
+
+What 20 passes prove, as arithmetic and not a measurement: before the fix, `test/land.test.ts` failed once in 30 GitHub runs (run 274, after 29 passes). At that rate, 20 passes in a row would still happen 51% of the time with the bug in place, and 89 would be needed for 95% confidence. At the loaded cloud rate, one in seven, 20 passes would happen 5% of the time. So the causal evidence is the doctor test that failed 10 times in 10 on the old code and passes on the new. The 20 runs show that nothing else in the land tests fails often on GitHub's runners.
