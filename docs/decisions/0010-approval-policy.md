@@ -28,7 +28,7 @@ This is what the repository recommends to anyone building a delivery pipeline fo
 | Tier | People | Changes |
 |---|---|---|
 | Two | 2 | Policy and the line: who approves, what is protected or excepted, the tier map itself, the check code, a workflow's permissions. Irreversible changes. Anything the tier map does not classify |
-| One | 1 | Specs. Ordinary product changes. Sensitive areas, such as an updater or a system prompt |
+| One | 1 | Specs. Ordinary product changes. Sensitive areas, such as an updater or a system prompt. A release to production: a named person authorizes it (owner decision, below) |
 | None | 0 | Docs, copy and additive changes behind a flag, once the checks and automated review pass. Proven tightenings (0004) |
 
 Four rules go with the tiers:
@@ -111,5 +111,6 @@ The owner answered the draft's four open questions, each with its recommended op
 | How many approvals in a row, with no rejection, before a class drops a tier? | 60 (section 4) |
 | How does a class move up a tier after an escaped defect? | The agent proposes a signed tier change, and the owner signs it. No automatic circuit breaker (section 4) |
 | Does `docs/factory-log.md` start now? | Yes, kept by hand from the `land.sh` summaries (section 4) |
+| Does the recommendation keep a release gate before production? | Yes, as a starting tier, as Anthropic's "The AI-native SDLC playbook" (https://claude.com/resources/articles/the-ai-native-sdlc-playbook, published 2026-08-21) keeps a named release authorization before production. The gate drops under section 4 once the factory log shows 60 releases in a row with no rejection. This repository has no production stage (backlog p5d), and its `sandbox` deploy needs no release signer (decision 0004, "Signed intent, checked delivery"). Answered later on 2026-11-16 |
 
 Once the batch `proposals/approval-policy/` lands, `CLAUDE.md` points each session to this record, so a session follows it without asking again.
