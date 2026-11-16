@@ -29,7 +29,7 @@ a{color:#1D4B87}a:hover{color:#123360}
 <div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 18px; border-radius: 4px; background: #F6E6A0; border: 1.5px solid #6E5200; box-sizing: border-box; flex: none"></span><span style="font-size: 15px; color: #1C1F23"><strong>Plant security</strong> the walls</span></div>
 <div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 18px; border-radius: 4px; background: #D3E2F6; border: 1.5px solid #1D4B87; box-sizing: border-box; flex: none"></span><span style="font-size: 15px; color: #1C1F23"><strong>Sign-off</strong> a person signs</span></div>
 <div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 18px; border-radius: 4px; background: #FBFAF6; border: 1.5px dashed #6B7077; box-sizing: border-box; flex: none"></span><span style="font-size: 15px; color: #1C1F23"><strong>Audit</strong> not a gate</span></div>
-<div style="display: flex; align-items: center; gap: 8px"><span style="width: 26px; height: 14px; background: #B3261E; box-sizing: border-box; flex: none; clip-path: polygon(30% 0, 100% 0, 100% 100%, 30% 100%, 0 50%)"></span><span style="font-size: 15px; color: #1C1F23"><strong>Red tag</strong> what a station catches</span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 26px; height: 14px; background: #B3261E; box-sizing: border-box; flex: none; clip-path: polygon(30% 0, 100% 0, 100% 100%, 30% 100%, 0 50%)"></span><span style="font-size: 15px; color: #1C1F23"><strong>Reject tag</strong> what a station catches</span></div>
 </div>
 </div>
 
@@ -157,23 +157,30 @@ a{color:#1D4B87}a:hover{color:#123360}
 <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #A3440E">Station 3</span>
 </div>
 <svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="flex: 1; min-height: 0; width: 100%; margin: 4px 0 6px; fill: none; stroke: #A3440E; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round">
-<rect x="8" y="8" width="128" height="86" rx="2" style="fill: #FFFFFF"></rect>
-<path d="M8 30h128M8 52h128M8 74h128M40 8v86M72 8v86M104 8v86" style="stroke-width: 0.8; stroke-opacity: 0.35"></path>
-<path d="M18 18h52v44H18zM44 18v20M18 46h14" style="stroke-width: 2"></path>
-<path d="M18 74h40M18 82h28" style="stroke-width: 1.2; stroke-opacity: 0.6"></path>
-<circle cx="112" cy="52" r="30" style="fill: #FFFFFF; stroke-width: 3"></circle>
-<path d="M92 40h40M92 66h30" style="stroke-width: 1.2; stroke-opacity: 0.5"></path>
-<text x="112" y="56" style="fill: #B3261E; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 8px; font-weight: 500; text-anchor: middle">exec(file)</text>
-<path d="M90 59.5q3 2 6 0t6 0 6 0 6 0 6 0 6 0 6 0" style="stroke: #B3261E; stroke-width: 1.2"></path>
-<path d="M133 73l20 20" style="stroke-width: 7"></path>
-<path d="M152 18L134 31" style="stroke: #7A1A14; stroke-width: 1.2"></path>
+<rect x="6" y="86" width="108" height="7" rx="1" style="fill: #FFFFFF; stroke-width: 1.5"></rect>
+<path d="M14 40l6-5h66l-6 5zM80 40l6-5v16l-6 5zM38 56l6-5v30l-6 5z" style="fill: #F2BC95; stroke-width: 1.5"></path>
+<path d="M14 40h66v16H38v30H14z" style="fill: #FFFFFF; stroke-width: 2.5"></path>
+<circle cx="26" cy="74" r="3.5"></circle>
+<circle cx="66" cy="48" r="3.5"></circle>
+<clipPath id="sast-lens"><circle cx="102" cy="46" r="28"></circle></clipPath>
+<circle cx="102" cy="46" r="29" style="fill: #FFFFFF; stroke: none"></circle>
+<g clip-path="url(#sast-lens)">
+<path d="M64 26l10-8h56l-10 8zM120 26l10-8v34l-10 8z" style="fill: #F2BC95; stroke-width: 1.5"></path>
+<path d="M64 26h56v34H64z" style="fill: #FBE7D6; stroke-width: 2"></path>
+<circle cx="91" cy="40" r="6.5" style="fill: #FFFFFF; stroke-width: 2"></circle>
+<path d="M97.5 39l3-2 3 2 3-4 3 1 3-3 3 1 3-3" style="stroke: #B3261E; stroke-width: 1.8"></path>
+<text x="98" y="56" style="fill: #B3261E; stroke: none; font-family: 'IBM Plex Mono', monospace; font-size: 7px; font-weight: 500; text-anchor: middle">exec(file)</text>
+</g>
+<circle cx="102" cy="46" r="29" style="stroke-width: 3"></circle>
+<path d="M123 67l20 20" style="stroke-width: 7"></path>
+<path d="M152 18L127 32" style="stroke: #7A1A14; stroke-width: 1.2"></path>
 <path d="M152 18l8-8h32v16h-32z" style="fill: #B3261E; stroke: #7A1A14; stroke-width: 1"></path>
 <circle cx="159" cy="18" r="1.8" style="fill: #FFFFFF; stroke: none"></circle>
 <text x="177" y="21" style="fill: #FFFFFF; stroke: none; font-family: 'Barlow Condensed', sans-serif; font-size: 8px; font-weight: 700; text-anchor: middle; letter-spacing: 0.5px">FAILED</text>
 </svg>
 <div>
 <div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">SAST</div>
-<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Drawing checked for known failure modes</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Each part checked for known failure modes, before it runs</div>
 </div>
 </div>
 
@@ -672,7 +679,7 @@ a{color:#1D4B87}a:hover{color:#123360}
 </svg>
 <div>
 <div style="font-family: Barlow, sans-serif; font-weight: 700; font-size: 19px; line-height: 1.15; color: #1C1F23">Receipt</div>
-<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Checked at shipping and again at the dock</div>
+<div style="font-family: Barlow, sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.25; color: #33383E; margin-top: 2px">Checked as it leaves the line, and again at receiving</div>
 </div>
 </div>
 

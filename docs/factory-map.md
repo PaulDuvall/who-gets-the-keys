@@ -1,6 +1,6 @@
 # The line runs through the factory
 
-One picture for the talk. The pipeline is an assembly line inside a factory. Each control is drawn as the factory part an audience already knows, and tagged with the scenario or requirement that shows it in this repository.
+One picture for the talk. The pipeline is an assembly line inside a factory. Each control is drawn as the factory part an audience already knows.
 
 ![The pipeline drawn as an assembly line through a factory: engineering upstream, eight stations on the line, traceability and release downstream, plant security around it](factory-map.png)
 
@@ -9,7 +9,7 @@ One picture for the talk. The pipeline is an assembly line inside a factory. Eac
 - Left to right is the way a change travels: from engineering, through the agent's robot cell and eight stations, to shipping and the release dock.
 - A person signs every drawing, not every part. Every change to a spec, or to the line itself, needs the approver's key (SPEC-001-R12). Other changes pass on the checks alone.
 - Station numbers follow the repository's check order: the ordered checks of SPEC-001-R1, then the scope check of SPEC-001-R68.
-- A red tag marks what a station catches. It stands for the failure line `CHECK <name> FAILED: <identifier>`.
+- A reject tag marks what a station catches. It stands for the failure line `CHECK <name> FAILED: <identifier>`.
 - The table below names each control's proof in this repository. A `B` ID is one of the deliberately bad changes in [`scenarios/scenarios.yaml`](../scenarios/scenarios.yaml), each with the exact failure line the pipeline must print. An `R` ID is a requirement row in SPEC-001, or SPEC-014 where it says so.
 
 | Color | Family | Meaning |
@@ -31,7 +31,7 @@ One picture for the talk. The pipeline is an assembly line inside a factory. Eac
 | Hooks | Error-proofing fixture: blocks mistakes, not intent | `.claude/hooks/hook.mjs`: `no-sign` (SPEC-001-R39), `no-session-link` (R214), `no-inner-worktree` (R230), `gitleaks-staged`, `expect-expect` |
 | Secrets scanning, station 1 | Master key left inside the product | gitleaks, `check:secrets`. B5, a hard-coded secret |
 | Allowlist, station 2 | Approved-supplier list | `allowed-deps.txt`, `check:allowlist`. B6, an invented package name, adds `csv-export-turbo` |
-| SAST, station 3 | Drawing checked for known failure modes | Semgrep `p/default`, `check:sast`. B12, command injection in your code, passes a request-supplied filename to `child_process.exec` |
+| SAST, station 3 | Each part checked for known failure modes, before it runs | Semgrep `p/default`, `check:sast`. B12, command injection in your code, passes a request-supplied filename to `child_process.exec` |
 | SCA, station 4 | Incoming lots checked against recalls | OSV-Scanner, `check:sca`. B13, command injection in imported code, adds `lodash@4.17.20`, advisory GHSA-r5fr-rjxr-66jc |
 | Trace, station 5 | Every part links to its drawing and its test | `check:trace`. B3, a code change with no spec ID; B15, a requirement with no test; B16, a capability with no requirement |
 | Property testing, station 6 | Tested across the full tolerance range | `test/export.property.test.ts`, run by `check:test`, for SPEC-014-R1, every row out in order, and R2, quoting |
@@ -39,7 +39,7 @@ One picture for the talk. The pipeline is an assembly line inside a factory. Eac
 | Scope, station 8 | A part not on the kanban comes off the line | The scope check (SPEC-001-R67). B23, a change outside the task's scope, edits a file the task does not produce |
 | Provenance | Build record: which line built it, and from what | SLSA build provenance, and the SPEC-001-R45 predicate: the commit, its spec IDs and its `Agent:` trailer. The model is always `not recorded` |
 | Attestation | Certificate of conformance, checked at receiving | The attest job signs (SPEC-001-R48). Deploy verifies before any AWS call (SPEC-001-R17). B10, an unattested artifact reaching deploy |
-| Receipt | Checked at shipping and again at the dock | The receipt job verifies the attestations and prints seven lines (SPEC-001-R50, R55); the deploy job verifies them again (R56) |
+| Receipt | Checked as it leaves the line, and again at receiving | The receipt job verifies the attestations and prints seven lines (SPEC-001-R50, R55); the deploy job verifies them again (R56) |
 | Release dock | The end of the belt: release on evidence | The deploy job, after the receipt check passes again (SPEC-001-R56). Today a person also approves it: see below |
 | Approver signature | Your own lockout padlock: only your key opens it | A FIDO2 key in `approvers.txt`, with a touch. The signatures check (SPEC-001-R12). B17, a tampered source of record; B18, an agent loosening the pipeline without a signature |
 | Irreversible change | Scrapping master tooling needs sign-off | The deploy plan check (SPEC-001-R18). B14, an irreversible change without approval, replaces `aws_dynamodb_table.export_jobs` |
