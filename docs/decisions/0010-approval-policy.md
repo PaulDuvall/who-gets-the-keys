@@ -3,7 +3,8 @@
 - Status: Proposed. Drafted on 2026-11-16 from the owner's statements that day. The owner settled its four questions the same day ("Owner decisions of 2026-11-16")
 - Date: 2026-11-16
 - Requirements: none new. Section 2 restates what SPEC-001-R12, R18, R41 and R232 enforce today. Decisions 0004 and 0005, both proposed, draft the requirements that would enforce section 1 here
-- Builds on: decision 0004, "What a human does" and "Deploy tiers"; decision 0005, "Approval tiers"; backlog items `who-gets-the-keys-g4e`, `who-gets-the-keys-s3p` and `who-gets-the-keys-b7e`
+- Builds on: decision 0004, "Signed intent, checked delivery" (owner decision, 2026-11-16), "What a human does" and "Deploy tiers"; decision 0005, "Approval tiers"; backlog items `who-gets-the-keys-s3p`, `who-gets-the-keys-x2r`, `who-gets-the-keys-g4e` and `who-gets-the-keys-b7e`
+- Adds to decision 0004: the recommendation for other repositories, and the evidence that loosens or tightens an approval. Section 2 summarizes 0004's rule for this repository, and 0004 governs where the two differ
 - Sources: the owner, in a session on 2026-11-16. Anthropic, [How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/), by Addy Osmani, Morgan Westlee Lunt and Qing Wang, published 2026-10-15, read 2026-11-16
 
 ## Context
@@ -41,6 +42,8 @@ Decision 0005 drafts this split for this repository: a co-sign for tier two, and
 
 ### 2. This repository: fewer approvals, on purpose
 
+Decision 0004's section "Signed intent, checked delivery" sets this rule. This section summarizes it, with what is enforced today.
+
 | What changes | Approval | Enforced by |
 |---|---|---|
 | What a spec says: a requirement row, or the slide snapshot | Approver signature | The signatures check, for every path under `specs/` (SPEC-001-R12) |
@@ -48,7 +51,7 @@ Decision 0005 drafts this split for this repository: a co-sign for tier two, and
 | A backlog entry, or work, that changes no spec | None | Nothing to enforce. `5eb2946` and `ecd877f` landed unsigned |
 | The line that enforces the specs: the 33 entries of `specs/protected-paths.txt`, among them `.github/`, `scripts/checks.ts`, the lockfiles, `tasks/`, `.claude/`, `CLAUDE.md`, `infra/` and `scripts/bootstrap/` | Approver signature | The signatures check (SPEC-001-R12) |
 | An irreversible change: a plan that deletes or replaces a DynamoDB table, S3 bucket, RDS instance or KMS key | Approver signature on the commit | The deploy job's plan check (SPEC-001-R18) |
-| Everything else: `src/`, `test/`, `docs/` | None. The checks decide | The ordered checks and the `protect main` ruleset (SPEC-001-R1, R41) |
+| Everything else | None. The checks decide. Once `who-gets-the-keys-x2r` lands, a commit that touches anything but `docs/`, `proposals/` and `.tasks/` must also align with a signed task | Today, the ordered checks and the `protect main` ruleset (SPEC-001-R1, R41). After x2r, also the task and scope checks (SPEC-001-R64 to R67, R66 amended) |
 
 The line is in this list because it impacts the specs. An unsigned edit to `scripts/checks.ts` could turn off the trace check, and then a spec stops binding the code. The owner's first statement named specs and irreversible changes. The owner confirmed on 2026-11-16 that the line belongs too, as decision 0004 already has it ("Approve the factory").
 
@@ -62,10 +65,10 @@ This repository differs from section 1 in three ways:
 
 | Approval | Why it is still there | What removes it |
 |---|---|---|
-| The `sandbox` reviewer, on every push to `main` that changes a deployable path (SPEC-001-R232) | A commit can rewrite the checks that judge it. The reviewer is the only human step between that gap and AWS. The owner chose on 2026-11-13 to close the gap first | `who-gets-the-keys-g4e`, after `who-gets-the-keys-s3p` |
+| The `sandbox` reviewer, on every push to `main` that changes a deployable path (SPEC-001-R232) | A commit can rewrite the checks that judge it. The reviewer is the only human step between that gap and AWS | `who-gets-the-keys-g4e`. The owner set the order on 2026-11-16: s3p, then x2r, then g4e (decision 0004) |
 | The owner pushes every commit to `main` | Working practice. The ruleset requires only a passing `checks` status (SPEC-001-R41) | Decision 0004 Phase B's promote App, the only identity that may move `main` |
 
-The reviewer is also weaker than it looks. GitHub lets administrators bypass an environment's reviewers by default, and `scripts/bootstrap/github.sh` does not turn that off (`who-gets-the-keys-b7e`).
+The reviewer is also weaker than it looks. GitHub lets administrators bypass an environment's reviewers by default, and `scripts/bootstrap/github.sh` does not turn that off. Backlog `who-gets-the-keys-b7e` records this, and since 2026-11-16 it covers only reporting changes to the `protect main` ruleset, because g4e removes the reviewer.
 
 ### 4. Loosen and tighten on evidence
 
