@@ -1,0 +1,19 @@
+# Backlog q7m: issue triage returns a label or stops before the model. On 2026-11-07 ten runs stopped at --max-turns 5
+# with no label, at up to USD 0.66 each, and failed on fromJSON('') in the job outputs. The prompt now carries the
+# issue's title and body as marked untrusted data; --tools= and --disallowedTools "mcp__*" leave only the tool that
+# returns the label; --max-turns 3; a check step prints the model cost and a label or "CHECK triage FAILED: no label"
+# (SPEC-001-R237). Runs queue one at a time, and a budget job with actions: read lets at most 5 a UTC day start the
+# model (SPEC-001-R238). The triage job's permissions and env are unchanged, so replay-parity with B9 holds.
+# Nothing deployable changes (SPEC-001-R232). After landing: gh workflow enable issue-triage.yml, then open one test
+# issue. Notes: docs/notes/q7m.md.
+message: spec: issue triage returns a label or stops before the model, at most 5 runs a day (backlog q7m)
+spec: SPEC-001-R237
+spec: SPEC-001-R238
+requires: .tasks/backlog.jsonl who-gets-the-keys-q7m
+move: SPEC-001-delivery-pipeline.md specs/SPEC-001-delivery-pipeline.md
+move: github-workflows/issue-triage.yml .github/workflows/issue-triage.yml
+move: test/issue-triage.test.ts test/issue-triage.test.ts
+move: traceability.md traceability.md
+move: docs/slide-reconciliation.md docs/slide-reconciliation.md
+move: docs/progress.json docs/progress.json
+move: docs/progress.svg docs/progress.svg
