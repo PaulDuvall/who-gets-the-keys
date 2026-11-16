@@ -3,8 +3,9 @@
 # again: the recommendation (start strict, loosen with evidence) first, then this repository's approvals (specs/,
 # the protected paths and irreversible changes), and a row in docs/factory-log.md for each approval, rejection and
 # escaped defect. The file map names docs/factory-log.md. Only CLAUDE.md moves. Nothing deployable changes, so
-# main's sandbox deploy is skipped (SPEC-001-R232). Batch notes: docs/notes/approval-policy.md.
-message: docs: CLAUDE.md asks with AskUserQuestion and follows decision 0010's approvals (owner, 2026-11-16)
+# main's run skips the deploy while the last sandbox deploy succeeded (SPEC-001-R232). Notes:
+# docs/notes/approval-policy.md.
+message: docs: CLAUDE.md asks with AskUserQuestion and follows decisions 0004 and 0010 on approvals (2026-11-16)
 spec: SPEC-001-R12
 requires: docs/decisions/0010-approval-policy.md # 0010. Recommend starting strict
 requires: docs/factory-log.md # Factory log
