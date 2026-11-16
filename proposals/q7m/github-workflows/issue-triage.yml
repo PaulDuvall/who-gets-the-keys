@@ -4,8 +4,8 @@
 # account ID (SPEC-001-R86). The issue's title and body reach the model in the prompt, marked as untrusted data, and
 # the run prints its model cost and either a label or one failure line (SPEC-001-R237). Its only output is one label
 # from a fixed schema; a second job with no agent checks the label against the fixed set and applies it. Runs go one
-# at a time, and a budget job lets at most five a day start the model (SPEC-001-R238). Backlog who-gets-the-keys-q7m:
-# on 2026-11-07 ten runs each stopped at the turn limit with no label, at up to USD 0.66 a run.
+# at a time, and a budget job lets at most five triage jobs a UTC day start the model (SPEC-001-R238). Backlog
+# who-gets-the-keys-q7m: on 2026-11-07 ten runs applied no label, at up to USD 0.99 a run.
 name: issue-triage
 
 on:
@@ -15,7 +15,7 @@ on:
 permissions: {}
 cache-mode: none
 
-# One run at a time, oldest first, so each budget job counts every earlier run of the day. Up to 100 runs wait.
+# One run at a time, so each budget job sees every earlier run's triage job. Up to 100 runs wait (queue: max).
 concurrency:
   group: issue-triage
   cancel-in-progress: false
@@ -34,28 +34,28 @@ jobs:
       allowed: ${{ steps.count.outputs.allowed }}
     steps:
       - id: count
-        name: Count today's runs that started the model (SPEC-001-R238)
+        name: Count today's triage jobs that started the model (SPEC-001-R238)
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
+          TRIAGE_JOB: triage the issue
           DAILY_CAP: "5"
         run: |
           set -euo pipefail
-          today="$(date -u +%Y-%m-%d)"
+          midnight="$(date -u +%Y-%m-%d)T00:00:00Z"
           runs="$(gh api "repos/${REPO}/actions/workflows/issue-triage.yml/runs?per_page=100" \
-            --jq ".workflow_runs[] | select(.created_at >= \"${today}T00:00:00Z\") | .id")"
-          seen=0
+            --jq ".workflow_runs[] | select(.updated_at >= \"${midnight}\") | .id")"
+          listed=0
           started=0
           for id in $runs; do
-            seen=$((seen + 1))
-            [ "$id" = "$RUN_ID" ] && continue
+            listed=$((listed + 1))
             n="$(gh api "repos/${REPO}/actions/runs/${id}/jobs?filter=all&per_page=100" \
-              --jq '[.jobs[] | select(.name == "triage the issue" and .conclusion != "skipped")] | length')"
+              --jq "[.jobs[] | select(.name == \"${TRIAGE_JOB}\" and .conclusion != \"skipped\"
+                and (.started_at // \"\") >= \"${midnight}\")] | length")"
             started=$((started + n))
           done
-          echo "Model runs today before this one: ${started} of ${DAILY_CAP}"
-          if [ "$started" -ge "$DAILY_CAP" ] || [ "$seen" -ge 100 ]; then
+          echo "Model runs started today: ${started} of ${DAILY_CAP}"
+          if [ "$started" -ge "$DAILY_CAP" ] || [ "$listed" -ge 100 ]; then
             echo "TRIAGE SKIPPED: daily model budget of ${DAILY_CAP} reached"
             echo "allowed=false" >> "$GITHUB_OUTPUT"
           else
@@ -98,9 +98,11 @@ jobs:
           aws-region: us-east-1
           mask-aws-account-id: true
       # --tools= (one token: the action drops an empty value after a separate flag) leaves only the tool that returns
-      # the label, and --disallowedTools removes the MCP servers the action adds, so one turn can answer (SPEC-001-R237).
+      # the label, and --disallowedTools removes any MCP tool, so one turn can answer. The step stops at 10 minutes, so
+      # the check step still runs and prints the cost when the model is slow (SPEC-001-R237).
       - id: classify
         uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
+        timeout-minutes: 10
         with:
           github_token: ${{ github.token }}
           use_bedrock: "true"
