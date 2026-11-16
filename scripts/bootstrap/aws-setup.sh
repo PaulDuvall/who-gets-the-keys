@@ -181,7 +181,7 @@ last_error() { tail -n 1 "$work/err" 2>/dev/null | shown; }
 # ---------- Checks. Nothing below changes AWS or GitHub until the confirm. ----------
 
 say "Checking inputs."
-printf '%s\n' "$sandbox_id" | grep -Eq '^[0-9]{12}$' || refuse "SANDBOX_ACCOUNT_ID must be the sandbox account's 12-digit ID."
+grep -Eq '^[0-9]{12}$' <<<"$sandbox_id" || refuse "SANDBOX_ACCOUNT_ID must be the sandbox account's 12-digit ID."
 case "$email" in
   *[[:space:]]*|*@*@*|@*|*@|*@.*|*.) refuse "ALERT_EMAIL ${email} is not an email address." ;;
   *@*.*) ;;
@@ -571,15 +571,16 @@ read_code() {
   printf '%s ' "$1"
   IFS= read -r code || code=""
   [ -t 0 ] || printf '\n'
-  printf '%s\n' "$code" | grep -Eq '^[0-9]{6}$'
+  grep -Eq '^[0-9]{6}$' <<<"$code"
 }
 
 # add_totp: makes the user's virtual MFA device, has you add its secret to your YubiKey, and enables it with two codes.
 add_totp() {
-  local attempt code="" first=""
+  local attempt code="" first="" unassigned
   # A device that an earlier run made but never enabled is deleted first, so its name can be used again.
-  if bg_read aws iam list-virtual-mfa-devices --assignment-status Unassigned --query 'VirtualMFADevices[].SerialNumber' |
-    grep -qxF -- "$serial"; then
+  unassigned="$(bg_read aws iam list-virtual-mfa-devices --assignment-status Unassigned \
+    --query 'VirtualMFADevices[].SerialNumber' || true)"
+  if grep -qxF -- "$serial" <<<"$unassigned"; then
     sandbox aws iam delete-virtual-mfa-device --serial-number "$serial" 2>"$work/err" ||
       { bg_status="Cannot delete the unused TOTP device ${serial}: $(last_error)"; return 1; }
   fi
@@ -654,8 +655,8 @@ add_key() {
 say "" "Step 5 of 7: break-glass user: its TOTP device and access key, and profiles ${bg_profile} and ${bg_user_profile}."
 bg_user="$(sandbox terraform -chdir=infra/sandbox output -raw break_glass_user_name </dev/null 2>/dev/null || true)"
 bg_role="$(sandbox terraform -chdir=infra/sandbox output -raw break_glass_role_arn </dev/null 2>/dev/null || true)"
-printf '%s\n' "$bg_user" | grep -Eq '^who-gets-the-keys-[a-z-]+$' || bg_user=""
-printf '%s\n' "$bg_role" | grep -Eq "^arn:aws:iam::${sandbox_id}:role/who-gets-the-keys/who-gets-the-keys-[a-z-]+\$" || bg_role=""
+grep -Eq '^who-gets-the-keys-[a-z-]+$' <<<"$bg_user" || bg_user=""
+grep -Eq "^arn:aws:iam::${sandbox_id}:role/who-gets-the-keys/who-gets-the-keys-[a-z-]+\$" <<<"$bg_role" || bg_role=""
 if [ -z "$bg_user" ] || [ -z "$bg_role" ]; then
   bg_status="infra/sandbox has no break-glass user yet, because its plan was not applied."
   say "${bg_status} Skipped."
@@ -669,9 +670,9 @@ else
   if [ -z "$bg_status" ]; then
     # The key this computer holds must be one the user has; a new computer or a lost credentials file needs a new key.
     held="$(aws configure get aws_access_key_id --profile "$bg_user_profile" 2>/dev/null || true)"
-    if [ -n "$keys" ] && ! printf '%s\n' "$keys" | grep -qxF -- "$held"; then
+    if [ -n "$keys" ] && ! grep -qxF -- "$held" <<<"$keys"; then
       if [ -n "$attached" ]; then
-        bg_status="Profile ${bg_user_profile} does not hold ${bg_user}'s access key $(printf '%s' "$keys" | head -n 1). Lift the SCP and run this again to replace it."
+        bg_status="Profile ${bg_user_profile} does not hold ${bg_user}'s access key $(head -n 1 <<<"$keys"). Lift the SCP and run this again to replace it."
       elif [ "$(printf '%s\n' "$keys" | wc -l | tr -d ' ')" = 1 ] &&
         ask "Profile ${bg_user_profile} does not hold ${bg_user}'s access key ${keys}. Delete that key and make a new one?"; then
         if sandbox aws iam delete-access-key --user-name "$bg_user" --access-key-id "$keys" 2>"$work/err"; then
@@ -691,7 +692,7 @@ else
   if [ -z "$bg_status" ] && [ -z "$devices" ]; then
     add_totp && devices="$serial" || true
   elif [ -z "$bg_status" ]; then
-    say "${bg_user} already has TOTP device $(printf '%s' "$devices" | head -n 1). Skipped."
+    say "${bg_user} already has TOTP device $(head -n 1 <<<"$devices"). Skipped."
   fi
   if [ -z "$bg_status" ] && [ -z "$keys" ]; then
     add_key || true
@@ -700,7 +701,7 @@ else
   fi
   if [ -z "$bg_status" ]; then
     # The device named by this script, or the first one listed, is the one the profile asks a code for.
-    printf '%s\n' "$devices" | grep -qxF -- "$serial" || serial="$(printf '%s\n' "$devices" | head -n 1)"
+    grep -qxF -- "$serial" <<<"$devices" || serial="$(head -n 1 <<<"$devices")"
     # A failed write must not stop the run before infra/org attaches the SCP (SPEC-001-R217).
     if aws configure set region "$region" --profile "$bg_user_profile" &&
       aws configure set role_arn "$bg_role" --profile "$bg_profile" &&

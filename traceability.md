@@ -29,7 +29,7 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R12 | `test/checks.test.ts`, `test/signatures.test.ts` | signatures | — |
 | SPEC-001-R13 | `test/checks.test.ts` | slides | — |
 | SPEC-001-R14 | `test/checks.test.ts` | ratchet | — |
-| SPEC-001-R15 | `test/checks.test.ts` | test | — |
+| SPEC-001-R15 | `test/checks.test.ts`, `test/test-check.test.ts` | test | — |
 | SPEC-001-R16 | `test/checks.test.ts` | mutation | — |
 | SPEC-001-R17 | `test/checks.test.ts` | attestation | — |
 | SPEC-001-R18 | `test/checks.test.ts` | irreversible | — |
@@ -42,7 +42,7 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R25 | `test/scenarios.test.ts` | ratchet | B7 |
 | SPEC-001-R26 | `test/scenarios.test.ts` | workflows | B8a |
 | SPEC-001-R27 | `test/scenarios.test.ts` | workflows | B8b |
-| SPEC-001-R28 | `test/scenarios.test.ts` | boundary | B9 |
+| SPEC-001-R28 | `test/scenarios.test.ts`, `test/pipe-early-exit.test.ts` | boundary | B9 |
 | SPEC-001-R29 | `test/scenarios.test.ts` | attestation | B10 |
 | SPEC-001-R30 | `test/scenarios.test.ts` | boundary | B11 |
 | SPEC-001-R31 | `test/scenarios.test.ts` | sast | B12 |
@@ -83,12 +83,12 @@ Requirement IDs refer to `specs/`. Each listed test file holds a test whose titl
 | SPEC-001-R210 | `test/land-delivery.test.ts` | test | — |
 | SPEC-001-R211 | `test/cloud-session-setup.test.ts` | test | — |
 | SPEC-001-R212 | `test/producer-script.test.ts` | test | — |
-| SPEC-001-R213 | `test/land-presign.test.ts`, `test/land.test.ts` | test | — |
+| SPEC-001-R213 | `test/land-presign.test.ts`, `test/land.test.ts`, `test/pipe-early-exit.test.ts` | test | — |
 | SPEC-001-R214 | `test/hook.test.ts` | test | — |
 | SPEC-001-R215 | `test/checks.test.ts` | workflows | — |
 | SPEC-001-R216 | `test/scenarios.test.ts` | signatures | B81 |
 | SPEC-001-R217 | `test/break-glass.test.ts`, `test/aws-setup.test.ts` | test | — |
-| SPEC-001-R218 | `test/doctor.test.ts` | test | — |
+| SPEC-001-R218 | `test/doctor.test.ts`, `test/pipe-early-exit.test.ts` | test | — |
 | SPEC-001-R219 | `test/land-owner.test.ts`, `test/land-presign.test.ts` | test | — |
 | SPEC-001-R220 | `test/land-owner.test.ts`, `test/land.test.ts` | test | — |
 | SPEC-001-R221 | `test/land-owner.test.ts` | test | — |

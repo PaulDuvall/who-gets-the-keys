@@ -537,6 +537,59 @@ const showIn = (cwd: string, rev: string, path: string): string | undefined => {
 // failure stays one line and cannot start a workflow command.
 const printable = (text: string): string => ([...text].some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f) ? JSON.stringify(text) : text);
 
+/** One test file in Vitest's JSON report, with the fields the test check reads. */
+export interface TestFileResult {
+  name: string;
+  status: string;
+  message?: string;
+  assertionResults?: { ancestorTitles?: string[]; title: string; status: string; duration?: number | null; failureMessages?: string[] }[];
+}
+
+// Text from a test report as the test check prints it: each C0 or C1 control character and DEL as \uXXXX, and "##[" as
+// "##\[", since the Actions runner reads an old-style "##[command]" anywhere in a line, so no test title or message can
+// move the terminal's cursor or act as a workflow command (SPEC-001-R15).
+const shown = (text: string): string =>
+  text.replace(/[\u0000-\u001f\u007f-\u009f]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`).split("##[").join("##\\[");
+
+// A failure message's lines up to and including its first stack frame, an indented line that starts with "at ", which
+// often names the failing line; at most 8 lines, the repository's path made relative, each cut to 300 characters. Each
+// starts "  | ", so no line can start a workflow command or close the run summary's fence, whatever the test printed.
+function messageLines(message: string, cwd: string): string[] {
+  const lines: string[] = [];
+  for (const line of message.split("\n")) {
+    if (lines.length === 8) break;
+    const text = [...line.trimEnd().split(`${cwd}/`).join("")];
+    if (text.join("").trim()) lines.push(`  | ${shown(text.length > 300 ? `${text.slice(0, 300).join("")}...` : text.join(""))}`);
+    if (/^\s+at \S/.test(line)) break;
+  }
+  return lines;
+}
+
+/**
+ * For each failing test, at most max of them, a line "FAIL <file> > <titles> (<duration> ms)" and its failure message's
+ * lines. Vitest records a test that ran past its time limit as "Error: STACK_TRACE_ERROR", so the duration is what shows
+ * it. For a file that failed with no failing test, "FAIL <file>" and the file's message, or a line that says Vitest
+ * recorded none, as when a beforeAll hook fails (SPEC-001-R15). The JSON report holds what its console output does not.
+ */
+export function failedTestDetails(results: readonly TestFileResult[], cwd: string, max = 20): string[] {
+  const failures: string[][] = [];
+  for (const file of results) {
+    if (file.status === "passed") continue;
+    const path = shown(file.name.replace(`${cwd}/`, ""));
+    const failed = (file.assertionResults ?? []).filter((a) => a.status === "failed");
+    if (failed.length === 0) {
+      const message = messageLines(file.message ?? "", cwd);
+      failures.push([`FAIL ${path}`, ...(message.length > 0 ? message : ["  | Vitest recorded no failing test and no message for this file: a beforeAll or afterAll hook may have failed"])]);
+    }
+    for (const a of failed) {
+      const took = typeof a.duration === "number" ? ` (${Math.round(a.duration)} ms)` : "";
+      failures.push([`FAIL ${path} > ${[...(a.ancestorTitles ?? []), a.title].map(shown).join(" > ")}${took}`, ...messageLines(a.failureMessages?.[0] ?? "", cwd)]);
+    }
+  }
+  const lines = failures.slice(0, max).flat();
+  return failures.length > max ? [...lines, `FAIL (${failures.length - max} more failing tests not shown)`] : lines;
+}
+
 /** Compares two paths by their UTF-8 bytes, as git sorts them. @requirement SPEC-001-R67 */
 export const byteOrder = (a: string, b: string): number => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"));
 
@@ -914,7 +967,19 @@ const checks: Record<string, (args: string[]) => void | Promise<void>> = {
     try {
       const r = tool(["node_modules/.bin/vitest", "run", "--reporter=json", `--outputFile=${out}`]);
       if (r.status === 0) return;
-      const results = existsSync(out) ? (JSON.parse(readFileSync(out, "utf8")) as { testResults: { name: string; status: string }[] }).testResults : [];
+      const results = existsSync(out) ? (JSON.parse(readFileSync(out, "utf8")) as { testResults: TestFileResult[] }).testResults : [];
+      // Which tests failed, and why, go to standard error and the run summary, so standard output keeps only the
+      // failure line (SPEC-001-R1, R15). The report is deleted below, and the console output says nothing of them.
+      const details = failedTestDetails(results, process.cwd());
+      if (details.length > 0) {
+        process.stderr.write(`${details.join("\n")}\n`);
+        try {
+          const summary = ["## Failing tests", "", "```text", ...details, "```", ""];
+          if (process.env.GITHUB_STEP_SUMMARY) writeFileSync(process.env.GITHUB_STEP_SUMMARY, summary.join("\n"), { flag: "a" });
+        } catch {
+          process.stderr.write("test: could not append the failing tests to the run summary\n");
+        }
+      }
       mustPass("test", r, first(failedTestFiles(results, process.cwd())) ?? "vitest error");
     } finally {
       rmSync(dir, { recursive: true, force: true });

@@ -176,7 +176,9 @@ check_signer() {
     */*) [ ! -x "${found%/*}/ssh" ] || ssh_bin="${found%/*}/ssh" ;;
   esac
   types="$("$ssh_bin" -Q key 2>/dev/null || true)"
-  if ! printf '%s\n' "$types" | grep -qxF 'sk-ssh-ed25519@openssh.com'; then
+  # A here-string, not a pipe: grep -q exits at its match, and under pipefail a printf still writing would then die of
+  # SIGPIPE and fail the test, as it did about once in seven loaded test runs (backlog t5f).
+  if ! grep -qxF 'sk-ssh-ed25519@openssh.com' <<<"$types"; then
     fix "git signs with ${found}, whose OpenSSH lists no security-key type (sk-ssh-ed25519@openssh.com)." \
       "brew install openssh" "git config gpg.ssh.program \"\$(brew --prefix)/bin/ssh-keygen\""
     return 0
@@ -191,7 +193,7 @@ check_signer() {
 # check_key <need OATH>: exactly one YubiKey plugged in, so a touch goes to the key that holds the approver key or the
 # code, and ykman need not choose (lesson L27). With an argument, its OATH application must be enabled too.
 check_key() {
-  local count info
+  local count info accounts
   if ! command -v ykman >/dev/null 2>&1; then
     fix "ykman, the YubiKey Manager CLI, is not installed." "brew install ykman"
     return 0
@@ -204,11 +206,12 @@ check_key() {
       if [ $# -gt 0 ]; then
         # One column per interface: USB, then NFC on keys that have it. USB is the one in use here.
         info="$(ykman info 2>/dev/null || true)"
-        if printf '%s\n' "$info" | grep -Eq '^OATH[[:space:]]+Enabled([[:space:]]|$)'; then
+        if grep -Eq '^OATH[[:space:]]+Enabled([[:space:]]|$)' <<<"$info"; then
           ok "its OATH application is enabled, for the break-glass code"
           # With one key plugged in, the key land.sh signs with is this one. The owner chose a note, not a refusal,
           # while there is one device (k7d's open question, 2026-11-12).
-          if ykman oath accounts list 2>/dev/null | grep -q 'who-gets-the-keys-break-glass'; then
+          accounts="$(ykman oath accounts list 2>/dev/null || true)"
+          if grep -q 'who-gets-the-keys-break-glass' <<<"$accounts"; then
             note "This YubiKey holds the break-glass code, and it is the one plugged in to sign: one device for both." \
               "Losing it loses the approver key and break-glass together. A second key with its own copies removes that."
           fi

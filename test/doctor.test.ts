@@ -10,7 +10,9 @@ const script = join(process.cwd(), "scripts/bootstrap/doctor.sh");
 
 const node = '#!/usr/bin/env bash\n[ "$*" = --version ] && echo "${STUB_NODE:-v24.22.2}"\nexit 0\n';
 const gh = '#!/usr/bin/env bash\n[ "$1 $2" = "auth status" ] && exit "${STUB_GH_AUTH:-0}"\nexit 2\n';
-const ssh = '#!/usr/bin/env bash\n[ "$*" = "-Q key" ] && printf "ssh-ed25519\\n%s\\n" "${STUB_SK-sk-ssh-ed25519@openssh.com}"\nexit 0\n';
+// STUB_FILLER more key types follow, printed by the stub itself: the list can then outgrow a pipe, which one
+// environment string, at most 128 KiB on Linux, could not.
+const ssh = '#!/usr/bin/env bash\n[ "$*" = "-Q key" ] || exit 0\nprintf "ssh-ed25519\\n%s\\n" "${STUB_SK-sk-ssh-ed25519@openssh.com}"\ni=0; while [ "$i" -lt "${STUB_FILLER:-0}" ]; do printf "filler-key-type-%06d@example.com\\n" "$i"; i=$((i + 1)); done\nexit 0\n';
 const keygen = "#!/usr/bin/env bash\nexit 0\n";
 const ykman = [
   "#!/usr/bin/env bash",
@@ -83,6 +85,18 @@ describe("SPEC-001-R218 doctor.sh checks the owner's machine and prints the fix 
     expect(r.status).toBe(1);
     for (const line of expected) expect(r.stdout).toContain(line.replace("<stub>", repo.stub));
     expect(r.stdout.trimEnd().split("\n").at(-1)).toBe("Doctor: 1 to fix. Fix them, then run this again.");
+  });
+
+  // grep -q stops reading at its first match. Fed by a pipe under pipefail, a printf still writing would die of SIGPIPE
+  // and fail the check, as it did in about one in seven loaded test runs (backlog who-gets-the-keys-t5f). grep reads up
+  // to a pipe-full, 64 KiB on Linux and less on macOS, before it matches, and the writer may fill one more meanwhile, so a
+  // list of about 350 KB, past twice a pipe, makes the old form's failure certain instead of a matter of timing.
+  it("SPEC-001-R218 finds the security-key type in a list longer than two pipes hold", { timeout: TIMEOUT }, () => {
+    const repo = makeRepo();
+    const r = doctor(repo, ["--for", "land"], { STUB_FILLER: "10000" });
+    expect(r.stdout).toContain(`ok    git signs with ${repo.stub}/ssh-keygen, which supports security keys`);
+    expect(r.stdout).not.toContain("lists no security-key type");
+    expect([r.status, r.stdout.trimEnd().split("\n").at(-1)]).toEqual([0, "Doctor: ready."]);
   });
 
   it("SPEC-001-R218 reads OATH from the USB column when ykman info also shows an NFC column, for --for aws alone", { timeout: TIMEOUT }, () => {

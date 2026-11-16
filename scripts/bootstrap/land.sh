@@ -470,7 +470,7 @@ preflight() {
     [ -n "$touched" ] || check=1
     n=0
     while [ "$n" -lt "$move_count" ] && [ "$check" = 0 ]; do
-      if [ "${move_dests[$n]}" = "$path" ] || printf '%s\n' "$touched" | grep -qxF -- "${move_dests[$n]}"; then
+      if [ "${move_dests[$n]}" = "$path" ] || grep -qxF -- "${move_dests[$n]}" <<<"$touched"; then
         check=1
       fi
       n=$((n + 1))
@@ -959,7 +959,7 @@ while IFS= read -r line || [ -n "$line" ]; do
       message="$value"
       ;;
     spec)
-      printf '%s\n' "$value" | grep -Eq '^SPEC-[0-9]{3}-R[0-9]+$' || fail "${manifest} line ${line_no}: ${value} is not a requirement ID."
+      grep -Eq '^SPEC-[0-9]{3}-R[0-9]+$' <<<"$value" || fail "${manifest} line ${line_no}: ${value} is not a requirement ID."
       specs[$spec_count]="$value"
       spec_count=$((spec_count + 1))
       ;;

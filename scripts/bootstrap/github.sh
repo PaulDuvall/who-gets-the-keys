@@ -96,7 +96,8 @@ for env in sandbox probe producer github-pages; do
   gh api -X PUT "repos/${repo}/environments/${env}" --input - >/dev/null <<JSON
 {"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}${env_reviewers}}
 JSON
-  if ! gh api "repos/${repo}/environments/${env}/deployment-branch-policies" --jq '.branch_policies[].name' | grep -qx main; then
+  policies="$(gh api "repos/${repo}/environments/${env}/deployment-branch-policies" --jq '.branch_policies[].name' || true)"
+  if ! grep -qx main <<<"$policies"; then
     gh api -X POST "repos/${repo}/environments/${env}/deployment-branch-policies" -f name=main -f type=branch >/dev/null
   fi
   if [ -n "$env_reviewers" ]; then
@@ -214,7 +215,7 @@ if [ "${1:-}" = "--vars" ]; then
   existing="$(gh variable list --repo "$repo" --json name --jq '.[].name')"
   stale=""
   for name in DEPLOY_ROLE_ARN TRIAGE_ROLE_ARN PROBE_ROLE_ARN PRODUCER_ROLE_ARN; do
-    if printf '%s\n' "$existing" | grep -qx "$name"; then stale="${stale} ${name}"; fi
+    if grep -qx "$name" <<<"$existing"; then stale="${stale} ${name}"; fi
   done
   echo
   echo "Will set repository secrets:"

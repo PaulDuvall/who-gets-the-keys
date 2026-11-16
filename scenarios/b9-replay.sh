@@ -25,7 +25,8 @@ attempt_api "create a release" -X POST "repos/$repo/releases" -f tag_name=b9-pro
 attempt_api "dispatch a workflow" -X POST "repos/$repo/actions/workflows/scenarios.yml/dispatches" -f ref=main
 attempt_api "post text where others read it" -X POST "repos/$repo/issues" -f title="b9 probe" -f body="b9 probe"
 
-if env | grep -qE '^(AWS_|ACTIONS_RUNTIME_TOKEN|.*SECRET)' || gh api --silent "repos/$repo/actions/secrets" >/dev/null 2>&1; then
+# A here-string, not a pipe: under pipefail, env dying of SIGPIPE when grep -q stops early would read as no secret.
+if grep -qE '^(AWS_|ACTIONS_RUNTIME_TOKEN|.*SECRET)' <<<"$(env)" || gh api --silent "repos/$repo/actions/secrets" >/dev/null 2>&1; then
   broke "read any secret"
 else
   held "read any secret"
