@@ -145,12 +145,39 @@ A check is automated. A gate is a human approval: an approver-signed commit, or 
 
 Expected lines and patches: `scenarios/scenarios.yaml`. B9's AWS checks, B11 and B14 need the sandbox account and run on demand.
 
+## Approvals
+
+What this repository recommends comes first, then what it does here, and why the two differ. Decision 0010 records both (`docs/decisions/0010-approval-policy.md`).
+
+**Recommended: start strict, then loosen with evidence.**
+
+| Tier | People | Changes |
+|---|---|---|
+| Two | 2 | Policy: who approves, what is protected, the tier map itself. The pipeline and its check code. Irreversible changes. Anything the tier map does not classify |
+| One | 1 | Specs, ordinary product changes, and sensitive areas such as an updater or a system prompt. Each release to production, which a named person authorizes |
+| None | 0 | Docs, copy and additive changes behind a flag, once the checks pass |
+
+- The change sets the tier, not the author.
+- An agent's approval never counts as a person's.
+- An approval covers one commit.
+- Remove an approval only when its record shows it catches nothing the checks miss. Add it back when a defect gets past it.
+
+**This repository: fewer approvals, on purpose.** It has one approver, so nothing needs two people, and no production stage, so no release gate (backlog `who-gets-the-keys-p5d`). The approver signs, with a security key and a touch:
+
+- changes to `specs/` and `approvers.txt`;
+- changes to the 33 paths in `specs/protected-paths.txt`, among them the pipeline, the check code, the lockfiles, `tasks/`, `.claude/`, `CLAUDE.md`, `infra/` and `scripts/bootstrap/`;
+- irreversible changes (SPEC-001-R18).
+
+Everything else lands on the checks alone. A backlog change needs a signature only when its work changes one of those files. Once backlog `who-gets-the-keys-x2r` lands, every other change must also align with a signed task (decision 0004, "Signed intent, checked delivery"). The `sandbox` reviewer stays until backlog items s3p, x2r and g4e have landed, in that order.
+
+**Evidence.** [`docs/factory-log.md`](docs/factory-log.md) records each approval, each rejection of a change whose checks passed, and each escaped defect. A class of change may drop one tier after 60 approvals in a row with no rejection. An escaped defect moves it up one tier. Either change goes through a batch the approver signs.
+
 ## Who holds which keys
 
 | Principal | Can | Cannot |
 |---|---|---|
 | Agent (Claude Code) | Write code, tests and docs; propose spec, pipeline and dependency changes in `proposals/` | Sign commits, write `specs/` or any path in `specs/protected-paths.txt`, deploy, hold cloud credentials, loosen guardrails |
-| Human approver | Sign spec changes and irreversible changes, with a security key and a touch each time, touch only for now per the owner decision of 2026-11-05; use break-glass | Deploy outside the pipeline without raising an alarm |
+| Human approver | Sign changes to `specs/`, `approvers.txt` and the protected paths, and irreversible changes, with a security key and a touch each time, touch only for now per the owner decision of 2026-11-05; use break-glass | Deploy outside the pipeline without raising an alarm |
 | `pipeline.yml` deploy role | Plan and apply `infra/sandbox` from environment `sandbox` | Be assumed from any other workflow, ref or environment |
 | Triage role | Invoke Bedrock models; the triage agent returns one label from a fixed schema | Write to the repo or post text; run a shell; reach the network beyond an allowlist |
 | Scenario probe role | Read state (`ReadOnlyAccess`) | Write: its one Lambda write grant exists so B11 can show the SCP deny it |
@@ -300,6 +327,8 @@ gh run download --repo PaulDuvall/who-gets-the-keys --pattern 'factory-video-*'
 | [docs/decisions/0003-approver-key.md](docs/decisions/0003-approver-key.md) | Proposed: approver signatures need a security key and a touch, touch only for now per the owner decision of 2026-11-05 |
 | [docs/decisions/0004-factory-model.md](docs/decisions/0004-factory-model.md) | Proposed: the spec-to-receipt software factory. Signed spec in, signed receipt out. An approver signs the spec and the factory; checks of record and a signed receipt, not a reviewer, decide each change |
 | [docs/decisions/0005-signatures-and-triggers.md](docs/decisions/0005-signatures-and-triggers.md) | Proposed: who signs what, and what starts a run. Two approvers for policy changes, one for specs and listed low-risk factory changes, none for a proven tightening. Release signatures by policy tier; unattended runs started only by alarms in a signed alarm-to-spec mapping |
+| [docs/decisions/0010-approval-policy.md](docs/decisions/0010-approval-policy.md) | Accepted: the approvals recommended for a production repository, the fewer this repository runs, and the evidence that loosens or tightens each |
+| [docs/factory-log.md](docs/factory-log.md) | Each approval, rejection and escaped defect: the evidence for loosening or tightening an approval |
 | [docs/notes/spec-to-production-factory.md](docs/notes/spec-to-production-factory.md) | Concept notes from the post-talk discussion, November 2026: where human signatures go, segregation of duties, regulated environments and untrusted input |
 
 ## Licence
