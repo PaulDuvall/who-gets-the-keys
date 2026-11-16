@@ -33,7 +33,7 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 | `.github/egress/producer-allowlist.json` | The runner producer's sandbox allowlist: no host |
 | `infra/sandbox/`, `infra/org/` | Terraform: workload and roles; SCP |
 | `video/` | Walkthrough kit: page template, orchestrator, recorder, narration pins |
-| `docs/` | Verification log, deviations, slide reconciliation, ADRs, generated practices table |
+| `docs/` | Verification log, deviations, slide reconciliation, ADRs, generated practices table, and `factory-log.md`, the evidence for each approval |
 | `traceability.md` | Requirement → test file → check → scenario |
 
 ## Conventions
@@ -84,6 +84,16 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 - Before saying a check passed on `main`, account for the checks that read data at run time, sca and sast: an advisory published between the candidate run and `main`'s can fail `main`'s run, and `land.sh --lockfile <package>` is then the fix (lesson L32).
 - Ask the owner to paste `land.sh`'s summary block, the lines between `--- land.sh summary` and `---`, not GitHub's output.
 - Before a probe or check that relies on platform behaviour, quote the documentation it relies on, with the URL and the date read, and replay any recorded transcript through the check.
+
+## Questions and approvals
+
+- Ask the owner each question whose answer changes what you do next with the AskUserQuestion tool, never as a list in the reply. Put at most four questions in one call, make each one stand alone, and put the recommended option first, with "(Recommended)" in its label. In an unattended run, write them into the hand-off instead. Where the tool is not available, as in a subagent, return the questions to the session that started you, each with its recommended answer.
+- Approvals follow decision 0004's section "Signed intent, checked delivery" and decision 0010 (`docs/decisions/0010-approval-policy.md`), which the owner settled on 2026-11-16. Do not ask about them again. Where those records and this section differ, this section wins: only this file needs the approver's signature.
+- The recommendation for other repositories starts strict: two approvers for policy, the pipeline and its check code, and irreversible changes, one for specs and product changes, and none for docs. Approvals are then removed only as evidence shows they catch nothing the checks miss.
+- This repository asks for an approver signature only on `specs/`, `approvers.txt`, the paths in `specs/protected-paths.txt` and irreversible changes (SPEC-001-R12, R18). A backlog change needs one only when its work changes one of those files. Everything else lands on the checks, and, once backlog `who-gets-the-keys-x2r` lands, must align with a signed task unless it touches only `docs/`, `proposals/` and `.tasks/`. The `sandbox` reviewer stays until backlog items s3p, x2r and g4e have landed, in that order.
+- Wherever the repository describes approvals, give the recommendation first, then what this repository does.
+- Add a row to `docs/factory-log.md` for each approval, each rejection of a change whose checks passed, and each escaped defect, from the `land.sh` summary the owner pastes.
+- A class of change may drop one tier after 60 approvals in a row with no rejection, and moves up one tier after an escaped defect. Stage either change as a batch for the owner to sign. Where a defect escapes a class that already needs a signature, add a check instead.
 
 ## Unattended runs
 
