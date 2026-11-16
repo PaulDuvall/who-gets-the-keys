@@ -2,7 +2,7 @@
 
 - Status: Proposed
 - Status: Superseded in part by [0005](0005-signatures-and-triggers.md), once approved. Approval by tier: "What a human does" row 2, the principle "Judgment once, upstream", decision 14 and the "Where tiers live" row (0005 R111 to R117). Release signatures by tier: row 3, R77, R79, the owner decision "Reviewer tiers by environment" and the owner question "Who reviews production" (R120 to R124). Alarm-started runs: the principle "Trusted signals start runs", R83, R92 and the owner question on trusted signals (R125 to R129). New ORIGIN and TRIGGER receipt lines: decision 11 and "Receipt" (R118, R119)
-- Date: 2026-11-05; owner decisions and additions recorded 2026-11-05
+- Date: 2026-11-05; owner decisions and additions recorded 2026-11-05; the owner decision on the task rule recorded 2026-11-16
 - Requirements: proposed SPEC-001-R64 to SPEC-001-R110. None is in the signed spec yet. They follow SPEC-001-R63, the highest ID used in `specs/`, `proposals/` and `docs/` (decision 0002). R97 to R106 add factory versions and proven tightenings (owner additions); R107 to R110 close review findings
 - Builds on: decision 0002 (proposed), whose Phases 0, 1, 2 and 3 it needs, and decision 0003 (proposed), whose signature flags the receipt's INTENT line shows
 - Supersedes in part: decision 0002: decisions 3, 6 and 13, owner decision D4 of 2026-11-05, Phase 0 task M04 and Phase 3. Also R42, R45, R53, R55 and R63, and the owner question "Ruleset bypass" (see What changes)
@@ -41,6 +41,30 @@ That paragraph is the target state, not today. The Plan says which phase makes e
 | 1 | Define and sign specs, and the task that cites them where `tasks/` is protected | Before code exists | Approver-signed commits to `specs/`, and to `tasks/` if the owner protects it. Starting a run, by `workflow_dispatch` or by opening a task session, is a trigger under this row, not a fourth approval |
 | 2 | Approve the factory: the pipeline, checks, receipt policy and agent inputs | Rarely, upstream | Factory changes are proposed under `proposals/` and applied by the approver's signed commit. This is the one place a human still signs code. A proven tightening needs no signature (owner decision, R101) |
 | 3 | Optionally approve production deploys and irreversible changes | By tier, set in policy | A listed reviewer where the approver-signed policy sets a tier, and an approver signature on irreversible changes (SPEC-001-R18). This is the declared exception after code exists |
+
+### Signed intent, checked delivery (owner decision, 2026-11-16)
+
+The owner set the rule that x2r (backlog `who-gets-the-keys-x2r`) asked for:
+
+| Change | Who approves | What the checks require |
+|---|---|---|
+| A spec change, under `specs/` | The approver signs it with the security key | The signatures check (SPEC-001-R12) |
+| A change to the factory: any path in `specs/protected-paths.txt`, `tasks/` among them | The approver signs it | The signatures check |
+| An irreversible infrastructure change | The approver signs the commit | The irreversible check (SPEC-001-R18) |
+| Any other change | Nobody, if it aligns with a signed task | One `Task:` trailer naming a signed task file, whose requirements are approved; every path inside the task's `produces`; every `Spec:` trailer among the task's requirements (R64 to R67) |
+| A change that does not align | It fails; the approver signs a new or amended spec or task | The scope or task check's failure line names the path or requirement |
+| The deploy | Nobody: the checks decide | Tip, attestation and receipt checks (SPEC-001-R190, R17, R56) |
+
+The owner's answers to the open points:
+
+| Point | Answer |
+|---|---|
+| Which commits need no task | Only commits that touch nothing but `docs/`, `proposals/` and `.tasks/`. Draft R66's drafting list gains `.tasks/` |
+| The talk kits | `factory-video/`, `practices-carousel/` and `video/` publish the public Pages site, so a change to them needs a task, as a change that deploys does |
+| Acceptance tests | A task may list a requirement's acceptance test file in its `produces` only if the same signed change adds or amends that requirement, so a change cannot align by editing the test it is judged by |
+| Order | s3p first: the checks of record run from code the candidate cannot change, and only a promote App moves `main`. Then x2r: R66 amended to the full rule above. Then g4e: no human approval at deploy. b7e narrows to reporting any change to the `protect main` ruleset |
+
+Until s3p lands, every check above runs from the commit it judges (decision 5), so the deploy reviewer stays on `sandbox`.
 
 ### Principles
 
@@ -348,7 +372,7 @@ Scenario rows read: WHEN the harness runs scenario `<ID>` in the mode its `run` 
 |---|---|
 | SPEC-001-R64 | WHEN the task check runs for a task ID, THE task check SHALL require the ID to match `^TASK-[A-Z0-9-]{1,32}$`. IF it does not, THEN the task check SHALL print `CHECK task FAILED: invalid task id`. THE task check SHALL read the file only with `git show <base>:tasks/<ID>.task.md`. IF the file is missing, THEN it SHALL print `CHECK task FAILED: <ID> not found`. THE front matter SHALL hold `requirements`, `produces`, `budget` and `verify` as in "Task file", and optionally `needs`. IF a field breaks its rule, THEN the identifier SHALL be `<ID> invalid <field>`. IF the front matter holds another key, THEN it SHALL be `<ID> unknown key`. IF the body is empty, THEN it SHALL be `<ID> empty body`. |
 | SPEC-001-R65 | IF a task's `requirements` entry is not defined in a file under `specs/` at the base commit, THEN THE task check SHALL print `CHECK task FAILED: <ID> cites unapproved <requirement ID>`. It SHALL name the first such entry in file order. |
-| SPEC-001-R66 | WHEN the scope check runs over a range of commits, THE scope check SHALL exempt each commit signed by a key in `approvers.txt` as of its parent. It SHALL exempt each proven tightening (R100; added in Phase B). It SHALL exempt each commit that touches only paths under the policy's `drafting` list, which holds `docs/` and `proposals/`. Every other commit SHALL carry exactly one `Task:` trailer, the same throughout the range. IF one carries none, THEN THE scope check SHALL print `CHECK scope FAILED: missing Task trailer`. IF two differ, THEN it SHALL print `CHECK scope FAILED: mixed Task trailers`. IF a `Spec:` trailer names an ID outside the task's `requirements`, THEN it SHALL print `CHECK scope FAILED: Spec <requirement ID> not in <task ID>`. |
+| SPEC-001-R66 | WHEN the scope check runs over a range of commits, THE scope check SHALL exempt each commit signed by a key in `approvers.txt` as of its parent. It SHALL exempt each proven tightening (R100; added in Phase B). It SHALL exempt each commit that touches only paths under the policy's `drafting` list, which holds `docs/`, `proposals/` and `.tasks/` (owner decision, 2026-11-16). Every other commit SHALL carry exactly one `Task:` trailer, the same throughout the range. IF one carries none, THEN THE scope check SHALL print `CHECK scope FAILED: missing Task trailer`. IF two differ, THEN it SHALL print `CHECK scope FAILED: mixed Task trailers`. IF a `Spec:` trailer names an ID outside the task's `requirements`, THEN it SHALL print `CHECK scope FAILED: Spec <requirement ID> not in <task ID>`. |
 | SPEC-001-R67 | WHEN the range holds a commit that R66 does not exempt, THE scope check SHALL list every path those commits add, change, delete or rename. It SHALL split renames and sort the paths in byte order. A path SHALL fail if it is under `specs/` or `tasks/`, is `approvers.txt`, is guarded by `specs/protected-paths.txt` at the base commit, or is outside the task's `produces`. THE scope check SHALL print `CHECK scope FAILED: <path>` for the first failing path. IF an entry has mode `120000` or `160000`, THEN it SHALL print `CHECK scope FAILED: <path> mode <mode>`. IF the range is empty, THEN it SHALL print `CHECK scope FAILED: empty range`. |
 | SPEC-001-R68 | WHEN a commit is pushed to `candidate/**`, THE checks job SHALL run the task check and then the scope check after `npm run checks` passes. Both SHALL cover the range from the commit's merge base with `refs/heads/main`. THE task check SHALL check the task the range's `Task:` trailer names, and SHALL pass when R66 exempts every commit. Both checks SHALL sit outside the ordered fifteen. |
 | SPEC-001-R69 | WHEN the build job writes the SPEC-001-R63 intent records, THE build job SHALL add to each the signature flags of the commit R63 records. THE receipt's INTENT line SHALL show the requirement ID, the spec file's SHA-256, that commit and its flags. |
