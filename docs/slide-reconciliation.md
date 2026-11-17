@@ -19,7 +19,7 @@ Snapshot: `specs/source-of-record/slides.txt`, body SHA-256 `f78bb192ae51591962c
 | R11 | 4 | Feedback from telemetry is part of the design | none | not covered |
 | R12 | 5 | AI reads every diff; risk routes to humans | none; only spec, protected-path and irreversible changes need a human | not covered |
 | R13 | 5, 12 | Agents write tests and trust is earned: a hook flags an assertion-free test in seconds | check `lint` `vitest/expect-expect`, B1; PostToolUse hook | covered |
-| R14 | 6 | T: limit what the agent can do against prompt injection | triage job: read-only contents token, egress allowlist, no shell, `--max-turns 5`; B9 | covered |
+| R14 | 6 | T: limit what the agent can do against prompt injection | triage job: read-only contents token, egress allowlist, no tool but the label's, `--max-turns 3`, at most 5 model runs a day (SPEC-001-R237, R238); B9 | covered |
 | R15 | 6 | K: provenance and integrity checks on inputs against data poisoning | signed, hashed slide snapshot; checks `slides` and `signatures`; B17 | covered |
 | R16 | 6 | A: issues, docs and URLs are untrusted, read-only and never executed as instruction | B9 replays issue 4821 under the triage token and egress: every injected action denied | covered |
 | R17 | 6, 8 | O: the agent reads telemetry redacted, read-only and untrusted, with no standing prod credentials | OIDC roles only, no standing keys; no redacted telemetry path for the agent | partial |
