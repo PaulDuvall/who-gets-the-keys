@@ -23,8 +23,9 @@ Both files change together, in one approver-signed commit. A renewal re-runs eve
 | GHSA-5h93-6whr-6q8j | mcp 1.29.0, `scripts/ci/requirements.txt` | 5.9 | 1.30.0 | semgrep requires `mcp==1.29.0` | No: no MCP client runs | 2027-01-13 |
 | GHSA-xcq7-p3pf-p88h | opentelemetry-api 1.37.0, `scripts/ci/requirements.txt` | 5.3 | 1.45.1 | semgrep requires `~=1.37.0` | No: `from_header` never runs | 2027-01-13 |
 | GHSA-mf5v-w3w3-f6cg | opentelemetry-api 1.37.0, `scripts/ci/requirements.txt` | 5.3 | 1.45.2 | semgrep requires `~=1.37.0` | No: `extract` never runs | 2027-01-13 |
+| GHSA-fc5q-39xc-vjpf | picomatch 4.0.7, `package-lock.json`, checked 2026-11-17 | None reported | No release yet | 4.0.7 is the latest | No: 11 globs, none a repeated extglob | 2027-01-13 |
 
-CVSS is the highest base score OSV-Scanner 2.7.0 reported for the advisory. None of the eight packages is in the Lambda artifact: on 2026-11-14 the build job's steps, run locally, made a `function.zip` of three files, `export.js`, `handler.js` and `package.json`. Inference, not measured: the worst case if a "No" above is wrong is a CI or developer tool that hangs, sends a request, or reads a file on a runner, never the export service's customers. Each section's "If this is wrong" row is inference in the same way.
+CVSS is the highest base score OSV-Scanner 2.7.0 reported for the advisory; OSV gives GHSA-fc5q-39xc-vjpf none. None of the nine packages is in the Lambda artifact: on 2026-11-14 the build job's steps, run locally, made a `function.zip` of three files, `export.js`, `handler.js` and `package.json`. Inference, not measured: the worst case if a "No" above is wrong is a CI or developer tool that hangs, sends a request, or reads a file on a runner, never the export service's customers. Each section's "If this is wrong" row is inference in the same way.
 
 The 60-day expiry is the owner's decision of 2026-11-14: no reason here depends on time, only on which releases exist. Nothing watches for a newly reachable fix between renewals; the renewal's registry check is the only one. Dependabot does not read this file, and its alerts are not that check: on 2026-11-14 GitHub reported 7 moderate Dependabot alerts on `main`, not compared with these eight, and backlog item `who-gets-the-keys-0v4` is open to explain the difference.
 
@@ -173,6 +174,18 @@ Each probe loads into the tool's own processes while one of our checks runs, and
 | Ends when | A semgrep release allows opentelemetry 1.45.2 or later |
 | Log | 2026-11-13: GitHub published it at 16:43 UTC and OSV had it by 17:00, after the candidate run of `79f0f06` passed sca at about 16:53. It failed `main`'s sca at 19:10. Listed by the owner's hand-signed `a6de08a` until 2026-12-08 (`docs/notes/sca-mf5v.md`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
 
+## GHSA-fc5q-39xc-vjpf: picomatch 4.0.7
+
+| | |
+|---|---|
+| What | picomatch 4.0.7 in `package-lock.json`, a dev dependency of `vitest`, `vite`, `tinyglobby` and `fdir`. "picomatch vulnerable to ReDoS through single-branch repeated extglobs": `analyzeRepeatedExtglob` in `lib/parse.js` skips globs such as `+(*)` or `+(*a)`, which then backtrack exponentially against short crafted strings and block the event loop. OSV lists every release through 4.0.7 as affected (`last_affected`) |
+| Needs | An attacker who chooses a glob that picomatch compiles |
+| Why not fixed | 4.0.7, published 2026-08-24, is npm's `latest` on 2026-11-17 (https://registry.npmjs.org/picomatch). No fixed release exists, so `land.sh --lockfile picomatch` has nothing to update to |
+| Why not reached | No production code uses picomatch: the root `package.json` has no `dependencies`, and the Lambda artifact holds only the compiled `src/*.js` and a one-line `package.json`. In CI it runs inside vitest, for the test and mutation checks, on globs from `vitest.config.ts`, `vitest.stryker.config.ts` and vite's defaults, matched against the repository's own file paths. A full test run on 2026-11-17, `main` at `a75aca8`, with the probe below, recorded every glob picomatch compiled: 11, from `test/**/*.test.ts` and `**/node_modules/**` to vite's deny list, such as `**/.env.*`. None held a repeated extglob, `+(` or `*(`, and no configuration file in the repository holds one |
+| If this is wrong | A slow glob would stall a test or mutation run on a CI runner, which times out and fails closed |
+| Ends when | picomatch publishes a release after 4.0.7 that fixes the flaw, or vitest, vite, tinyglobby and fdir stop requiring it |
+| Log | 2026-11-17: OSV last modified the record at 16:00:03 UTC (https://api.osv.dev/v1/vulns/GHSA-fc5q-39xc-vjpf; published 2026-10-19). The candidate run 44122897590 of the owner-signed q7m batch failed sca at 16:12. First listed, until 2027-01-13, with the other eight |
+
 ## Probe code
 
 ### Python import and call probe: `py/sitecustomize.py`
@@ -305,4 +318,31 @@ grep -cE ' CALL mcp/|from_header|TraceContextTextMapPropagator' "$PROBES/sast.lo
 
 ```bash
 grep -h -oE 'FIRSTPHASE|level=[^ ]+' "$PROBES/lint.log" "$PROBES/mutation.log" | sort | uniq -c
+```
+
+### picomatch glob probe: `picomatch-probe.cjs`
+
+Run the test check's suite with `NODE_OPTIONS="--require <path>/picomatch-probe.cjs"` and `PICOMATCH_LOG=<file>`. Every Node.js process vitest starts inherits `NODE_OPTIONS`, so the probe wraps picomatch wherever it loads, and appends each glob it compiles to the log once.
+
+```js
+// Reach probe for GHSA-fc5q-39xc-vjpf: logs each distinct glob passed to picomatch, or to its matcher helpers.
+const Module = require("module");
+const fs = require("fs");
+const log = process.env.PICOMATCH_LOG;
+const seen = new Set();
+const record = (p) => { for (const x of [].concat(p)) { const s = String(x); if (!seen.has(s)) { seen.add(s); fs.appendFileSync(log, s + "\n"); } } };
+const load = Module._load;
+Module._load = function (request, parent, isMain) {
+  const m = load.apply(this, arguments);
+  if (/(^|[\\/])picomatch$/.test(request) && typeof m === "function" && !m.__probed) {
+    const wrapped = function (glob, ...rest) { record(glob); return m.call(this, glob, ...rest); };
+    Object.assign(wrapped, m);
+    for (const k of ["makeRe", "isMatch", "matchBase", "parse", "scan"]) {
+      if (typeof m[k] === "function") wrapped[k] = function (glob, ...rest) { record(glob); return m[k].call(this, glob, ...rest); };
+    }
+    wrapped.__probed = true;
+    return wrapped;
+  }
+  return m;
+};
 ```
