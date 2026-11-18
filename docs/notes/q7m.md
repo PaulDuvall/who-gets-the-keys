@@ -38,13 +38,31 @@ The triage job keeps its `permissions` and `env` blocks, so the workflows check'
 
 The owner's test issue after landing is the backlog's first acceptance criterion, and it checks all three.
 
+## Verified on 2026-11-18
+
+The owner opened issue 11, "Test: the export fails on an empty table", at 01:05 UTC. Run 44213075670 passed all three jobs on `main` at `65464ef`:
+
+| Job | Line printed | Result |
+|---|---|---|
+| check the daily model budget | `Model runs started today: 0 of 5` | Allowed |
+| triage the issue | `Model cost: USD 0.135309`, `Label: bug` | 2 turns, 1.85 s of model time, `is_error` false, 0 permission denials, `us.anthropic.claude-sonnet-4-6` through Bedrock |
+| apply the label | None | Issue 11 labelled `bug` |
+
+The three points above:
+
+| Point | Result |
+|---|---|
+| `--tools=` under Claude Code 2.1.304 | Partly verified. The log shows the action installing 2.1.304. The action's parser turns a flag with no value after it into a pass-through flag, so `--tools=` reaches the CLI as one argument (`base-action/src/parse-sdk-options.ts` lines 155-180 at `db77d4d`). The action leaves pass-through flags out of its "SDK options" log line (`base-action/src/run-claude-sdk.ts` line 183), and condenses the init event, so the run's tool list is not in the log. Showing it needs `show_full_output`, which publishes the transcript in a public log. The run is consistent with a model that has no tool but `StructuredOutput`: 0 permission denials and 2 turns |
+| `--disallowedTools "mcp__*"` | Verified: the "SDK options" line shows `"disallowedTools": ["mcp__*"]` |
+| A label within `--max-turns 3` | Verified in 2 turns, not the 1 expected above |
+
 While checking the second point, the agent ran Claude Code twice in the cloud session with an empty environment, expecting it to stop before any model call. The session's own credentials answered, from `claude-sonnet-5-5`. Each call was one short prompt, "Return the label bug.", billed to the session's account, not AWS. Both returned `{"label": "bug"}` through `StructuredOutput`, one with `--tools ""` and one with the default tools. The `--tools=` check above then used an unreachable API address, so it made no call.
 
 ## Owner steps after landing
 
 1. `gh workflow enable issue-triage.yml`.
 2. Open one test issue, for example titled "Test: the export fails on an empty table".
-3. In its run: the budget job prints `Model runs today before this one: 0 of 5`. The triage job prints `Model cost: USD <amount>` and `Label: <label>`, and the issue gets that label.
+3. In its run: the budget job prints `Model runs started today: 0 of 5`. The triage job prints `Model cost: USD <amount>` and `Label: <label>`, and the issue gets that label. Until 2026-11-18 this step said `Model runs today before this one`, which is not the line SPEC-001-R238 and the workflow print.
 
 If the triage job prints `CHECK triage FAILED: no label`, the three points above are where to look. The cost line says what the run spent.
 
