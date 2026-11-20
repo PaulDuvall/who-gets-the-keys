@@ -67,4 +67,4 @@ One picture for the talk. The pipeline is an assembly line inside a factory. Eac
 
 ## Changing the picture
 
-`factory-map.html` is the source. Render it at 1920 by 1080 with device scale 2 to update `factory-map.png`. The page loads Barlow, Barlow Condensed and IBM Plex Mono from Google Fonts, so the render needs that network access.
+[`factory-map-prompt.md`](factory-map-prompt.md) keeps the owner's instructions that shaped the map, the rules they set, and a prompt that rebuilds or updates it. `factory-map.html` is the source. Render it at 1920 by 1080 with device scale 2 to update `factory-map.png`. The page loads Barlow, Barlow Condensed and IBM Plex Mono from Google Fonts, so the render needs that network access.
