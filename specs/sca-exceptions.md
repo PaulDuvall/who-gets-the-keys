@@ -21,11 +21,11 @@ Both files change together, in one approver-signed commit. A renewal re-runs eve
 | GHSA-w4fh-qvv9-3v23 | mcp 1.29.0, `scripts/ci/requirements.txt` | 6.8 | 1.30.0 | semgrep requires `mcp==1.29.0` | No: no MCP server runs | 2027-01-13 |
 | GHSA-rwrf-2pqf-9j8j | mcp 1.29.0, `scripts/ci/requirements.txt` | 6.5 | 1.30.0 | semgrep requires `mcp==1.29.0` | No: no MCP client runs | 2027-01-13 |
 | GHSA-5h93-6whr-6q8j | mcp 1.29.0, `scripts/ci/requirements.txt` | 5.9 | 1.30.0 | semgrep requires `mcp==1.29.0` | No: no MCP client runs | 2027-01-13 |
+| GHSA-qx49-fqc8-xw99 | mcp 1.29.0, `scripts/ci/requirements.txt`, checked 2026-11-20 | 7.5 | 1.30.0 | semgrep requires `mcp==1.29.0` | No: no MCP client runs | 2027-01-13 |
 | GHSA-xcq7-p3pf-p88h | opentelemetry-api 1.37.0, `scripts/ci/requirements.txt` | 5.3 | 1.45.1 | semgrep requires `~=1.37.0` | No: `from_header` never runs | 2027-01-13 |
 | GHSA-mf5v-w3w3-f6cg | opentelemetry-api 1.37.0, `scripts/ci/requirements.txt` | 5.3 | 1.45.2 | semgrep requires `~=1.37.0` | No: `extract` never runs | 2027-01-13 |
-| GHSA-fc5q-39xc-vjpf | picomatch 4.0.7, `package-lock.json`, checked 2026-11-17 | None reported | No release yet | 4.0.7 is the latest | No: 11 globs, none a repeated extglob | 2027-01-13 |
 
-CVSS is the highest base score OSV-Scanner 2.7.0 reported for the advisory; OSV gives GHSA-fc5q-39xc-vjpf none. None of the nine packages is in the Lambda artifact: on 2026-11-14 the build job's steps, run locally, made a `function.zip` of three files, `export.js`, `handler.js` and `package.json`. Inference, not measured: the worst case if a "No" above is wrong is a CI or developer tool that hangs, sends a request, or reads a file on a runner, never the export service's customers. Each section's "If this is wrong" row is inference in the same way.
+CVSS is the highest base score OSV-Scanner 2.7.0 reported for the advisory. None of the nine packages is in the Lambda artifact: on 2026-11-14 the build job's steps, run locally, made a `function.zip` of three files, `export.js`, `handler.js` and `package.json`. Inference, not measured: the worst case if a "No" above is wrong is a CI or developer tool that hangs, sends a request, or reads a file on a runner, never the export service's customers. Each section's "If this is wrong" row is inference in the same way.
 
 The 60-day expiry is the owner's decision of 2026-11-14: no reason here depends on time, only on which releases exist. Nothing watches for a newly reachable fix between renewals; the renewal's registry check is the only one. Dependabot does not read this file, and its alerts are not that check: on 2026-11-14 GitHub reported 7 moderate Dependabot alerts on `main`, not compared with these eight, and backlog item `who-gets-the-keys-0v4` is open to explain the difference.
 
@@ -77,6 +77,19 @@ Each probe loads into the tool's own processes while one of our checks runs, and
 | zod settings probe | the B9 replay's settings, built with the `jq` of `.github/workflows/scenarios.yml` from `.github/egress/allowlist.json` | 3 array elements in all, valid, 0 issues |
 
 `grep -rl optimizationLevel` over every `.js`, `.cjs` and `.mjs` file in `node_modules`, outside minimatch itself, found no file: no installed package sets the option.
+
+## Changes on 2026-11-20
+
+Environment: `main` at `36730f2`, OSV-Scanner 2.7.0, semgrep 1.181.0 with mcp 1.29.0 on Python 3.13, in a cloud session.
+
+| Check | Result |
+|---|---|
+| `node scripts/checks.ts sca` with `main`'s exceptions | `CHECK sca FAILED: GHSA-qx49-fqc8-xw99`, as in the candidate run 44804762012. OSV-Scanner also reported `GHSA-fc5q-39xc-vjpf` as an unused ignore |
+| `osv-scanner scan source --format json -L scripts/ci/requirements.txt` | mcp: GHSA-5h93-6whr-6q8j, GHSA-84m7-p3x7-pcfv, GHSA-qx49-fqc8-xw99, GHSA-rwrf-2pqf-9j8j and GHSA-w4fh-qvv9-3v23. Only GHSA-qx49-fqc8-xw99 is new; its `max_severity` is 7.5 |
+| https://pypi.org/pypi/semgrep/json and `.../semgrep/<version>/json`, read 2026-11-20 | Latest 1.186.0, uploaded 2026-11-18. 1.184.0, 1.185.0 and 1.186.0 each require `mcp==1.29.0`. mcp's latest is 2.3.0 |
+| The Python import and call probe, with the sast command | 2 processes. One mcp function ran, during import: `mcp/server/fastmcp/utilities/logging.py:get_logger`. No mcp function ran after import, and no function under `mcp/client/` ran at all |
+| https://api.osv.dev/v1/vulns/GHSA-fc5q-39xc-vjpf, read 2026-11-20 | "Withdrawn Advisory": GitHub withdrew it on 2026-11-18 at 15:38 UTC. Its exception, listed on 2026-11-17 by the owner's hand-signed `348e91c`, is removed with its section. `docs/notes/sca-fc5q.md` keeps its history, and the picomatch probe stays below |
+| `node scripts/checks.ts sca` with this file's `specs/sca-exceptions.toml` | Passes, with no unused ignore |
 
 ## GHSA-mrhx-c7xc-m3w5: zod 3.25.76
 
@@ -150,6 +163,18 @@ Each probe loads into the tool's own processes while one of our checks runs, and
 | Ends when | As GHSA-84m7-p3x7-pcfv |
 | Log | 2026-10-31: first listed, until 2026-11-30 (`d6f9b92`). 2026-11-08: re-checked and renewed to 2026-12-08 (`46e94ac`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
 
+## GHSA-qx49-fqc8-xw99: mcp 1.29.0
+
+| | |
+|---|---|
+| What | mcp 1.29.0 in `scripts/ci/requirements.txt`. "OAuth client could send credentials to an authorization server chosen by the MCP server" (OSV's summary). Affects 1.9.1 up to 1.30.0, and 2.0.0a1 up to 2.2.0. CVSS 7.5, confidentiality only |
+| Needs | An MCP client that uses the SDK's OAuth support, `mcp/client/auth`, to connect to a server it does not control |
+| Why not fixed | As GHSA-84m7-p3x7-pcfv. On 2026-11-20, semgrep 1.186.0, uploaded 2026-11-18 and the latest on PyPI, still requires exactly `mcp==1.29.0`, as 1.184.0 and 1.185.0 do |
+| Why not reached | `semgrep scan` opens no MCP session and runs no OAuth flow. The Python probe, re-run on 2026-11-20, found no mcp client function run, during import or after it |
+| If this is wrong | An OAuth credential could reach another authorization server. The checks job holds none to send: it has only `contents: read`, persists no Git credentials and references no secret (`.github/workflows/pipeline.yml`) |
+| Ends when | As GHSA-84m7-p3x7-pcfv |
+| Log | 2026-11-19: OSV published it at 22:45 UTC (https://api.osv.dev/v1/vulns/GHSA-qx49-fqc8-xw99). 2026-11-20: the candidate run 44804762012 of `b0fab2e`, a docs change, failed sca at 19:44 UTC. First listed, until 2027-01-13, with the others |
+
 ## GHSA-xcq7-p3pf-p88h: opentelemetry-api 1.37.0
 
 | | |
@@ -173,18 +198,6 @@ Each probe loads into the tool's own processes while one of our checks runs, and
 | If this is wrong | As GHSA-xcq7-p3pf-p88h |
 | Ends when | A semgrep release allows opentelemetry 1.45.2 or later |
 | Log | 2026-11-13: GitHub published it at 16:43 UTC and OSV had it by 17:00, after the candidate run of `79f0f06` passed sca at about 16:53. It failed `main`'s sca at 19:10. Listed by the owner's hand-signed `a6de08a` until 2026-12-08 (`docs/notes/sca-mf5v.md`). 2026-11-14: re-checked as above; renewed to 2027-01-13 |
-
-## GHSA-fc5q-39xc-vjpf: picomatch 4.0.7
-
-| | |
-|---|---|
-| What | picomatch 4.0.7 in `package-lock.json`, a dev dependency of `vitest`, `vite`, `tinyglobby` and `fdir`. "picomatch vulnerable to ReDoS through single-branch repeated extglobs": `analyzeRepeatedExtglob` in `lib/parse.js` skips globs such as `+(*)` or `+(*a)`, which then backtrack exponentially against short crafted strings and block the event loop. OSV lists every release through 4.0.7 as affected (`last_affected`) |
-| Needs | An attacker who chooses a glob that picomatch compiles |
-| Why not fixed | 4.0.7, published 2026-08-24, is npm's `latest` on 2026-11-17 (https://registry.npmjs.org/picomatch). No fixed release exists, so `land.sh --lockfile picomatch` has nothing to update to |
-| Why not reached | No production code uses picomatch: the root `package.json` has no `dependencies`, and the Lambda artifact holds only the compiled `src/*.js` and a one-line `package.json`. In CI it runs inside vitest, for the test and mutation checks, on globs from `vitest.config.ts`, `vitest.stryker.config.ts` and vite's defaults, matched against the repository's own file paths. A full test run on 2026-11-17, `main` at `a75aca8`, with the probe below, recorded every glob picomatch compiled: 11, from `test/**/*.test.ts` and `**/node_modules/**` to vite's deny list, such as `**/.env.*`. None held a repeated extglob, `+(` or `*(`, and no configuration file in the repository holds one |
-| If this is wrong | A slow glob would stall a test or mutation run on a CI runner, which times out and fails closed |
-| Ends when | picomatch publishes a release after 4.0.7 that fixes the flaw, or vitest, vite, tinyglobby and fdir stop requiring it |
-| Log | 2026-11-17: OSV last modified the record at 16:00:03 UTC (https://api.osv.dev/v1/vulns/GHSA-fc5q-39xc-vjpf; published 2026-10-19). The candidate run 44122897590 of the owner-signed q7m batch failed sca at 16:12. First listed, until 2027-01-13, with the other eight |
 
 ## Probe code
 
@@ -321,6 +334,8 @@ grep -h -oE 'FIRSTPHASE|level=[^ ]+' "$PROBES/lint.log" "$PROBES/mutation.log" |
 ```
 
 ### picomatch glob probe: `picomatch-probe.cjs`
+
+Used for GHSA-fc5q-39xc-vjpf, whose exception was removed on 2026-11-20 after GitHub withdrew the advisory.
 
 Run the test check's suite with `NODE_OPTIONS="--require <path>/picomatch-probe.cjs"` and `PICOMATCH_LOG=<file>`. Every Node.js process vitest starts inherits `NODE_OPTIONS`, so the probe wraps picomatch wherever it loads, and appends each glob it compiles to the log once.
 

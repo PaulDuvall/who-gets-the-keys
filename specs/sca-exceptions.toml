@@ -92,12 +92,12 @@ Expires: 2027-01-13, 60 days after the 2026-11-14 re-check, as the owner chose o
 """
 
 [[IgnoredVulns]]
-id = "GHSA-fc5q-39xc-vjpf"
+id = "GHSA-qx49-fqc8-xw99"
 ignoreUntil = 2027-01-13T00:00:00Z
 reason = """
-What: picomatch 4.0.7 in package-lock.json. A glob with a single-branch repeated extglob, such as +(*) or +(*a), backtracks exponentially against a short crafted string and blocks the event loop. OSV lists every release through 4.0.7.
-Why not fixed: 4.0.7, published 2026-08-24, is the latest picomatch on npm on 2026-11-17, so no release has the fix. vitest, vite, tinyglobby and fdir require it.
-Why not reached: the flaw needs an attacker-chosen glob. Only the dev tools behind the test and mutation checks compile globs, from the repository's own configuration and vite's defaults. In a full test run on 2026-11-17, picomatch compiled 11 globs and none held a repeated extglob.
-Evidence: specs/sca-exceptions.md, section GHSA-fc5q-39xc-vjpf. Dev tools only; not in the Lambda artifact, which holds only the compiled src/*.js and a one-line package.json.
-Expires: 2027-01-13, with the other exceptions, so one renewal re-checks all nine.
+What: mcp 1.29.0 in scripts/ci/requirements.txt. The SDK's OAuth client can send credentials to an authorization server that the MCP server names. Fixed in mcp 1.30.0.
+Why not fixed: semgrep, which the sast check runs, requires exactly mcp==1.29.0 from 1.181.0, our pin, through 1.186.0, the latest on PyPI on 2026-11-20.
+Why not reached: the flaw needs an MCP client running an OAuth flow against a server. The sast check runs semgrep scan, which opens no MCP session. In a full sast run on 2026-11-20, no mcp function ran after import, and none of mcp's client code ran at all.
+Evidence: specs/sca-exceptions.md, section GHSA-qx49-fqc8-xw99. CI toolchain only; not in the Lambda artifact.
+Expires: 2027-01-13, with the other exceptions, so one renewal re-checks them all.
 """
