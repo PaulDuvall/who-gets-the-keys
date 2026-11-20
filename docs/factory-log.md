@@ -19,6 +19,7 @@ The count starts on 2026-11-16, the day decision 0010 started this log. Rows dat
 | 2026-11-16 | `1b89747` | Approver signature | Batch `approval-policy`: `CLAUDE.md`'s section "Questions and approvals" | Approved, with no change asked | Nothing recorded |
 | 2026-11-17 | `24f44d0` | Approver signature | Batch `q7m`: SPEC-001-R237 and R238, the triage workflow, its test file, traceability, the slide reconciliation row and the progress files | Approved, with no change asked | Nothing recorded. Its first candidate run failed on a new advisory, GHSA-fc5q-39xc-vjpf, which the batch did not touch |
 | 2026-11-17 | `348e91c` | Approver signature, on a commit made by hand | The SCA exception for GHSA-fc5q-39xc-vjpf, on top of `24f44d0` | Approved | Nothing recorded. No cue to touch the key was printed: backlog `who-gets-the-keys-j5j` |
+| 2026-11-20 | `e27db6d` | Approver signature, on a commit made by hand | The SCA exception for GHSA-qx49-fqc8-xw99, and removal of the withdrawn GHSA-fc5q-39xc-vjpf's exception | Approved | Nothing recorded. The command printed the touch cue before git signed, as `docs/notes/sca-fc5q.md` asked; the owner asked the same day to stop running the rest on the laptop: backlog `who-gets-the-keys-r8s` |
 
 ## Rejections after the checks passed
 
