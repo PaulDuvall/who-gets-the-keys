@@ -1,0 +1,10 @@
+# Owner decision of 2026-11-20: the owner's only landing step is the touch that signs. The agent pushes to main
+# itself each commit whose candidate run passed and that needs no signature or already carries the owner's, after
+# checking that no main deploy waits for approval, then deletes the candidate branch and reports main's run. An
+# unattended run still stops before main. docs/factory-map.md's list of where the picture is not literal says who
+# now pushes to main. Nothing deployable changes, so main's sandbox deploy is skipped (SPEC-001-R232).
+# Batch notes: docs/notes/agent-lands-main.md.
+message: docs: the agent pushes passing commits to main; the owner only signs (owner, 2026-11-20)
+spec: SPEC-001-R41
+move: CLAUDE.proposed.md CLAUDE.md
+move: docs/factory-map.md docs/factory-map.md
