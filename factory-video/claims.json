@@ -25,7 +25,7 @@
     },
     {
       "id": "C03",
-      "claim": "The agent drafts code and tests and holds no keys: it cannot commit, push to main, tag or sign",
+      "claim": "The runner producer's agent drafts code and tests and holds no keys: it cannot commit, push to main, tag or sign",
       "labels": ["AGENT SANDBOX", "The agent drafts code and tests.", "It holds no deploy key."],
       "built": ["SPEC-001-R12", "SPEC-001-R85", "SPEC-001-R88", "SPEC-001-R89", "SPEC-001-R208"]
     },

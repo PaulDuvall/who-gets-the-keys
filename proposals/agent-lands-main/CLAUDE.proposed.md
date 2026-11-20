@@ -42,7 +42,12 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 - Never amend a commit already pushed to a candidate branch. If its checks fail, fix it in a new commit on top and push to the same branch, because force pushes are denied.
 - Push to `main` the exact commit the checks passed on, by its SHA, not a later `HEAD`: `git push origin <SHA>:refs/heads/main`.
 - After `main` accepts the commit, delete the candidate branch: `git push origin --delete candidate/<topic>`.
-- The agent pushes to `main` itself, without asking, each commit whose candidate run has passed and that either needs no approver signature or already carries the owner's: the exact SHA, as a fast-forward, after checking with the Actions API that no `main` deploy waits for approval. It then deletes the candidate branch and reports main's run. The owner's only landing step is the touch that signs (owner decision of 2026-11-20). An unattended run still stops before `main`.
+- Until backlog `who-gets-the-keys-s3p` lands, the agent moves `main` itself, without asking, for the commits it made in the session and for an approver-signed commit the owner asks it to finish (owner decision of 2026-11-20). It never does so for a producer delivery (`candidate/TASK-*`), for another session's branch, or for a range with an `Owner-Apply:` trailer, which `land.sh --to-main` lands so that its warning prints (SPEC-001-R221). Before it pushes, it checks that:
+  - the `pipeline.yml` push run for that exact SHA on its candidate branch concluded success;
+  - `main`'s own signatures check passes at that SHA: `origin/main`'s `scripts/checks.ts`, saved outside the checkout and run as `node <copy> signatures` in a scratch worktree at the SHA. Then every commit in `origin/main..<SHA>` that needs a signature carries an approver's;
+  - no `main` deploy waits for approval, and no `pipeline.yml` run is in progress on `main` or on a `candidate/land-*`, `candidate/lockfile-*` or `candidate/*-owner` branch, where the owner's `land.sh` may be landing.
+
+  It then pushes the exact SHA as a fast-forward. It deletes the candidate branch while the branch still holds that SHA, or names it for the owner where the session cannot delete branches. It reports main's run, and when main's deploy waits, the report's first line is that run's URL, to approve or reject. The owner signs, through `land.sh`, and approves any `sandbox` deploy that waits; the agent does the rest.
 - Pull requests are for review only and are never merged in GitHub. Every change lands by the fast-forward push above, because squash and rebase merges write commits the checks never ran on.
 - Agent commits are unsigned: `git -c commit.gpgsign=false commit`.
 - Every commit touching `src/` or `test/` carries `Spec: <requirement ID>`.
@@ -93,7 +98,7 @@ Purpose: Companion repo to the talk “Who Gets the Keys?”: an AI agent writes
 - The recommendation for other repositories starts strict: two approvers for policy, the pipeline and its check code, and irreversible changes, one for specs and product changes, and none for docs. Approvals are then removed only as evidence shows they catch nothing the checks miss.
 - This repository asks for an approver signature only on `specs/`, `approvers.txt`, the paths in `specs/protected-paths.txt` and irreversible changes (SPEC-001-R12, R18). A backlog change needs one only when its work changes one of those files. Everything else lands on the checks, and, once backlog `who-gets-the-keys-x2r` lands, must align with a signed task unless it touches only `docs/`, `proposals/` and `.tasks/`. The `sandbox` reviewer stays until backlog items s3p, x2r and g4e have landed, in that order.
 - Wherever the repository describes approvals, give the recommendation first, then what this repository does.
-- Add a row to `docs/factory-log.md` for each approval, each rejection of a change whose checks passed, and each escaped defect, from the `land.sh` summary the owner pastes.
+- Add a row to `docs/factory-log.md` for each approval, each rejection of a change whose checks passed, and each escaped defect, from the `land.sh` summary the owner pastes, or, after the agent's own push to `main`, from the Actions API.
 - A class of change may drop one tier after 60 approvals in a row with no rejection, and moves up one tier after an escaped defect. Stage either change as a batch for the owner to sign. Where a defect escapes a class that already needs a signature, add a check instead.
 
 ## Unattended runs
@@ -104,7 +109,7 @@ When the owner is away and has said so:
 - Push every commit as one linear chain on top of `main` to `candidate/auto-<YYYY-MM-DD>`, adding commits on top and never rewriting it. After each push, read that candidate run's result. If it fails, reproduce the failure locally and fix it in a new commit.
 - Keep a running log in `docs/notes/autonomous-run-<YYYY-MM-DD>.md`, committed on the chain as you go: what was done, commit SHAs, check results, deferred decisions and the owner queue.
 - Stop when every item is staged or blocked, after 6 hours, when a check still fails after two fixes of the same change, or when the next action needs the owner: signing, any push to `main`, any AWS action, a secret, a repository or account setting, or dispatching the producer. Never delete a branch.
-- End with a hand-off: what is staged per batch, with its preflight, review and candidate run; the owner queue in the only order that works, each step as "Owner steps" says, and whether it ends at a deploy approval; questions with recommendations; and what was not done, and why.
+- End with a hand-off: what is staged per batch, with its preflight, review and candidate run; the owner queue in the only order that works, each step as "Owner steps" says, and whether it ends at a deploy approval; questions with recommendations; and what was not done, and why. A push to `main` that "Conventions" lets the agent make goes to the next attended session, not into the owner's queue.
 - GitHub web pages return 403 to scripted fetches from cloud sessions. Check that a repository exists with `gh api -X GET search/repositories -f q='repo:<owner>/<name>'`, and use the session's GitHub connector for everything else.
 
 ## Authority boundaries
